@@ -1,9 +1,9 @@
-/* ─── Brand mark: leaping dolphin silhouette ───
-   Stylised stand-in until the user provides the official Hollywoodbets Dolphins logo. */
-function DolphinMark() {
+/* ─── Brand mark: leaping lion silhouette ───
+   Stylised stand-in until the user provides the official DP World Lions logo. */
+function LionMark() {
   return (
-    <svg viewBox="0 0 64 64" fill="currentColor" aria-label="Dolphins emblem">
-      {/* Body: arched leaping dolphin with curled tail */}
+    <svg viewBox="0 0 64 64" fill="currentColor" aria-label="Lions emblem">
+      {/* Body: arched leaping lion with curled tail */}
       <path d="M5 44
         C 5 26, 22 12, 40 14
         C 48 14.8, 55 16, 60 13
@@ -38,12 +38,12 @@ function ProfileSelect({ onSelect, clubs }) {
         <div className="ps-eyebrow">KZNCU &amp; EMCU · 2026 / 27 Season</div>
         <h1 className="ps-title">Welcome — <em>choose your profile</em></h1>
         <p className="ps-desc">
-          Sign in as a Dolphins administrator to manage all affiliated clubs, or as a club delegate to complete your affiliation, compliance and CQI submissions.
+          Sign in as a Lions administrator to manage all affiliated clubs, or as a club delegate to complete your affiliation, compliance and CQI submissions.
         </p>
       </div>
 
       <div className="ps-cards">
-        {/* DOLPHINS ADMIN */}
+        {/* LIONS ADMIN */}
         <button className="ps-card gold" onClick={() => onSelect("admin")}>
           <div className="ps-card-icon">
             <svg viewBox="0 0 28 28" fill="none">
@@ -54,7 +54,7 @@ function ProfileSelect({ onSelect, clubs }) {
           </div>
           <div>
             <div className="ps-card-role">Administrator</div>
-            <div className="ps-card-title">Dolphins office</div>
+            <div className="ps-card-title">Lions office</div>
           </div>
           <p className="ps-card-desc">
             Track the cohort, monitor affiliation payments, review compliance documents and CQI submissions across every KZNCU &amp; EMCU club.
@@ -328,7 +328,7 @@ function Shell({ initialProfile, onSwitchProfile }) {
 
         {/* Role switch */}
         <div className="role-switch" title="Switch perspective">
-          <button className={`role-btn ${role==="admin"?"active":""}`} onClick={()=>changeRole("admin")}>Admin · Dolphins</button>
+          <button className={`role-btn ${role==="admin"?"active":""}`} onClick={()=>changeRole("admin")}>Admin · Lions</button>
           <button className={`role-btn club ${role==="club"?"active":""}`} onClick={()=>changeRole("club")}>Club</button>
         </div>
 
@@ -356,7 +356,7 @@ function Shell({ initialProfile, onSwitchProfile }) {
           </div>
           <div>
             <div className="h-user-name">{role === "admin" ? "Niall Naidoo" : activeClub.chair}</div>
-            <div className="h-user-role">{role === "admin" ? "Dolphins · Admin" : activeClub.name + " · Chair"}</div>
+            <div className="h-user-role">{role === "admin" ? "Lions · Admin" : activeClub.name + " · Chair"}</div>
           </div>
         </div>
       </header>
@@ -391,7 +391,7 @@ function Shell({ initialProfile, onSwitchProfile }) {
           )}
 
           <div className="nav-footer">
-            <strong>Dolphins</strong> · Smart Club Integration<br/>
+            <strong>Lions</strong> · Smart Club Integration<br/>
             v 0.9.0 · KZNCU &amp; EMCU · 2026/27<br/>
             <span style={{color:"var(--muted-3)"}}>Powered by Medicoach</span>
           </div>
@@ -487,7 +487,7 @@ function AdminFiltered({ clubs, kind, gotoClub }) {
     <div>
       <div className="page-head">
         <div className="ph-left">
-          <div className="ph-crumb">Dolphins · Admin Console / {titles.crumb}</div>
+          <div className="ph-crumb">Lions · Admin Console / {titles.crumb}</div>
           <h1 className="ph-title">{titles.t}</h1>
           <p className="ph-desc">{titles.desc}</p>
         </div>
@@ -632,7 +632,7 @@ function FixtureEngineEmbed({ role, club }) {
         <div>
           <div className="crumb">
             {role==="admin"
-              ? "Dolphins · Admin Console / Fixtures & Venues"
+              ? "Lions · Admin Console / Fixtures & Venues"
               : `Club Portal · ${club.name} / Fixtures`}
           </div>
           <div className="title">

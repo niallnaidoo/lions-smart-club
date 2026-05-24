@@ -30,7 +30,7 @@ const REQUIRED_DOCS = [
   { key: "exco",         name: "Exco Reps Listed",  desc: "Full list of executive committee representatives with contact details" },
 ];
 
-// Sample clubs — names drawn from the actual Dolphins CQI list
+// Sample clubs — names drawn from the actual Lions CQI list
 // Each carries denormalised submission state so the admin views can score them.
 const SAMPLE_CLUBS = [
   {

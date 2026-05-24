@@ -43,7 +43,7 @@ function AdminFixtures({ clubs, allSeries, onCreateSeries, onUpdateSeries, onDel
     <div>
       <div className="page-head">
         <div className="ph-left">
-          <div className="ph-crumb">Dolphins · Admin Console / Fixtures &amp; Venues</div>
+          <div className="ph-crumb">Lions · Admin Console / Fixtures &amp; Venues</div>
           <h1 className="ph-title">Fixtures &amp; <em>Venues</em></h1>
           <p className="ph-desc">Auto-generated round-robin schedules across each KZNCU &amp; EMCU series. Home venues flow from the affiliation form. Travel distance and fuel cost are calculated for every away fixture.</p>
         </div>
@@ -255,7 +255,7 @@ function FixtureTable({ series, clubs, onUpdateSeries, onDeleteSeries, onDuplica
           <Btn tone="outline" size="sm" onClick={()=>{ onDuplicateSeries(series.id); toast?.("Series duplicated"); }}>Duplicate</Btn>
           <Btn tone="ghost" size="sm" onClick={()=>setConfirm({
             title: "Delete this series?",
-            body: `Permanently remove "${series.name}" along with all ${series.fixtures.length} fixtures. The Dolphins office cannot undo this.`,
+            body: `Permanently remove "${series.name}" along with all ${series.fixtures.length} fixtures. The Lions office cannot undo this.`,
             onYes: () => { onDeleteSeries(series.id); setConfirm(null); toast?.("Series deleted"); },
             danger: true,
           })}>Delete series</Btn>
@@ -371,7 +371,7 @@ function FixtureTable({ series, clubs, onUpdateSeries, onDeleteSeries, onDuplica
           ) : (
             <>
               <div className="fix-release-eyebrow">Draft mode</div>
-              <div className="fix-release-text-title">Visible only to the Dolphins office</div>
+              <div className="fix-release-text-title">Visible only to the Lions office</div>
               <div className="fix-release-text-sub">
                 Once released, every fixture goes live in every club portal, the Athlete Management System is notified, and email/SMS reminders go out to chairs &amp; captains.
               </div>
@@ -736,7 +736,7 @@ function AdminDashboard({ clubs, gotoClub, gotoList }) {
       {/* Aspirational hero banner */}
       <div className="hero-banner" style={{backgroundImage:"url('players/lions-hero.jpg?v=1')", height:170}}>
         <div className="hero-content">
-          <div className="hero-eyebrow">Hollywoodbets Dolphins · KZNCU &amp; EMCU</div>
+          <div className="hero-eyebrow">DP World Lions · KZNCU &amp; EMCU</div>
           <h2 className="hero-title">Building the next <em>generation</em>.</h2>
           <p className="hero-sub">Every club below is a feeder for our provincial squad. Track readiness, lift standards, identify talent.</p>
         </div>
@@ -745,7 +745,7 @@ function AdminDashboard({ clubs, gotoClub, gotoList }) {
 
       <div className="page-head">
         <div className="ph-left">
-          <div className="ph-crumb">Dolphins · Admin Console</div>
+          <div className="ph-crumb">Lions · Admin Console</div>
           <h1 className="ph-title">Club Integration <em>Cohort</em></h1>
           <p className="ph-desc">86 affiliated clubs across KZNCU &amp; EMCU. Track affiliation, document compliance, CQI scoring and franchise readiness for the 2026/27 season.</p>
         </div>
@@ -991,7 +991,7 @@ function AdminClubsList({ clubs, gotoClub }) {
     <div>
       <div className="page-head">
         <div className="ph-left">
-          <div className="ph-crumb">Dolphins · Admin Console / Clubs</div>
+          <div className="ph-crumb">Lions · Admin Console / Clubs</div>
           <h1 className="ph-title">Club <em>directory</em></h1>
           <p className="ph-desc">Filter, sort and drill into each affiliated club's submission status across all five phases of the smart integration programme.</p>
         </div>

@@ -74,13 +74,13 @@ function StepWelcome({ club }) {
     <div className="ob-hero">
       <div className="ob-hero-photo" style={{backgroundImage:"url('players/lions-hero.jpg?v=1')"}}>
         <div className="ob-hero-overlay">
-          <div className="ob-hero-badge"><span className="dot"/>Hollywoodbets Dolphins · 2026/27</div>
+          <div className="ob-hero-badge"><span className="dot"/>DP World Lions · 2026/27</div>
           <div className="ob-hero-credit"><strong>Marques Ackerman</strong> · 92 (74)</div>
         </div>
       </div>
       <div className="ob-hero-content">
         <div className="ob-eyebrow">Welcome aboard</div>
-        <h2 className="ob-title">Hello {club.chair.split(" ")[0]},<br/><em>welcome to the Dolphins family.</em></h2>
+        <h2 className="ob-title">Hello {club.chair.split(" ")[0]},<br/><em>welcome to the Lions family.</em></h2>
         <p className="ob-desc">
           You're now the chair of <strong>{club.name}</strong> on the Smart Club platform — the digital home for every cricket club in the KZNCU &amp; EMCU leagues.
         </p>

@@ -99,8 +99,8 @@ function ClubHome({ club, goto, toast, replayOnboarding }) {
       {/* Aspirational hero banner */}
       <div className="hero-banner" style={{backgroundImage:"url('players/lions-hero.jpg?v=1')"}}>
         <div className="hero-content">
-          <div className="hero-eyebrow">Hollywoodbets Dolphins · 2026/27 Season</div>
-          <h2 className="hero-title">From your club to the <em>Dolphins</em>.</h2>
+          <div className="hero-eyebrow">DP World Lions · 2026/27 Season</div>
+          <h2 className="hero-title">From your club to the <em>Lions</em>.</h2>
           <p className="hero-sub">Affiliate, register and integrate — be part of the same ecosystem that powers our provincial heroes.</p>
         </div>
         <div className="hero-attrib"><strong>DP World Lions</strong> · Senior squad</div>
@@ -196,7 +196,7 @@ function ClubHome({ club, goto, toast, replayOnboarding }) {
             )}
             {club.paid && dc === 100 && club.cqi > 0 && (
               <div style={{textAlign:"center", padding:"24px 0", color:"var(--muted)"}}>
-                Everything submitted. Your club has been forwarded to the Dolphins administrators for review.
+                Everything submitted. Your club has been forwarded to the Lions administrators for review.
               </div>
             )}
           </div>
@@ -342,7 +342,7 @@ function AffiliationForm({ club, goto, toast, onSubmit }) {
           <div className="aff-submitted-icon"><Icon.Check/></div>
           <div className="aff-submitted-text">
             <div className="aff-submitted-title">Affiliation submitted &amp; paid</div>
-            <div className="aff-submitted-sub">R 4,500 received · Confirmed by Dolphins office · This form is locked, contact the Union office to request an amendment.</div>
+            <div className="aff-submitted-sub">R 4,500 received · Confirmed by Lions office · This form is locked, contact the Union office to request an amendment.</div>
           </div>
           <Pill tone="teal" dot>Completed</Pill>
         </div>
@@ -768,7 +768,7 @@ function AffiliationForm({ club, goto, toast, onSubmit }) {
               <div>
                 <div className="aff-hero-title">Your club, <em>on the same platform</em> as our heroes.</div>
                 <div className="aff-hero-sub">
-                  Affiliated clubs join the Hollywoodbets Dolphins ecosystem — fixtures, talent ID, clinical data and franchise readiness, all in one place.
+                  Affiliated clubs join the DP World Lions ecosystem — fixtures, talent ID, clinical data and franchise readiness, all in one place.
                 </div>
                 <div className="aff-hero-credit"><strong>DP World Lions</strong> · Senior squad</div>
               </div>
@@ -817,7 +817,7 @@ function AffiliationForm({ club, goto, toast, onSubmit }) {
               <div className="aff-summary-value">R 4,500</div>
             </div>
             <div className="aff-summary-foot">
-              Submitting to the <strong>Dolphins office</strong> · KZNCU &amp; EMCU
+              Submitting to the <strong>Lions office</strong> · KZNCU &amp; EMCU
             </div>
           </div>
         </aside>
@@ -1172,7 +1172,7 @@ function CQIView({ club, goto, toast, onSubmit }) {
         <div className="ph-left">
           <div className="ph-crumb"><a onClick={()=>goto("home")}>Home</a> &nbsp;/&nbsp; CQI Self-Assessment</div>
           <h1 className="ph-title">Club Quality <em>Index</em> · 2026/27</h1>
-          <p className="ph-desc">Score your club across six dimensions of capability. Your responses are scored in real time using the official Dolphins CQI weighting model — administration 20%, teams 20%, coaching 20%, facilities 15%, representation 10%, financial sustainability 15%.</p>
+          <p className="ph-desc">Score your club across six dimensions of capability. Your responses are scored in real time using the official Lions CQI weighting model — administration 20%, teams 20%, coaching 20%, facilities 15%, representation 10%, financial sustainability 15%.</p>
         </div>
         <div className="ph-actions">
           <Btn tone="outline" size="sm" icon={Icon.Download}>Export CQI as PDF</Btn>
@@ -1260,8 +1260,8 @@ function CQIView({ club, goto, toast, onSubmit }) {
             <div style={{fontFamily:"'Montserrat',sans-serif", fontSize:15, fontWeight:700}}>{submitted ? "Submitted on 16 May 2026" : "Ready to submit?"}</div>
             <div style={{fontSize:12, color:"var(--muted)", marginTop:4}}>
               {submitted
-                ? "Your score has been forwarded to the Dolphins Admin office. You can re-submit any time before 22 June 2026."
-                : "Your CQI will be visible to the Dolphins administrators alongside your affiliation and compliance documents."}
+                ? "Your score has been forwarded to the Lions Admin office. You can re-submit any time before 22 June 2026."
+                : "Your CQI will be visible to the Lions administrators alongside your affiliation and compliance documents."}
             </div>
           </div>
           <div className="row" style={{gap:8}}>
@@ -1278,7 +1278,7 @@ function CQIView({ club, goto, toast, onSubmit }) {
 function ClubFixturesView({ club, allSeries, clubs, toast }) {
   const clubBy = (id) => clubs.find(c => c.id === id);
 
-  // Only series this club is in AND that have been released by the Dolphins office
+  // Only series this club is in AND that have been released by the Lions office
   const myReleased = (allSeries || []).filter(s => s.released && s.teams.includes(club.id));
 
   // No releases yet — elegant placeholder
@@ -1289,7 +1289,7 @@ function ClubFixturesView({ club, allSeries, clubs, toast }) {
           <div className="ph-left">
             <div className="ph-crumb">Club Portal · {club.name} / Fixtures</div>
             <h1 className="ph-title">Your <em>Fixtures</em></h1>
-            <p className="ph-desc">Your league schedule lands here the moment the Dolphins office releases it.</p>
+            <p className="ph-desc">Your league schedule lands here the moment the Lions office releases it.</p>
           </div>
         </div>
         <div className="club-fix-empty">
@@ -1299,7 +1299,7 @@ function ClubFixturesView({ club, allSeries, clubs, toast }) {
               <path d="M3 9h18M8 3v4M16 3v4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
             </svg>
           </div>
-          <div className="club-fix-empty-title">Awaiting release from the Dolphins office</div>
+          <div className="club-fix-empty-title">Awaiting release from the Lions office</div>
           <div className="club-fix-empty-sub">
             Once the union office signs off on the 2026/27 fixture list, every match you're playing — round, date, opponent, venue and travel costs — will populate here automatically. You'll also receive an email &amp; SMS the moment it goes live.
           </div>
@@ -1347,7 +1347,7 @@ function ClubFixturesView({ club, allSeries, clubs, toast }) {
           <div className="ph-crumb">Club Portal · {club.name} / Fixtures</div>
           <h1 className="ph-title">Your <em>Fixtures</em></h1>
           <p className="ph-desc">
-            {myReleased.length} {myReleased.length===1?"series":"series"} released by the Dolphins office. {totalMatches} matches across the 2026/27 season — {homeMatches} at home, {awayMatches} on the road.
+            {myReleased.length} {myReleased.length===1?"series":"series"} released by the Lions office. {totalMatches} matches across the 2026/27 season — {homeMatches} at home, {awayMatches} on the road.
           </p>
         </div>
         <div className="ph-actions">
@@ -1494,7 +1494,7 @@ function ClubFixturesView({ club, allSeries, clubs, toast }) {
 
       {/* Footnote */}
       <div className="club-fix-foot">
-        Travel cost is estimated at R {myReleased[0]?.costPerKm||4.5}/km × {myReleased[0]?.carsPerAwayTrip||3} cars per away trip — published with the fixture release. Adjustments to schedule require a Dolphins office sign-off.
+        Travel cost is estimated at R {myReleased[0]?.costPerKm||4.5}/km × {myReleased[0]?.carsPerAwayTrip||3} cars per away trip — published with the fixture release. Adjustments to schedule require a Lions office sign-off.
       </div>
     </div>
   );

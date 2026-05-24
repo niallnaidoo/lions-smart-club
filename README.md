@@ -8,7 +8,7 @@ the Club Quality Index (CQI), fixture automation, and travel-cost modelling.
 > in-memory React state and resets on page refresh.
 
 Sibling project: [`dolphins-smart-club`](https://github.com/niallnaidoo/dolphins-smart-club)
-— same engine, Dolphins branding.
+— same engine, Hollywoodbets Dolphins branding.
 
 ---
 
@@ -59,6 +59,6 @@ python3 -m http.server 3201 --bind 0.0.0.0
 DP World Lions yellow + navy, with the team emblem. Hero photography from the
 2026/27 DP World Lions squad. Montserrat (300–900) throughout.
 
-> **Note:** The seed data and copy still reference the Dolphins/KZNCU prototype
-> structure — this branch ships the Lions visual identity first; copy and
-> regional data updates land in a follow-up.
+> **Note:** Seed data (sample clubs, sub-unions) still references the
+> KZNCU/EMCU regional structure from the Dolphins prototype. Replacing
+> with CGW / Easterns / Northerns clubs lands in a follow-up.
