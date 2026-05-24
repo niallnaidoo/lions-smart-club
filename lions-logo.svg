@@ -1,0 +1,32 @@
+<!-- TEMPORARY PLACEHOLDER — replace lions-logo.png with the official Lions emblem when ready -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" width="200" height="240">
+  <!-- Navy circle background -->
+  <circle cx="100" cy="100" r="92" fill="#13294B"/>
+  <!-- Stylised lion head silhouette in gold -->
+  <g fill="#F2A900">
+    <!-- Mane rays -->
+    <path d="M28 100 L 12 92 L 14 108 L 30 110 Z"/>
+    <path d="M30 80 L 8 70 L 14 82 L 32 92 Z"/>
+    <path d="M32 70 L 14 52 L 22 68 L 38 80 Z"/>
+    <path d="M40 58 L 30 38 L 36 56 L 50 68 Z"/>
+    <path d="M50 50 L 46 28 L 54 50 L 64 60 Z"/>
+    <path d="M28 120 L 10 124 L 18 134 L 32 130 Z"/>
+    <path d="M32 138 L 16 148 L 30 150 L 40 142 Z"/>
+    <!-- Lion head -->
+    <ellipse cx="106" cy="106" rx="58" ry="56"/>
+    <!-- Snout -->
+    <ellipse cx="116" cy="130" rx="32" ry="26" fill="#F2A900"/>
+    <!-- Nose -->
+    <path d="M118 124 L 130 124 L 124 134 Z" fill="#13294B"/>
+    <!-- Mouth -->
+    <path d="M124 138 L 118 148 L 130 148 Z" fill="#13294B"/>
+    <!-- Eye (visible side) -->
+    <circle cx="128" cy="100" r="3" fill="#13294B"/>
+    <!-- Ear -->
+    <path d="M82 64 L 88 50 L 100 64 Z" fill="#F2A900"/>
+  </g>
+  <!-- LIONS wordmark -->
+  <text x="100" y="222" text-anchor="middle"
+        font-family="'Montserrat',sans-serif" font-size="38" font-weight="900"
+        letter-spacing="2" fill="#F2A900">LIONS</text>
+</svg>
