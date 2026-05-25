@@ -2,7 +2,11 @@
 .vscode/
 .idea/
 node_modules/
+dist/
 *.log
 .env
 .env.local
 .claude/
+.sst/
+sst-env.d.ts
+.playwright-mcp/

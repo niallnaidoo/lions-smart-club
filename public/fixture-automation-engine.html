@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fixture Automation Engine — Coming soon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;500;700;800&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:'Montserrat',system-ui,sans-serif;
+    background:#0A0F14;
+    color:#F8F9FA;
+    display:flex;align-items:center;justify-content:center;
+    padding:32px;
+  }
+  .card{
+    width:100%;max-width:520px;
+    background:linear-gradient(180deg,#1A1F26 0%,#0E3529 100%);
+    border:1px solid rgba(75,138,108,0.28);
+    border-radius:18px;
+    padding:48px 40px;
+    text-align:center;
+  }
+  .badge{
+    display:inline-flex;align-items:center;gap:8px;
+    background:rgba(75,138,108,0.18);
+    color:#4B8A6C;
+    font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;
+    padding:6px 12px;border-radius:999px;margin-bottom:18px;
+  }
+  .badge .dot{width:6px;height:6px;border-radius:50%;background:#4B8A6C}
+  h1{font-size:24px;font-weight:800;line-height:1.25;margin-bottom:14px;letter-spacing:-0.01em}
+  h1 em{color:#B89B4A;font-style:normal}
+  p{font-size:13.5px;line-height:1.65;color:rgba(248,249,250,0.72);max-width:380px;margin:0 auto 12px}
+  .meta{margin-top:26px;padding-top:22px;border-top:1px solid rgba(255,255,255,0.06);font-size:11px;color:rgba(248,249,250,0.45);letter-spacing:0.06em}
+  .ring{
+    width:64px;height:64px;border-radius:50%;
+    border:2px dashed rgba(75,138,108,0.5);
+    display:flex;align-items:center;justify-content:center;
+    margin:0 auto 22px;
+    color:#4B8A6C;
+  }
+</style>
+</head>
+<body>
+<main class="card">
+  <div class="badge"><span class="dot"></span>Phase 02 · Fixtures</div>
+  <div class="ring">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/>
+      <path d="M12 7v5l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </div>
+  <h1>Fixture Automation Engine<br><em>— work in progress</em></h1>
+  <p>Provincial fixture automation, venue allocation and travel-cost modelling for the KZNCU &amp; EMCU leagues lands in Phase 02.</p>
+  <p>Once your club is affiliated and the Union office releases the schedule, this module will activate with live fixtures, player registration and clinical match data — all sourced from the Medicoach platform.</p>
+  <div class="meta">DP World Lions · Smart Club Integration · 2026/27</div>
+</main>
+</body>
+</html>
