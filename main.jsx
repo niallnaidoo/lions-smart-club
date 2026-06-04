@@ -172,6 +172,9 @@ function Shell({ initialProfile, onSwitchProfile }) {
   const [showOnboarding, setShowOnboarding] = useStateApp(false);
   const [showCreateSeries, setShowCreateSeries] = useStateApp(false);
   const [allSeries, setAllSeries] = useStateApp(SERIES);
+  const [players, setPlayers] = useStateApp(SAMPLE_PLAYERS);
+  const [clearanceRequests, setClearanceRequests] = useStateApp(SAMPLE_CLEARANCE_REQUESTS);
+  const [showRegisterPlayer, setShowRegisterPlayer] = useStateApp(false);
   const [toastShow, toastNode] = useToast();
 
   const activeClub = useMemoApp(()=>clubs.find(c=>c.id === clubId), [clubs, clubId]);
@@ -252,25 +255,103 @@ function Shell({ initialProfile, onSwitchProfile }) {
       : s));
   }
 
+  // ── Player / clearance handlers ──
+  function registerPlayer(player) {
+    setPlayers(prev => [...prev, player]);
+    setShowRegisterPlayer(false);
+    toastShow(`${player.firstNames} ${player.surname} registered · ID ${player.idNumber}`);
+  }
+
+  // Source-club confirms one of the two boxes for an incoming clearance
+  function clearFees(reqId) {
+    setClearanceRequests(prev => prev.map(r => r.id === reqId ? {...r, feesCleared: !r.feesCleared} : r));
+  }
+  function clearMisconduct(reqId) {
+    setClearanceRequests(prev => prev.map(r => r.id === reqId ? {...r, misconductCleared: !r.misconductCleared} : r));
+  }
+
+  // Source club issues clearance once both boxes ticked
+  function approveClearance(reqId) {
+    const nowIso = new Date().toISOString();
+    let movedPlayerId = null, newClubId = null;
+    setClearanceRequests(prev => prev.map(r => {
+      if (r.id !== reqId) return r;
+      movedPlayerId = r.playerId;
+      newClubId     = r.toClubId;
+      return {...r, status: "approved", clubApprovedAt: nowIso, feesCleared: true, misconductCleared: true};
+    }));
+    if (movedPlayerId && newClubId) {
+      setPlayers(prev => prev.map(p => p.id === movedPlayerId ? {...p, clubId: newClubId, status: "active"} : p));
+    }
+    toastShow("Clearance issued");
+  }
+
+  // Lions admin override after 14-day window
+  function adminOverrideClearance(reqId) {
+    const nowIso = new Date().toISOString();
+    let movedPlayerId = null, newClubId = null;
+    setClearanceRequests(prev => prev.map(r => {
+      if (r.id !== reqId) return r;
+      movedPlayerId = r.playerId;
+      newClubId     = r.toClubId;
+      return {...r, status: "admin-override", adminOverrideAt: nowIso};
+    }));
+    if (movedPlayerId && newClubId) {
+      setPlayers(prev => prev.map(p => p.id === movedPlayerId ? {...p, clubId: newClubId, status: "active"} : p));
+    }
+  }
+
+  // Club requests a clearance for one of its players (stub — destination picker not yet)
+  function requestClearance(playerId, toClubId="berea") {
+    const newReq = {
+      id: "clr-" + Date.now(),
+      playerId, fromClubId: clubId, toClubId,
+      requestedAt: new Date().toISOString().slice(0,10),
+      feesCleared: false, misconductCleared: false,
+      clubApprovedAt: null, adminOverrideAt: null,
+      status: "pending",
+      note: "Player-initiated clearance request.",
+    };
+    setClearanceRequests(prev => [...prev, newReq]);
+    setPlayers(prev => prev.map(p => p.id === playerId ? {...p, status: "clearance-pending"} : p));
+    toastShow("Clearance request opened");
+  }
+
   // — NAV definition —
+  const overdueClearances = clearanceRequests.filter(r => isClearanceOverdue(r)).length;
+  const pendingClearances = clearanceRequests.filter(r => r.status === "pending").length;
+
   const adminNav = [
     { v:"dashboard",   label:"Cohort Dashboard", icon:Icon.Dashboard },
     { v:"clubs_list",  label:"All Clubs",        icon:Icon.Clubs, num: clubs.length },
     { v:"affiliations",label:"Affiliations",     icon:Icon.Form,  num: clubs.filter(c=>c.paid).length+"/"+clubs.length, dot: clubs.filter(c=>!c.paid).length ? "gold" : "teal" },
     { v:"documents",   label:"Compliance Docs",  icon:Icon.Upload, num: clubs.filter(c=>Object.values(c.docs).every(v=>v)).length+"/"+clubs.length, dot:"gold" },
     { v:"cqi_admin",   label:"CQI Submissions",  icon:Icon.Star,   num: clubs.filter(c=>c.cqi>0).length+"/"+clubs.length, dot:"gold" },
-    { v:"fixtures",   label:"Fixtures & Venues", icon:Icon.Field,  dot:"teal" },
+    { v:"fixtures",    label:"Fixtures & Venues",icon:Icon.Field,  dot:"teal" },
+    { v:"clearances",  label:"Clearances",       icon:Icon.Shield,
+      num: overdueClearances ? overdueClearances : pendingClearances,
+      dot: overdueClearances ? "coral" : pendingClearances ? "gold" : "teal" },
   ];
 
   // Has any released series that includes this club?
   const releasedForMe = allSeries.filter(s => s.released && s.teams.includes(clubId));
   const hasReleased = releasedForMe.length > 0;
 
+  // Clearance counts relevant to active club
+  const myPendingClearances = clearanceRequests.filter(r => r.fromClubId === clubId && r.status === "pending").length;
+  const myOverdueClearances = clearanceRequests.filter(r => r.fromClubId === clubId && isClearanceOverdue(r)).length;
+  const myPlayerCount = players.filter(p => p.clubId === clubId).length;
+
   const clubNav = [
     { v:"home",        label:"Home",           icon:Icon.Dashboard },
     { v:"affiliation", label:"Affiliation",    icon:Icon.Form,    dot: activeClub.paid ? "teal" : "coral" },
     { v:"documents",   label:"Documents",      icon:Icon.Upload,  dot: docCompletion(activeClub)===100 ? "teal" : "gold" },
     { v:"cqi",         label:"CQI",            icon:Icon.Star,    dot: activeClub.cqi>0 ? "teal" : "muted" },
+    { v:"players",     label:"Players",        icon:Icon.Clubs,   num: activeClub.paid ? myPlayerCount : undefined,
+      dot: activeClub.paid ? "teal" : "muted" },
+    { v:"clearances",  label:"Clearances",     icon:Icon.Shield,
+      num: myPendingClearances || undefined,
+      dot: myOverdueClearances ? "coral" : myPendingClearances ? "gold" : "muted" },
     { v:"fixtures",    label:"Fixtures",       icon:Icon.Field,
       dot: hasReleased ? "teal" : activeClub.paid ? "gold" : "muted",
       num: hasReleased ? "NEW" : undefined },
@@ -297,6 +378,13 @@ function Shell({ initialProfile, onSwitchProfile }) {
                                               onSetReleased={setReleased}
                                               toast={toastShow}
                                             />;
+      if (view === "clearances")   return <AdminClearances
+                                              clubs={clubs}
+                                              players={players}
+                                              clearanceRequests={clearanceRequests}
+                                              onAdminOverride={adminOverrideClearance}
+                                              toast={toastShow}
+                                            />;
     } else {
       const goto = (v) => setView(v);
       // Affiliation + Documents render in modals layered on top of Home (handled below).
@@ -309,6 +397,29 @@ function Shell({ initialProfile, onSwitchProfile }) {
         // Locked until affiliation is paid
         if (!activeClub.paid) return <ComingSoon title="Fixtures & Venues" phase="02" unlocked={false} eta="Aug 2026"/>;
         return <ClubFixturesView club={activeClub} allSeries={allSeries} clubs={clubs} toast={toastShow}/>;
+      }
+      if (view === "players") {
+        if (!activeClub.paid) return <ComingSoon title="Player Registration" phase="03" unlocked={false} eta="Aug 2026"/>;
+        return <ClubPlayersView
+                 club={activeClub}
+                 players={players}
+                 clearanceRequests={clearanceRequests}
+                 clubs={clubs}
+                 onOpenRegister={()=>setShowRegisterPlayer(true)}
+                 onRequestClearance={(pid)=>requestClearance(pid)}
+                 toast={toastShow}/>;
+      }
+      if (view === "clearances") {
+        if (!activeClub.paid) return <ComingSoon title="Player Clearances" phase="03" unlocked={false} eta="Aug 2026"/>;
+        return <ClubClearancesView
+                 club={activeClub}
+                 players={players}
+                 clearanceRequests={clearanceRequests}
+                 clubs={clubs}
+                 onClearFees={clearFees}
+                 onClearMisconduct={clearMisconduct}
+                 onApproveClearance={approveClearance}
+                 toast={toastShow}/>;
       }
     }
     return null;
@@ -468,6 +579,22 @@ function Shell({ initialProfile, onSwitchProfile }) {
             clubs={clubs}
             onCreate={(s) => { setAllSeries(prev => [...prev, s]); toastShow(`${s.name} created · ${s.fixtures.length} fixtures generated`); }}
             onClose={() => setShowCreateSeries(false)}
+          />
+        </TaskModal>
+      )}
+
+      {role === "club" && showRegisterPlayer && (
+        <TaskModal
+          eyebrow={`Phase 03 · ${activeClub.name}`}
+          title={<>Register a new <em>player</em></>}
+          sub="KZNCU & EMCU 2026/27 — fields mirror the official Union registration form."
+          onClose={() => setShowRegisterPlayer(false)}
+        >
+          <RegisterPlayerForm
+            club={activeClub}
+            toast={toastShow}
+            onCancel={() => setShowRegisterPlayer(false)}
+            onSubmit={registerPlayer}
           />
         </TaskModal>
       )}

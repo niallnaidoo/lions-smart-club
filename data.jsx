@@ -351,9 +351,150 @@ const SERIES = [
   },
 ];
 
+/* ─── Player registration + clearance model ─── */
+
+const BATTING_TYPES = ["Top Order", "Mid Order", "Low Order", "WK Batsman", "Bat All Round"];
+const BOWLER_TYPES  = ["Fast", "Medium Fast", "Medium", "Slow", "Finger Spin", "Wrist Spin"];
+const HANDS         = ["Right", "Left"];
+
+const SAMPLE_PLAYERS = [
+  {
+    id: "ply-001", clubId: "phoenix",
+    surname: "Gangadu", firstNames: "Wishalen",
+    idNumber: "9112205243086", dob: "1991-12-20",
+    race: "Indian", gender: "Male",
+    postalAddress: "67 Fiona Street, Mobeni Heights",
+    postalCode: "4092", phone: "065 299 1365",
+    email: "wishalen.gangadu@example.com",
+    team: "Promotion Men", district: "Chatsworth",
+    lastClub: "Topham",
+    battingHand: "Right", battingType: "Mid Order",
+    bowlingHand: "Right", isAllRounder: true, isWk: false,
+    bowlerType: "Medium Fast",
+    idDocumentName: "WGangadu_ID.pdf", idDocumentUploaded: true,
+    registeredAt: "2026-04-12", status: "active",
+  },
+  {
+    id: "ply-002", clubId: "phoenix",
+    surname: "Naicker", firstNames: "Rishav",
+    idNumber: "9805124081089", dob: "1998-05-12",
+    race: "Indian", gender: "Male",
+    postalAddress: "12 Northway, Phoenix",
+    postalCode: "4068", phone: "078 421 5560",
+    email: "r.naicker@example.com",
+    team: "Premier Men", district: "Phoenix",
+    lastClub: "—",
+    battingHand: "Right", battingType: "Top Order",
+    bowlingHand: "Right", isAllRounder: false, isWk: true,
+    bowlerType: "",
+    idDocumentName: "RNaicker_ID.pdf", idDocumentUploaded: true,
+    registeredAt: "2026-03-04", status: "clearance-pending",
+  },
+  {
+    id: "ply-003", clubId: "ukzn",
+    surname: "Mthembu", firstNames: "Sanele",
+    idNumber: "0107224082088", dob: "2001-07-22",
+    race: "African", gender: "Male",
+    postalAddress: "Howard College Res, Glenwood",
+    postalCode: "4001", phone: "082 901 4421",
+    email: "s.mthembu@ukzn.ac.za",
+    team: "Premier Men", district: "Ethekwini Metro",
+    lastClub: "—",
+    battingHand: "Left", battingType: "Top Order",
+    bowlingHand: "Right", isAllRounder: false, isWk: false,
+    bowlerType: "Finger Spin",
+    idDocumentName: "SMthembu_ID.pdf", idDocumentUploaded: true,
+    registeredAt: "2026-02-18", status: "clearance-pending",
+  },
+  {
+    id: "ply-004", clubId: "berea",
+    surname: "Pillay", firstNames: "Devan",
+    idNumber: "9407184562084", dob: "1994-07-18",
+    race: "Indian", gender: "Male",
+    postalAddress: "44 Manning Rd, Berea",
+    postalCode: "4001", phone: "071 320 9914",
+    email: "d.pillay@example.com",
+    team: "Premier Men", district: "Ethekwini Metro",
+    lastClub: "—",
+    battingHand: "Right", battingType: "Mid Order",
+    bowlingHand: "Right", isAllRounder: true, isWk: false,
+    bowlerType: "Fast",
+    idDocumentName: "DPillay_ID.pdf", idDocumentUploaded: true,
+    registeredAt: "2026-04-21", status: "active",
+  },
+  {
+    id: "ply-005", clubId: "phoenix",
+    surname: "Govender", firstNames: "Ashlin",
+    idNumber: "0203145012083", dob: "2002-03-14",
+    race: "Indian", gender: "Male",
+    postalAddress: "8 Newleaf Cres, Mount Edgecombe",
+    postalCode: "4302", phone: "076 514 2208",
+    email: "a.govender@example.com",
+    team: "Premier Men", district: "Phoenix",
+    lastClub: "—",
+    battingHand: "Right", battingType: "Low Order",
+    bowlingHand: "Left", isAllRounder: false, isWk: false,
+    bowlerType: "Slow",
+    idDocumentName: "AGovender_ID.pdf", idDocumentUploaded: true,
+    registeredAt: "2026-04-29", status: "active",
+  },
+];
+
+// Two clearance requests so we can demo both states:
+//   clr-001 → fresh (5 days ago, within 14-day club window)
+//   clr-002 → overdue (21 days ago, Lions admin can override)
+const SAMPLE_CLEARANCE_REQUESTS = [
+  {
+    id: "clr-001",
+    playerId: "ply-002",
+    fromClubId: "phoenix",   // current club (must approve)
+    toClubId: "crusaders",   // destination
+    requestedAt: "2026-05-31",
+    feesCleared: false,
+    misconductCleared: false,
+    clubApprovedAt: null,
+    adminOverrideAt: null,
+    status: "pending",
+    note: "Player relocating to Westville — wants to play out of Crusaders for 2026/27.",
+  },
+  {
+    id: "clr-002",
+    playerId: "ply-003",
+    fromClubId: "ukzn",
+    toClubId: "rhythm",
+    requestedAt: "2026-05-15",
+    feesCleared: false,
+    misconductCleared: false,
+    clubApprovedAt: null,
+    adminOverrideAt: null,
+    status: "pending",
+    note: "Graduated UKZN, joining Rhythm DHSOB — UKZN unresponsive for 3+ weeks.",
+  },
+];
+
+// Helpers
+function daysBetween(a, b) {
+  const ms = new Date(b).getTime() - new Date(a).getTime();
+  return Math.floor(ms / 86400000);
+}
+function clearanceDaysElapsed(req) {
+  // Pretend "today" is 2026-06-05 so the seed dates produce predictable demo state
+  return daysBetween(req.requestedAt, "2026-06-05");
+}
+function isClearanceOverdue(req, deadlineDays=14) {
+  if (req.status !== "pending") return false;
+  return clearanceDaysElapsed(req) >= deadlineDays;
+}
+function clearanceDaysRemaining(req, deadlineDays=14) {
+  return Math.max(0, deadlineDays - clearanceDaysElapsed(req));
+}
+
 Object.assign(window, {
   DISTRICTS, LEAGUES, COACHING_LEVELS, REQUIRED_DOCS,
   SAMPLE_CLUBS, CQI_STRUCTURE, SERIES,
+  SAMPLE_PLAYERS, SAMPLE_CLEARANCE_REQUESTS,
+  BATTING_TYPES, BOWLER_TYPES, HANDS,
   cohortStats, docCompletion, overallProgress,
   haversineKm, fixtureCost, generateRoundRobin,
+  daysBetween, clearanceDaysElapsed, isClearanceOverdue, clearanceDaysRemaining,
 });

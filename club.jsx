@@ -1500,4 +1500,562 @@ function ClubFixturesView({ club, allSeries, clubs, toast }) {
   );
 }
 
-Object.assign(window, { ClubHome, AffiliationForm, DocumentsView, CQIView, ClubFixturesView });
+/* ─── Phase 3 · Players (club roster + Register Player form) ─── */
+function ClubPlayersView({ club, players, clearanceRequests, onOpenRegister, onRequestClearance, clubs, toast }) {
+  const mine = players.filter(p => p.clubId === club.id);
+  const myOutgoing = clearanceRequests.filter(r => r.fromClubId === club.id);
+
+  // Stats
+  const byTeam = {};
+  mine.forEach(p => { byTeam[p.team] = (byTeam[p.team]||0)+1; });
+  const allRounders = mine.filter(p => p.isAllRounder).length;
+  const wks         = mine.filter(p => p.isWk).length;
+  const pendingClearance = mine.filter(p => p.status === "clearance-pending").length;
+
+  const clubBy = (id) => clubs.find(c => c.id === id);
+
+  return (
+    <div>
+      <div className="page-head">
+        <div className="ph-left">
+          <div className="ph-crumb">Club Portal · {club.name} / Players</div>
+          <h1 className="ph-title">Player <em>Roster</em></h1>
+          <p className="ph-desc">
+            Register and maintain {club.name}'s playing members for the 2026/27 KZNCU &amp; EMCU season.
+            All registrations sync with the Union office and your fixtures.
+          </p>
+        </div>
+        <div className="ph-actions">
+          <Btn tone="outline" size="sm" icon={Icon.Download}>Export roster</Btn>
+          <Btn tone="teal" size="sm" icon={Icon.Plus} onClick={onOpenRegister}>Register player</Btn>
+        </div>
+      </div>
+
+      {/* Quick stats strip */}
+      <div className="players-stats">
+        <div className="players-stat">
+          <div className="players-stat-l">Registered</div>
+          <div className="players-stat-n">{mine.length}</div>
+        </div>
+        <div className="players-stat">
+          <div className="players-stat-l">All-rounders</div>
+          <div className="players-stat-n">{allRounders}</div>
+        </div>
+        <div className="players-stat">
+          <div className="players-stat-l">WK keepers</div>
+          <div className="players-stat-n">{wks}</div>
+        </div>
+        <div className="players-stat">
+          <div className="players-stat-l">Awaiting clearance</div>
+          <div className="players-stat-n" style={{color: pendingClearance ? "var(--coral)" : "var(--ink)"}}>{pendingClearance}</div>
+        </div>
+      </div>
+
+      <div className="tbl-w" style={{marginTop:14}}>
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th>Player</th>
+              <th>ID number</th>
+              <th>Team</th>
+              <th>Role</th>
+              <th>Bowler type</th>
+              <th>ID doc</th>
+              <th>Status</th>
+              <th style={{width:140}}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {mine.map(p => {
+              const outbound = myOutgoing.find(r => r.playerId === p.id);
+              const roleBits = [
+                p.battingHand + " hand",
+                p.battingType,
+                p.isAllRounder ? "All-rounder" : null,
+                p.isWk ? "WK" : null,
+              ].filter(Boolean).join(" · ");
+              return (
+                <tr key={p.id}>
+                  <td>
+                    <div style={{fontFamily:"'Montserrat',sans-serif",fontWeight:700,fontSize:13,color:"var(--ink)"}}>{p.firstNames} {p.surname}</div>
+                    <div style={{fontSize:10.5,color:"var(--muted)",fontFamily:"'Montserrat',sans-serif"}}>{p.district} · {p.gender}</div>
+                  </td>
+                  <td><span style={{fontFamily:"'Montserrat',sans-serif",fontSize:12,fontVariantNumeric:"tabular-nums"}}>{p.idNumber}</span></td>
+                  <td><Pill tone="navy">{p.team}</Pill></td>
+                  <td><span style={{fontSize:11.5,color:"var(--muted)",fontFamily:"'Montserrat',sans-serif"}}>{roleBits}</span></td>
+                  <td><span style={{fontSize:11.5,color:"var(--muted)",fontFamily:"'Montserrat',sans-serif"}}>{p.bowlerType || "—"}</span></td>
+                  <td>{p.idDocumentUploaded
+                    ? <Pill tone="teal" dot>Uploaded</Pill>
+                    : <Pill tone="coral" dot>Missing</Pill>}</td>
+                  <td>{p.status === "active"
+                    ? <Pill tone="teal" dot>Active</Pill>
+                    : p.status === "clearance-pending"
+                      ? <Pill tone="gold" dot>Clearance pending</Pill>
+                      : <Pill tone="muted">Inactive</Pill>}</td>
+                  <td style={{textAlign:"right",paddingRight:14}}>
+                    {p.status === "active" && !outbound && (
+                      <button className="btn btn-outline btn-sm" onClick={()=>onRequestClearance(p.id)}>Request clearance</button>
+                    )}
+                    {outbound && (
+                      <span style={{fontSize:10.5,color:"var(--muted)",fontFamily:"'Montserrat',sans-serif"}}>
+                        → {clubBy(outbound.toClubId)?.short || clubBy(outbound.toClubId)?.name}
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+            {mine.length === 0 && (
+              <tr><td colSpan="8" style={{padding:"28px",textAlign:"center",color:"var(--muted)",fontSize:13}}>
+                No players registered yet — click <strong>Register player</strong> to add your first.
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+const EMPTY_PLAYER = {
+  surname:"", firstNames:"", idNumber:"", race:"", gender:"",
+  postalAddress:"", postalCode:"", phone:"", email:"",
+  team:"", district:"", lastClub:"",
+  battingHand:"Right", battingType:"Mid Order",
+  bowlingHand:"Right", isAllRounder:false, isWk:false, bowlerType:"",
+  idDocumentName:"", idDocumentUploaded:false,
+  consentChecked:false,
+};
+
+function RegisterPlayerForm({ club, onSubmit, onCancel, toast }) {
+  const [d, setD] = useStateC({...EMPTY_PLAYER, team: club.id === "ukzn" ? "Premier Men" : "Promotion Men"});
+
+  function set(k, v) { setD(prev => ({...prev, [k]: v})); }
+
+  // Derive DOB from SA ID number: YYMMDDXXXXXXX → 19YY-MM-DD (with 2000+ cutoff)
+  function deriveDOB(id) {
+    if (!/^\d{13}$/.test(id)) return "";
+    const yy = parseInt(id.slice(0,2), 10);
+    const mm = id.slice(2,4);
+    const dd = id.slice(4,6);
+    const year = yy <= 25 ? 2000+yy : 1900+yy;
+    return `${year}-${mm}-${dd}`;
+  }
+  const dob = deriveDOB(d.idNumber);
+  const idValid = /^\d{13}$/.test(d.idNumber);
+
+  const required = ["surname","firstNames","idNumber","race","gender","phone","team","district"];
+  const missing = required.filter(k => !d[k]);
+  const canSubmit = missing.length === 0 && d.idDocumentUploaded && d.consentChecked && idValid;
+
+  function fakeUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    set("idDocumentName", file.name);
+    set("idDocumentUploaded", true);
+    toast?.(`ID document attached · ${file.name}`);
+  }
+
+  function submit() {
+    if (!canSubmit) {
+      toast?.("Fill all required fields, upload ID, accept consent");
+      return;
+    }
+    const player = {
+      ...d,
+      id: "ply-" + Date.now(),
+      clubId: club.id,
+      dob,
+      registeredAt: new Date().toISOString().slice(0,10),
+      status: "active",
+    };
+    onSubmit(player);
+  }
+
+  return (
+    <div>
+      {/* Header eyebrow already in TaskModal */}
+      <div className="rp-form">
+        {/* SECTION 1 — Club + team */}
+        <div className="rp-section">
+          <div className="rp-section-head">
+            <div className="rp-section-eyebrow">Section 01</div>
+            <div className="rp-section-title">Club &amp; Team</div>
+          </div>
+          <div className="field-grid-2">
+            <div>
+              <label className="field-label">Club</label>
+              <input className="field-input" value={club.name} disabled/>
+            </div>
+            <div>
+              <label className="field-label">Team <span className="req">*</span></label>
+              <select className="field-select" value={d.team} onChange={e=>set("team", e.target.value)}>
+                <option value="">Select team</option>
+                <option>Premier Men</option>
+                <option>Promotion Men</option>
+                <option>Premier Women</option>
+                <option>Veterans</option>
+                <option>EMCU Division 1</option>
+                <option>Under-19</option>
+                <option>Under-15</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* SECTION 2 — Identity */}
+        <div className="rp-section">
+          <div className="rp-section-head">
+            <div className="rp-section-eyebrow">Section 02</div>
+            <div className="rp-section-title">Player identity</div>
+          </div>
+          <div className="field-grid-2">
+            <div>
+              <label className="field-label">Surname <span className="req">*</span></label>
+              <input className="field-input" value={d.surname} onChange={e=>set("surname", e.target.value)} placeholder="e.g. Gangadu"/>
+            </div>
+            <div>
+              <label className="field-label">First name(s) <span className="req">*</span></label>
+              <input className="field-input" value={d.firstNames} onChange={e=>set("firstNames", e.target.value)} placeholder="e.g. Wishalen"/>
+            </div>
+          </div>
+          <div className="field-grid-2" style={{marginTop:12}}>
+            <div>
+              <label className="field-label">
+                ID number <span className="req">*</span>
+                <span style={{marginLeft:8,fontSize:9,fontWeight:600,color:"var(--coral)",letterSpacing:"0.12em"}}>COMPULSORY</span>
+              </label>
+              <input
+                className="field-input"
+                value={d.idNumber}
+                onChange={e=>set("idNumber", e.target.value.replace(/\D/g,"").slice(0,13))}
+                placeholder="13-digit RSA ID"
+                style={{fontVariantNumeric:"tabular-nums"}}
+              />
+              {d.idNumber && !idValid && (
+                <div style={{fontSize:10.5,color:"var(--coral)",marginTop:4,fontFamily:"'Montserrat',sans-serif"}}>Must be exactly 13 digits.</div>
+              )}
+              {dob && (
+                <div style={{fontSize:10.5,color:"var(--muted)",marginTop:4,fontFamily:"'Montserrat',sans-serif"}}>
+                  ✓ Date of birth: <strong style={{color:"var(--ink)"}}>{dob}</strong>
+                </div>
+              )}
+            </div>
+            <div>
+              <label className="field-label">Race <span className="req">*</span></label>
+              <select className="field-select" value={d.race} onChange={e=>set("race", e.target.value)}>
+                <option value="">Select</option>
+                <option>African</option>
+                <option>Indian</option>
+                <option>Coloured</option>
+                <option>White</option>
+                <option>Other</option>
+              </select>
+            </div>
+          </div>
+          <div className="field-grid-2" style={{marginTop:12}}>
+            <div>
+              <label className="field-label">Gender <span className="req">*</span></label>
+              <select className="field-select" value={d.gender} onChange={e=>set("gender", e.target.value)}>
+                <option value="">Select</option>
+                <option>Male</option>
+                <option>Female</option>
+                <option>Non-binary</option>
+              </select>
+            </div>
+            <div>
+              <label className="field-label">Phone <span className="req">*</span></label>
+              <input className="field-input" type="tel" value={d.phone} onChange={e=>set("phone", e.target.value)} placeholder="065 299 1365"/>
+            </div>
+          </div>
+        </div>
+
+        {/* SECTION 3 — Address */}
+        <div className="rp-section">
+          <div className="rp-section-head">
+            <div className="rp-section-eyebrow">Section 03</div>
+            <div className="rp-section-title">Address &amp; contact</div>
+          </div>
+          <div>
+            <label className="field-label">Postal address</label>
+            <input className="field-input" value={d.postalAddress} onChange={e=>set("postalAddress", e.target.value)} placeholder="67 Fiona Street, Mobeni Heights"/>
+          </div>
+          <div className="field-grid-2" style={{marginTop:12}}>
+            <div>
+              <label className="field-label">Postal code</label>
+              <input className="field-input" value={d.postalCode} onChange={e=>set("postalCode", e.target.value.replace(/\D/g,"").slice(0,4))} placeholder="4092"/>
+            </div>
+            <div>
+              <label className="field-label">Email</label>
+              <input className="field-input" type="email" value={d.email} onChange={e=>set("email", e.target.value)} placeholder="player@example.com"/>
+            </div>
+          </div>
+        </div>
+
+        {/* SECTION 4 — Cricket profile */}
+        <div className="rp-section">
+          <div className="rp-section-head">
+            <div className="rp-section-eyebrow">Section 04</div>
+            <div className="rp-section-title">Playing profile</div>
+          </div>
+          <div className="field-grid-2">
+            <div>
+              <label className="field-label">Batting hand</label>
+              <div className="seg">
+                {HANDS.map(h => (
+                  <button key={h} type="button" className={`seg-btn ${d.battingHand===h?"on":""}`} onClick={()=>set("battingHand", h)}>{h} hander</button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="field-label">Bowling hand</label>
+              <div className="seg">
+                {HANDS.map(h => (
+                  <button key={h} type="button" className={`seg-btn ${d.bowlingHand===h?"on":""}`} onClick={()=>set("bowlingHand", h)}>{h} hander</button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="field-grid-2" style={{marginTop:12}}>
+            <div>
+              <label className="field-label">Batting type</label>
+              <select className="field-select" value={d.battingType} onChange={e=>set("battingType", e.target.value)}>
+                {BATTING_TYPES.map(b => <option key={b}>{b}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="field-label">Bowler type</label>
+              <select className="field-select" value={d.bowlerType} onChange={e=>set("bowlerType", e.target.value)}>
+                <option value="">— Not a bowler —</option>
+                {BOWLER_TYPES.map(b => <option key={b}>{b}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="row" style={{marginTop:12, gap:14, flexWrap:"wrap"}}>
+            <label className="rp-check">
+              <input type="checkbox" checked={d.isAllRounder} onChange={e=>set("isAllRounder", e.target.checked)}/>
+              <span>All-rounder</span>
+            </label>
+            <label className="rp-check">
+              <input type="checkbox" checked={d.isWk} onChange={e=>set("isWk", e.target.checked)}/>
+              <span>Wicket-keeper</span>
+            </label>
+          </div>
+        </div>
+
+        {/* SECTION 5 — Registration history */}
+        <div className="rp-section">
+          <div className="rp-section-head">
+            <div className="rp-section-eyebrow">Section 05</div>
+            <div className="rp-section-title">Registration history</div>
+          </div>
+          <div className="field-grid-2">
+            <div>
+              <label className="field-label">Club for which last registered</label>
+              <input className="field-input" value={d.lastClub} onChange={e=>set("lastClub", e.target.value)} placeholder="Previous club, or — if first registration"/>
+            </div>
+            <div>
+              <label className="field-label">District <span className="req">*</span></label>
+              <input className="field-input" value={d.district} onChange={e=>set("district", e.target.value)} placeholder="e.g. Chatsworth"/>
+            </div>
+          </div>
+        </div>
+
+        {/* SECTION 6 — ID upload */}
+        <div className="rp-section">
+          <div className="rp-section-head">
+            <div className="rp-section-eyebrow">Section 06</div>
+            <div className="rp-section-title">ID document upload <span style={{color:"var(--coral)",fontWeight:700,fontSize:11,marginLeft:6}}>REQUIRED</span></div>
+          </div>
+          <div className={`rp-upload ${d.idDocumentUploaded ? "uploaded" : ""}`}>
+            <input id="rp-id-file" type="file" accept="image/*,application/pdf" onChange={fakeUpload} style={{display:"none"}}/>
+            <label htmlFor="rp-id-file" className="rp-upload-inner">
+              {d.idDocumentUploaded ? (
+                <>
+                  <div className="rp-upload-icon ok"><Icon.Check/></div>
+                  <div>
+                    <div className="rp-upload-title">{d.idDocumentName}</div>
+                    <div className="rp-upload-sub">Click to replace · The Union office reviews ID documents on submission.</div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="rp-upload-icon"><Icon.Upload/></div>
+                  <div>
+                    <div className="rp-upload-title">Tap to attach ID document</div>
+                    <div className="rp-upload-sub">SA ID book photo or scan · JPG, PNG or PDF · max ~5MB</div>
+                  </div>
+                </>
+              )}
+            </label>
+          </div>
+        </div>
+
+        {/* CONSENT */}
+        <div className="rp-section rp-consent">
+          <label className="rp-check">
+            <input type="checkbox" checked={d.consentChecked} onChange={e=>set("consentChecked", e.target.checked)}/>
+            <span>
+              I, on behalf of <strong>{club.name}</strong>, request to register the above player under the
+              <strong> KZNCU &amp; EMCU Rules and Byelaws</strong>. I declare that the player is not being paid by the
+              club for their services as a cricketer.
+            </span>
+          </label>
+        </div>
+
+        <div className="rp-actions">
+          <Btn tone="outline" onClick={onCancel}>Cancel</Btn>
+          <Btn tone="teal" icon={Icon.Check} onClick={submit} disabled={!canSubmit}>
+            Submit registration
+          </Btn>
+        </div>
+        {!canSubmit && (missing.length || !d.idDocumentUploaded || !d.consentChecked) && (
+          <div style={{fontSize:11,color:"var(--muted)",marginTop:8,fontFamily:"'Montserrat',sans-serif",textAlign:"right"}}>
+            {missing.length > 0 && <>Missing: {missing.join(", ")}. </>}
+            {!d.idDocumentUploaded && <>Attach ID. </>}
+            {!d.consentChecked && <>Consent required.</>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Phase 4 · Clearances (club side) ─── */
+function ClubClearancesView({ club, players, clearanceRequests, clubs, onClearFees, onClearMisconduct, onApproveClearance, toast }) {
+  const playerBy = (id) => players.find(p => p.id === id);
+  const clubBy   = (id) => clubs.find(c => c.id === id);
+
+  const incoming = clearanceRequests.filter(r => r.fromClubId === club.id);
+  const outgoing = clearanceRequests.filter(r => r.toClubId === club.id);
+
+  const incomingPending  = incoming.filter(r => r.status === "pending");
+  const incomingResolved = incoming.filter(r => r.status !== "pending");
+
+  return (
+    <div>
+      <div className="page-head">
+        <div className="ph-left">
+          <div className="ph-crumb">Club Portal · {club.name} / Clearances</div>
+          <h1 className="ph-title">Player <em>Clearance Requests</em></h1>
+          <p className="ph-desc">
+            Players leaving {club.name} need a clearance certificate. Confirm <strong>fees cleared</strong> and
+            <strong> misconduct charges cleared</strong> within <strong>14 days</strong>, or the Lions Union office
+            may override and approve on your behalf.
+          </p>
+        </div>
+      </div>
+
+      {/* Incoming — players wanting to LEAVE this club */}
+      <Card title="Incoming requests" sub={`Players asking to leave ${club.name}. You have 14 days to action each one.`}>
+        {incomingPending.length === 0 && incomingResolved.length === 0 && (
+          <div style={{padding:"24px 16px", textAlign:"center", color:"var(--muted)", fontSize:13}}>
+            No clearance requests pending. Players will appear here when they apply to move clubs.
+          </div>
+        )}
+        <div className="clr-list">
+          {incomingPending.map(req => {
+            const player = playerBy(req.playerId);
+            const dest   = clubBy(req.toClubId);
+            const daysLeft = clearanceDaysRemaining(req);
+            const overdue  = isClearanceOverdue(req);
+            return (
+              <div key={req.id} className={`clr-card ${overdue?"overdue":""}`}>
+                <div className="clr-card-head">
+                  <div>
+                    <div className="clr-eyebrow">{overdue ? "⚠ Overdue · Lions may override" : `${daysLeft} ${daysLeft===1?"day":"days"} remaining`}</div>
+                    <div className="clr-name">{player?.firstNames} {player?.surname}</div>
+                    <div className="clr-meta">
+                      {player?.team} · ID {player?.idNumber} · Requested {new Date(req.requestedAt).toLocaleDateString("en-GB",{day:"numeric",month:"short"})}
+                    </div>
+                  </div>
+                  <div className="clr-route">
+                    <div className="clr-route-from">{club.short || club.name}</div>
+                    <Icon.Arrow/>
+                    <div className="clr-route-to">{dest?.short || dest?.name || "—"}</div>
+                  </div>
+                </div>
+                {req.note && <div className="clr-note">"{req.note}"</div>}
+                <div className="clr-checklist">
+                  <button
+                    className={`clr-check ${req.feesCleared?"on":""}`}
+                    onClick={()=>onClearFees(req.id)}
+                  >
+                    <span className="clr-check-box">{req.feesCleared && <Icon.Check/>}</span>
+                    <span className="clr-check-label">Fees cleared</span>
+                    <span className="clr-check-sub">All monies due to {club.name} paid in full</span>
+                  </button>
+                  <button
+                    className={`clr-check ${req.misconductCleared?"on":""}`}
+                    onClick={()=>onClearMisconduct(req.id)}
+                  >
+                    <span className="clr-check-box">{req.misconductCleared && <Icon.Check/>}</span>
+                    <span className="clr-check-label">Misconduct cleared</span>
+                    <span className="clr-check-sub">No outstanding disciplinary charges</span>
+                  </button>
+                </div>
+                {req.feesCleared && req.misconductCleared && req.status === "pending" && (
+                  <div className="clr-ready">
+                    <span className="clr-ready-msg">✓ Both checks complete. Issue clearance certificate.</span>
+                    <Btn tone="teal" size="sm" icon={Icon.Arrow} onClick={()=>onApproveClearance(req.id)}>
+                      Issue clearance to {dest?.short || dest?.name}
+                    </Btn>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {incomingResolved.map(req => {
+            const player = playerBy(req.playerId);
+            const dest   = clubBy(req.toClubId);
+            return (
+              <div key={req.id} className="clr-card resolved">
+                <div className="clr-card-head">
+                  <div>
+                    <div className="clr-eyebrow" style={{color:"var(--green)"}}>
+                      {req.status === "admin-override" ? "Lions override" : "Issued"} · {new Date(req.clubApprovedAt || req.adminOverrideAt).toLocaleDateString("en-GB",{day:"numeric",month:"short"})}
+                    </div>
+                    <div className="clr-name">{player?.firstNames} {player?.surname}</div>
+                    <div className="clr-meta">{player?.team} · Now at {dest?.name}</div>
+                  </div>
+                  <Pill tone="teal" dot>{req.status === "admin-override" ? "Lions approved" : "Cleared"}</Pill>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      {/* Outgoing — this club is the destination */}
+      {outgoing.length > 0 && (
+        <Card title="Players moving to your club" sub="Awaiting clearance from their current club">
+          <div className="clr-list">
+            {outgoing.map(req => {
+              const player = playerBy(req.playerId);
+              const src    = clubBy(req.fromClubId);
+              return (
+                <div key={req.id} className="clr-card incoming">
+                  <div className="clr-card-head">
+                    <div>
+                      <div className="clr-eyebrow">Incoming · {req.status === "pending" ? "Pending source club" : "Cleared"}</div>
+                      <div className="clr-name">{player?.firstNames} {player?.surname}</div>
+                      <div className="clr-meta">From <strong>{src?.name}</strong> · Requested {new Date(req.requestedAt).toLocaleDateString("en-GB",{day:"numeric",month:"short"})}</div>
+                    </div>
+                    {req.status === "pending"
+                      ? <Pill tone="gold" dot>Waiting on {src?.short || src?.name}</Pill>
+                      : <Pill tone="teal" dot>Cleared</Pill>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+Object.assign(window, {
+  ClubHome, AffiliationForm, DocumentsView, CQIView, ClubFixturesView,
+  ClubPlayersView, RegisterPlayerForm, ClubClearancesView,
+});
