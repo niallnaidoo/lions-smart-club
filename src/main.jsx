@@ -169,14 +169,33 @@ function ProfileSelect({ onSelect, clubs }) {
 import { useState, useMemo, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import { Icon, Pill, Btn, ProgChip, ClubNameCell, affPill, cqiBand, useToast } from './atoms.jsx';
-import { REQUIRED_DOCS, SAMPLE_CLUBS, SERIES, cohortStats, docCompletion } from './data.jsx';
-import { ClubHome, AffiliationForm, DocumentsView, CQIView, ClubFixturesView } from './club.jsx';
+import {
+  REQUIRED_DOCS,
+  SAMPLE_CLUBS,
+  SERIES,
+  SAMPLE_PLAYERS,
+  SAMPLE_CLEARANCE_REQUESTS,
+  cohortStats,
+  docCompletion,
+  isClearanceOverdue,
+} from './data.jsx';
+import {
+  ClubHome,
+  AffiliationForm,
+  DocumentsView,
+  CQIView,
+  ClubFixturesView,
+  ClubPlayersView,
+  RegisterPlayerForm,
+  ClubClearancesView,
+} from './club.jsx';
 import {
   AdminDashboard,
   AdminClubsList,
   AdminClubDetail,
   AdminFixtures,
   CreateSeriesForm,
+  AdminClearances,
 } from './admin.jsx';
 import { Onboarding } from './onboarding.jsx';
 
@@ -189,6 +208,18 @@ function TaskModal({ eyebrow, title, sub, onClose, narrow, children }) {
           <div className="task-modal-head-text">
             {eyebrow && <div className="task-modal-head-eyebrow">{eyebrow}</div>}
             <div className="task-modal-head-title">{title}</div>
+            {sub && (
+              <div
+                style={{
+                  marginTop: 4,
+                  fontSize: 12,
+                  color: 'var(--muted)',
+                  fontFamily: "'Montserrat',sans-serif",
+                }}
+              >
+                {sub}
+              </div>
+            )}
           </div>
           <button
             className="task-modal-close"
@@ -222,6 +253,9 @@ function Shell({ initialProfile, onSwitchProfile }) {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showCreateSeries, setShowCreateSeries] = useState(false);
   const [allSeries, setAllSeries] = useState(SERIES);
+  const [players, setPlayers] = useState(SAMPLE_PLAYERS);
+  const [clearanceRequests, setClearanceRequests] = useState(SAMPLE_CLEARANCE_REQUESTS);
+  const [showRegisterPlayer, setShowRegisterPlayer] = useState(false);
   const [toastShow, toastNode] = useToast();
 
   const activeClub = useMemo(() => clubs.find((c) => c.id === clubId), [clubs, clubId]);
@@ -311,7 +345,102 @@ function Shell({ initialProfile, onSwitchProfile }) {
     );
   }
 
+  // ── Player / clearance handlers ──
+  function registerPlayer(player) {
+    setPlayers((prev) => [...prev, player]);
+    setShowRegisterPlayer(false);
+    toastShow(`${player.firstNames} ${player.surname} registered · ID ${player.idNumber}`);
+  }
+
+  // Source-club confirms one of the two boxes for an incoming clearance
+  function clearFees(reqId) {
+    setClearanceRequests((prev) =>
+      prev.map((r) => (r.id === reqId ? { ...r, feesCleared: !r.feesCleared } : r))
+    );
+  }
+  function clearMisconduct(reqId) {
+    setClearanceRequests((prev) =>
+      prev.map((r) => (r.id === reqId ? { ...r, misconductCleared: !r.misconductCleared } : r))
+    );
+  }
+
+  // Source club issues clearance once both boxes ticked
+  function approveClearance(reqId) {
+    const nowIso = new Date().toISOString();
+    let movedPlayerId = null,
+      newClubId = null;
+    setClearanceRequests((prev) =>
+      prev.map((r) => {
+        if (r.id !== reqId) return r;
+        movedPlayerId = r.playerId;
+        newClubId = r.toClubId;
+        return {
+          ...r,
+          status: 'approved',
+          clubApprovedAt: nowIso,
+          feesCleared: true,
+          misconductCleared: true,
+        };
+      })
+    );
+    if (movedPlayerId && newClubId) {
+      setPlayers((prev) =>
+        prev.map((p) =>
+          p.id === movedPlayerId ? { ...p, clubId: newClubId, status: 'active' } : p
+        )
+      );
+    }
+    toastShow('Clearance issued');
+  }
+
+  // Lions admin override after 14-day window
+  function adminOverrideClearance(reqId) {
+    const nowIso = new Date().toISOString();
+    let movedPlayerId = null,
+      newClubId = null;
+    setClearanceRequests((prev) =>
+      prev.map((r) => {
+        if (r.id !== reqId) return r;
+        movedPlayerId = r.playerId;
+        newClubId = r.toClubId;
+        return { ...r, status: 'admin-override', adminOverrideAt: nowIso };
+      })
+    );
+    if (movedPlayerId && newClubId) {
+      setPlayers((prev) =>
+        prev.map((p) =>
+          p.id === movedPlayerId ? { ...p, clubId: newClubId, status: 'active' } : p
+        )
+      );
+    }
+  }
+
+  // Club requests a clearance for one of its players (stub — destination picker not yet)
+  function requestClearance(playerId, toClubId = 'berea') {
+    const newReq = {
+      id: 'clr-' + Date.now(),
+      playerId,
+      fromClubId: clubId,
+      toClubId,
+      requestedAt: new Date().toISOString().slice(0, 10),
+      feesCleared: false,
+      misconductCleared: false,
+      clubApprovedAt: null,
+      adminOverrideAt: null,
+      status: 'pending',
+      note: 'Player-initiated clearance request.',
+    };
+    setClearanceRequests((prev) => [...prev, newReq]);
+    setPlayers((prev) =>
+      prev.map((p) => (p.id === playerId ? { ...p, status: 'clearance-pending' } : p))
+    );
+    toastShow('Clearance request opened');
+  }
+
   // — NAV definition —
+  const overdueClearances = clearanceRequests.filter((r) => isClearanceOverdue(r)).length;
+  const pendingClearances = clearanceRequests.filter((r) => r.status === 'pending').length;
+
   const adminNav = [
     { v: 'dashboard', label: 'Cohort Dashboard', icon: Icon.Dashboard },
     { v: 'clubs_list', label: 'All Clubs', icon: Icon.Clubs, num: clubs.length },
@@ -337,11 +466,27 @@ function Shell({ initialProfile, onSwitchProfile }) {
       dot: 'gold',
     },
     { v: 'fixtures', label: 'Fixtures & Venues', icon: Icon.Field, dot: 'teal' },
+    {
+      v: 'clearances',
+      label: 'Clearances',
+      icon: Icon.Shield,
+      num: overdueClearances ? overdueClearances : pendingClearances,
+      dot: overdueClearances ? 'coral' : pendingClearances ? 'gold' : 'teal',
+    },
   ];
 
   // Has any released series that includes this club?
   const releasedForMe = allSeries.filter((s) => s.released && s.teams.includes(clubId));
   const hasReleased = releasedForMe.length > 0;
+
+  // Clearance counts relevant to active club
+  const myPendingClearances = clearanceRequests.filter(
+    (r) => r.fromClubId === clubId && r.status === 'pending'
+  ).length;
+  const myOverdueClearances = clearanceRequests.filter(
+    (r) => r.fromClubId === clubId && isClearanceOverdue(r)
+  ).length;
+  const myPlayerCount = players.filter((p) => p.clubId === clubId).length;
 
   const clubNav = [
     { v: 'home', label: 'Home', icon: Icon.Dashboard },
@@ -358,6 +503,20 @@ function Shell({ initialProfile, onSwitchProfile }) {
       dot: docCompletion(activeClub) === 100 ? 'teal' : 'gold',
     },
     { v: 'cqi', label: 'CQI', icon: Icon.Star, dot: activeClub.cqi > 0 ? 'teal' : 'muted' },
+    {
+      v: 'players',
+      label: 'Players',
+      icon: Icon.Clubs,
+      num: activeClub.paid ? myPlayerCount : undefined,
+      dot: activeClub.paid ? 'teal' : 'muted',
+    },
+    {
+      v: 'clearances',
+      label: 'Clearances',
+      icon: Icon.Shield,
+      num: myPendingClearances || undefined,
+      dot: myOverdueClearances ? 'coral' : myPendingClearances ? 'gold' : 'muted',
+    },
     {
       v: 'fixtures',
       label: 'Fixtures',
@@ -402,6 +561,16 @@ function Shell({ initialProfile, onSwitchProfile }) {
             toast={toastShow}
           />
         );
+      if (view === 'clearances')
+        return (
+          <AdminClearances
+            clubs={clubs}
+            players={players}
+            clearanceRequests={clearanceRequests}
+            onAdminOverride={adminOverrideClearance}
+            toast={toastShow}
+          />
+        );
     } else {
       const goto = (v) => setView(v);
       // Affiliation + Documents render in modals layered on top of Home (handled below).
@@ -438,6 +607,41 @@ function Shell({ initialProfile, onSwitchProfile }) {
             club={activeClub}
             allSeries={allSeries}
             clubs={clubs}
+            toast={toastShow}
+          />
+        );
+      }
+      if (view === 'players') {
+        if (!activeClub.paid)
+          return (
+            <ComingSoon title="Player Registration" phase="03" unlocked={false} eta="Aug 2026" />
+          );
+        return (
+          <ClubPlayersView
+            club={activeClub}
+            players={players}
+            clearanceRequests={clearanceRequests}
+            clubs={clubs}
+            onOpenRegister={() => setShowRegisterPlayer(true)}
+            onRequestClearance={(pid) => requestClearance(pid)}
+            toast={toastShow}
+          />
+        );
+      }
+      if (view === 'clearances') {
+        if (!activeClub.paid)
+          return (
+            <ComingSoon title="Player Clearances" phase="03" unlocked={false} eta="Aug 2026" />
+          );
+        return (
+          <ClubClearancesView
+            club={activeClub}
+            players={players}
+            clearanceRequests={clearanceRequests}
+            clubs={clubs}
+            onClearFees={clearFees}
+            onClearMisconduct={clearMisconduct}
+            onApproveClearance={approveClearance}
             toast={toastShow}
           />
         );
@@ -690,6 +894,26 @@ function Shell({ initialProfile, onSwitchProfile }) {
               toastShow(`${s.name} created · ${s.fixtures.length} fixtures generated`);
             }}
             onClose={() => setShowCreateSeries(false)}
+          />
+        </TaskModal>
+      )}
+
+      {role === 'club' && showRegisterPlayer && (
+        <TaskModal
+          eyebrow={`Phase 03 · ${activeClub.name}`}
+          title={
+            <>
+              Register a new <em>player</em>
+            </>
+          }
+          sub="KZNCU & EMCU 2026/27 — fields mirror the official Union registration form."
+          onClose={() => setShowRegisterPlayer(false)}
+        >
+          <RegisterPlayerForm
+            club={activeClub}
+            toast={toastShow}
+            onCancel={() => setShowRegisterPlayer(false)}
+            onSubmit={registerPlayer}
           />
         </TaskModal>
       )}

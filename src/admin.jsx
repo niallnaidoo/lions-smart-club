@@ -27,6 +27,9 @@ import {
   overallProgress,
   fixtureCost,
   generateRoundRobin,
+  isClearanceOverdue,
+  clearanceDaysElapsed,
+  clearanceDaysRemaining,
 } from './data.jsx';
 
 /* ─── AdminFixtures — series cards + drilldown fixture table with distance + travel-cost ─── */
@@ -2245,4 +2248,274 @@ function AdminClubDetail({ club, gotoList }) {
   );
 }
 
-export { AdminDashboard, AdminClubsList, AdminClubDetail, AdminFixtures, CreateSeriesForm };
+/* ─── AdminClearances — oversight of every clearance across the cohort ─── */
+function AdminClearances({ clubs, players, clearanceRequests, onAdminOverride, toast }) {
+  const [confirm, setConfirm] = useState(null);
+  const [filter, setFilter] = useState('all');
+
+  const playerBy = (id) => players.find((p) => p.id === id);
+  const clubBy = (id) => clubs.find((c) => c.id === id);
+
+  // Bucket
+  const overdue = clearanceRequests.filter((r) => isClearanceOverdue(r));
+  const pending = clearanceRequests.filter((r) => r.status === 'pending' && !isClearanceOverdue(r));
+  const resolved = clearanceRequests.filter((r) => r.status !== 'pending');
+
+  const list =
+    filter === 'overdue'
+      ? overdue
+      : filter === 'pending'
+        ? pending
+        : filter === 'resolved'
+          ? resolved
+          : clearanceRequests;
+
+  return (
+    <div>
+      <div className="page-head">
+        <div className="ph-left">
+          <div className="ph-crumb">Lions · Admin Console / Clearances</div>
+          <h1 className="ph-title">
+            Player <em>Clearances</em>
+          </h1>
+          <p className="ph-desc">
+            Every clearance request across the cohort. Source clubs have 14 days to confirm fees +
+            misconduct. After that window, the Lions office can override and approve on the source
+            club's behalf.
+          </p>
+        </div>
+        <div className="ph-actions">
+          <Btn tone="outline" size="sm" icon={Icon.Download}>
+            Export
+          </Btn>
+          <Btn tone="outline" size="sm" icon={Icon.Mail}>
+            Remind overdue clubs
+          </Btn>
+        </div>
+      </div>
+
+      {/* KPI strip */}
+      <div className="players-stats">
+        <div className="players-stat">
+          <div className="players-stat-l">All requests</div>
+          <div className="players-stat-n">{clearanceRequests.length}</div>
+        </div>
+        <div className="players-stat">
+          <div className="players-stat-l">Pending</div>
+          <div className="players-stat-n" style={{ color: 'var(--gold)' }}>
+            {pending.length}
+          </div>
+        </div>
+        <div className="players-stat">
+          <div className="players-stat-l">Overdue (&gt; 14 days)</div>
+          <div className="players-stat-n" style={{ color: 'var(--coral)' }}>
+            {overdue.length}
+          </div>
+        </div>
+        <div className="players-stat">
+          <div className="players-stat-l">Resolved</div>
+          <div className="players-stat-n" style={{ color: 'var(--green)' }}>
+            {resolved.length}
+          </div>
+        </div>
+      </div>
+
+      {/* Filter row */}
+      <div className="filter-row" style={{ marginTop: 14 }}>
+        {[
+          { k: 'all', l: 'All', n: clearanceRequests.length },
+          { k: 'overdue', l: 'Overdue', n: overdue.length },
+          { k: 'pending', l: 'Pending', n: pending.length },
+          { k: 'resolved', l: 'Resolved', n: resolved.length },
+        ].map((b) => (
+          <button
+            key={b.k}
+            className={`filter-pill ${filter === b.k ? 'active' : ''}`}
+            onClick={() => setFilter(b.k)}
+          >
+            {b.l} <span style={{ opacity: 0.7, marginLeft: 4 }}>{b.n}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Request list */}
+      <div className="clr-list" style={{ marginTop: 14 }}>
+        {list.length === 0 && (
+          <div
+            style={{
+              padding: '40px 16px',
+              textAlign: 'center',
+              color: 'var(--muted)',
+              fontSize: 13,
+              background: 'var(--white)',
+              border: '1px solid var(--line)',
+              borderRadius: 'var(--radius-lg)',
+            }}
+          >
+            No clearance requests match this filter.
+          </div>
+        )}
+        {list.map((req) => {
+          const player = playerBy(req.playerId);
+          const fromClub = clubBy(req.fromClubId);
+          const toClub = clubBy(req.toClubId);
+          const overdueReq = isClearanceOverdue(req);
+          const elapsed = clearanceDaysElapsed(req);
+          const daysLeft = clearanceDaysRemaining(req);
+
+          return (
+            <div
+              key={req.id}
+              className={`clr-card admin ${overdueReq ? 'overdue' : ''} ${req.status !== 'pending' ? 'resolved' : ''}`}
+            >
+              <div className="clr-card-head">
+                <div>
+                  <div className="clr-eyebrow">
+                    {req.status === 'admin-override'
+                      ? '✓ Lions override'
+                      : req.status === 'approved'
+                        ? `✓ Cleared by ${fromClub?.short || fromClub?.name}`
+                        : overdueReq
+                          ? `⚠ Overdue · ${elapsed} days`
+                          : `Pending · ${daysLeft} days remaining`}
+                  </div>
+                  <div className="clr-name">
+                    {player?.firstNames} {player?.surname}
+                  </div>
+                  <div className="clr-meta">
+                    ID {player?.idNumber} · {player?.team} · Requested{' '}
+                    {new Date(req.requestedAt).toLocaleDateString('en-GB', {
+                      day: 'numeric',
+                      month: 'short',
+                    })}
+                  </div>
+                </div>
+                <div className="clr-route">
+                  <div className="clr-route-from">{fromClub?.short || fromClub?.name}</div>
+                  <Icon.Arrow />
+                  <div className="clr-route-to">{toClub?.short || toClub?.name}</div>
+                </div>
+              </div>
+
+              {req.note && <div className="clr-note">"{req.note}"</div>}
+
+              {/* Source-club check status — read-only on admin side */}
+              <div className="clr-status-strip">
+                <div className={`clr-status ${req.feesCleared ? 'on' : ''}`}>
+                  <span className="clr-status-dot" />
+                  Fees {req.feesCleared ? 'cleared' : 'pending'}
+                </div>
+                <div className={`clr-status ${req.misconductCleared ? 'on' : ''}`}>
+                  <span className="clr-status-dot" />
+                  Misconduct {req.misconductCleared ? 'cleared' : 'pending'}
+                </div>
+              </div>
+
+              {/* Admin override CTA on overdue */}
+              {overdueReq && req.status === 'pending' && (
+                <div className="clr-override">
+                  <div className="clr-override-text">
+                    <div className="clr-override-title">
+                      {fromClub?.name} hasn't actioned this in {elapsed} days.
+                    </div>
+                    <div className="clr-override-sub">
+                      The Lions office can override the source club's approval and issue the
+                      clearance directly to {toClub?.name}.
+                    </div>
+                  </div>
+                  <Btn
+                    tone="teal"
+                    icon={Icon.Arrow}
+                    onClick={() =>
+                      setConfirm({
+                        title: `Override and approve clearance?`,
+                        body: `This will issue ${player?.firstNames} ${player?.surname}'s clearance to ${toClub?.name} on the Lions Union's authority, bypassing ${fromClub?.name}. Both clubs will be notified.`,
+                        onYes: () => {
+                          onAdminOverride(req.id);
+                          setConfirm(null);
+                          toast?.(
+                            `${player?.firstNames} ${player?.surname} cleared to ${toClub?.short || toClub?.name} · Lions override`
+                          );
+                        },
+                      })
+                    }
+                  >
+                    Override &amp; approve
+                  </Btn>
+                </div>
+              )}
+
+              {/* Resolved badge */}
+              {req.status !== 'pending' && (
+                <div className="clr-resolved-bar">
+                  <Pill tone="teal" dot>
+                    {req.status === 'admin-override' ? 'Lions override' : 'Cleared by source club'}
+                  </Pill>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: 'var(--muted)',
+                      fontFamily: "'Montserrat',sans-serif",
+                    }}
+                  >
+                    {new Date(req.clubApprovedAt || req.adminOverrideAt).toLocaleDateString(
+                      'en-GB',
+                      {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      }
+                    )}
+                  </span>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Shared confirm modal — portaled, like fixtures */}
+      {confirm &&
+        ReactDOM.createPortal(
+          <div
+            className="fix-confirm"
+            onClick={(e) => e.target === e.currentTarget && setConfirm(null)}
+          >
+            <div className="fix-confirm-box">
+              <div className="fix-confirm-icon go">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M4 12l5 5L20 6"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
+              <div className="fix-confirm-title">{confirm.title}</div>
+              <div className="fix-confirm-body">{confirm.body}</div>
+              <div className="fix-confirm-actions">
+                <Btn tone="outline" onClick={() => setConfirm(null)}>
+                  Cancel
+                </Btn>
+                <Btn tone="teal" icon={Icon.Arrow} onClick={confirm.onYes}>
+                  Yes, override
+                </Btn>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+    </div>
+  );
+}
+
+export {
+  AdminDashboard,
+  AdminClubsList,
+  AdminClubDetail,
+  AdminFixtures,
+  CreateSeriesForm,
+  AdminClearances,
+};
