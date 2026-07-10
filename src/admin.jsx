@@ -34,6 +34,14 @@ import {
   clearanceDaysRemaining,
   FACILITIES,
   LIONS_HQ,
+  JOB_TYPES,
+  GROUNDSTAFF,
+  FACILITY_OWNERSHIP,
+  FACILITY_LOAD,
+  FACILITY_JOBS,
+  jobStatusTone,
+  jobPriorityTone,
+  loadTone,
 } from './data.jsx';
 
 /* ─── AdminFixtures — series cards + drilldown fixture table with distance + travel-cost ─── */
@@ -2585,7 +2593,69 @@ function AdminFacilities({ toast }) {
   const [trendFilter, setTrendFilter] = useState('all'); // all | up | down
   const [typeFilter, setTypeFilter] = useState(null);
   const [selected, setSelected] = useState([]); // ground clubIds pinned for compare
-  const [detail, setDetail] = useState(null); // clubId whose full card is showing
+  const [detail, setDetail] = useState(null); // clubId whose satellite floating card is showing
+  const [openGround, setOpenGround] = useState(null); // clubId of full drilldown
+  const [showCreateJob, setShowCreateJob] = useState(false);
+  const [jobs, setJobs] = useState(FACILITY_JOBS);
+
+  function addJob(job) {
+    setJobs((prev) => [...prev, job]);
+    setShowCreateJob(false);
+    toast?.(`Job card dispatched · ${job.assigneeName}`);
+  }
+  function toggleChecklistItem(jobId, idx) {
+    setJobs((prev) =>
+      prev.map((j) =>
+        j.id === jobId
+          ? {
+              ...j,
+              checklist: j.checklist.map((c, i) => (i === idx ? { ...c, done: !c.done } : c)),
+            }
+          : j
+      )
+    );
+  }
+  function markJobStatus(jobId, status) {
+    setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, status } : j)));
+  }
+
+  // Full-page drilldown takes over the pane
+  if (openGround) {
+    const facility = FACILITIES.find((f) => f.clubId === openGround);
+    if (!facility) {
+      setOpenGround(null);
+      return null;
+    }
+    return (
+      <>
+        <AdminFacilityDetail
+          facility={facility}
+          jobs={jobs.filter((j) => j.facilityId === facility.clubId)}
+          onBack={() => setOpenGround(null)}
+          onOpenCreateJob={() => setShowCreateJob(true)}
+          onToggleChecklistItem={toggleChecklistItem}
+          onMarkJobStatus={markJobStatus}
+          onGotoSatellite={() => {
+            setSelected((s) => (s.includes(facility.clubId) ? s : [...s, facility.clubId]));
+            setMode('satellite');
+            setDetail(facility.clubId);
+            setOpenGround(null);
+          }}
+          toast={toast}
+        />
+        {showCreateJob &&
+          ReactDOM.createPortal(
+            <CreateJobCard
+              facility={facility}
+              onSubmit={addJob}
+              onCancel={() => setShowCreateJob(false)}
+            />,
+            document.body
+          )}
+      </>
+    );
+  }
+
 
   const filtered = FACILITIES.filter(
     (f) =>
@@ -2699,6 +2769,7 @@ function AdminFacilities({ toast }) {
         <FacilitiesTable
           rows={sorted}
           onSelect={toggleSelect}
+          onRowOpen={setOpenGround}
           selected={selected}
           clickSort={clickSort}
           sortArrow={sortArrow}
@@ -2756,7 +2827,7 @@ function AdminFacilities({ toast }) {
 }
 
 /* ─── Table view ─── */
-function FacilitiesTable({ rows, onSelect, selected, clickSort, sortArrow }) {
+function FacilitiesTable({ rows, onSelect, onRowOpen, selected, clickSort, sortArrow }) {
   return (
     <div className="tbl-w" style={{ marginTop: 14 }}>
       <table className="tbl">
@@ -2788,7 +2859,7 @@ function FacilitiesTable({ rows, onSelect, selected, clickSort, sortArrow }) {
               <tr
                 key={f.clubId}
                 className={`clickable ${isSel ? 'row-selected' : ''}`}
-                onClick={() => onSelect(f.clubId)}
+                onClick={() => onRowOpen(f.clubId)}
               >
                 <td onClick={(e) => e.stopPropagation()}>
                   <label className="fac-check">
@@ -3181,6 +3252,696 @@ function FacilitiesSatellite({
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+/* ─── AdminFacilityDetail · full-page drilldown for one ground ───
+   Left: Maintenance & Jobs / Load & Wear / Team & Ownership tabs.
+   Right: satellite thumbnail + VINIS snapshot (sticky). */
+
+function AdminFacilityDetail({
+  facility,
+  jobs,
+  onBack,
+  onOpenCreateJob,
+  onToggleChecklistItem,
+  onMarkJobStatus,
+  onGotoSatellite,
+  toast,
+}) {
+  const [tab, setTab] = useState('maintenance'); // maintenance | load | team
+  const load = FACILITY_LOAD[facility.clubId];
+  const ownership = FACILITY_OWNERSHIP[facility.clubId];
+  const mapRef = useRef(null);
+  const mapInstance = useRef(null);
+
+  const openJobs = jobs.filter((j) => j.status !== 'done');
+  const doneJobs = jobs.filter((j) => j.status === 'done');
+  const highPriority = openJobs.filter((j) => j.priority === 'high').length;
+
+  // Sticky satellite thumbnail — Esri World Imagery, no controls, zoomed tight.
+  useEffect(() => {
+    if (!mapRef.current || mapInstance.current) return;
+    const map = L.map(mapRef.current, {
+      zoomControl: false,
+      dragging: false,
+      touchZoom: false,
+      scrollWheelZoom: false,
+      doubleClickZoom: false,
+      attributionControl: false,
+    }).setView([facility.lat, facility.lon], 16);
+    L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      { maxZoom: 19 }
+    ).addTo(map);
+    const icon = L.divIcon({
+      className: 'fac-marker',
+      html: `<div class="fac-marker-dot" style="background:var(--green);"><span>${Math.round(
+        facility.score
+      )}</span></div>`,
+      iconSize: [34, 34],
+      iconAnchor: [17, 17],
+    });
+    L.marker([facility.lat, facility.lon], { icon }).addTo(map);
+    mapInstance.current = map;
+  }, [facility.lat, facility.lon, facility.score]);
+
+  return (
+    <div>
+      {/* Header */}
+      <div className="page-head">
+        <div className="ph-left">
+          <div className="ph-crumb">
+            <button className="fac-back" onClick={onBack}>
+              ← Facilities
+            </button>{' '}
+            / {facility.venue}
+          </div>
+          <h1 className="ph-title">
+            {facility.venue}
+            <span className="fac-detail-eyebrow" style={{ marginLeft: 12, display: 'inline' }}>
+              {facility.type}
+            </span>
+          </h1>
+          <p className="ph-desc">
+            <strong>{facility.clubName}</strong> · {facility.suburb} · {ownership.ownerLabel} ·{' '}
+            {Math.round(facility.distanceKm).toLocaleString()} km from Wanderers
+          </p>
+        </div>
+        <div className="ph-actions">
+          <Btn tone="outline" size="sm" icon={Icon.Download}>
+            Export report
+          </Btn>
+          <Btn tone="outline" size="sm" onClick={onGotoSatellite}>
+            View in satellite mode
+          </Btn>
+          <Btn tone="teal" size="sm" icon={Icon.Plus} onClick={onOpenCreateJob}>
+            Create job card
+          </Btn>
+        </div>
+      </div>
+
+      {/* Two-column layout */}
+      <div className="fac-detail-layout">
+        {/* LEFT — the workflow surface */}
+        <section className="fac-detail-left">
+          <div className="fac-tabs" role="tablist">
+            {[
+              {
+                k: 'maintenance',
+                l: 'Maintenance & jobs',
+                n: openJobs.length,
+                warn: highPriority,
+              },
+              { k: 'load', l: 'Load & wear', n: load.fixturesPlayed },
+              { k: 'team', l: 'Team & ownership', n: null },
+            ].map((t) => (
+              <button
+                key={t.k}
+                role="tab"
+                className={`fac-tab ${tab === t.k ? 'active' : ''}`}
+                onClick={() => setTab(t.k)}
+              >
+                <span>{t.l}</span>
+                {t.n != null && (
+                  <span className={`fac-tab-num ${t.warn ? 'warn' : ''}`}>{t.n}</span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {tab === 'maintenance' && (
+            <div className="fac-tab-body">
+              {/* Objective banner — clarifies the primary use of this screen */}
+              <div className="fac-objective">
+                <div className="fac-objective-eyebrow">Primary objective</div>
+                <div className="fac-objective-text">
+                  Dispatch and track pitch-maintenance work at{' '}
+                  <strong>{facility.venue}</strong>. Every job card lands with a specific
+                  groundstaff member and a checklist so nothing gets missed.
+                </div>
+              </div>
+
+              {/* Open jobs */}
+              <div className="fac-section-head">
+                <div>
+                  <div className="fac-section-title">Open job cards · {openJobs.length}</div>
+                  <div className="fac-section-sub">Dispatched but not yet completed</div>
+                </div>
+                <Btn tone="teal" size="sm" icon={Icon.Plus} onClick={onOpenCreateJob}>
+                  Create job card
+                </Btn>
+              </div>
+
+              <div className="fac-jobs-list">
+                {openJobs.length === 0 && (
+                  <div className="fac-empty">All caught up — no open maintenance jobs.</div>
+                )}
+                {openJobs.map((j) => {
+                  const doneCount = j.checklist.filter((c) => c.done).length;
+                  const total = j.checklist.length;
+                  const pct = total ? Math.round((doneCount / total) * 100) : 0;
+                  const due = new Date(j.dueDate);
+                  const today = new Date('2026-06-05');
+                  const daysDue = Math.round((due - today) / 86400000);
+                  const overdue = daysDue < 0;
+                  return (
+                    <div key={j.id} className="fac-job">
+                      <div className="fac-job-head">
+                        <div>
+                          <div className="fac-job-eyebrow">
+                            <span className={`fac-priority ${j.priority}`}>
+                              {j.priority === 'high' ? '⚑ HIGH' : j.priority === 'medium' ? 'MED' : 'LOW'}
+                            </span>
+                            <span className="fac-job-type">{j.typeLabel}</span>
+                          </div>
+                          <div className="fac-job-title">{j.title}</div>
+                          <div className="fac-job-meta">
+                            <span>
+                              <strong>{j.assigneeName}</strong>
+                            </span>
+                            <span className={overdue ? 'fac-due-overdue' : ''}>
+                              {overdue
+                                ? `⚠ ${Math.abs(daysDue)}d overdue`
+                                : `Due ${new Date(j.dueDate).toLocaleDateString('en-GB', {
+                                    day: 'numeric',
+                                    month: 'short',
+                                  })} · ${daysDue}d`}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="fac-job-actions">
+                          {j.status === 'open' ? (
+                            <button
+                              className="fac-job-btn"
+                              onClick={() => onMarkJobStatus(j.id, 'in-progress')}
+                            >
+                              Start
+                            </button>
+                          ) : (
+                            <button
+                              className="fac-job-btn primary"
+                              onClick={() => onMarkJobStatus(j.id, 'done')}
+                            >
+                              Mark done
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {total > 0 && (
+                        <>
+                          <div className="fac-job-progress">
+                            <div className="fac-job-progress-bar">
+                              <div
+                                className="fac-job-progress-fill"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <div className="fac-job-progress-txt">
+                              {doneCount}/{total}
+                            </div>
+                          </div>
+                          <ul className="fac-checklist">
+                            {j.checklist.map((c, i) => (
+                              <li key={i} className={c.done ? 'done' : ''}>
+                                <button
+                                  className={`fac-checklist-box ${c.done ? 'on' : ''}`}
+                                  onClick={() => onToggleChecklistItem(j.id, i)}
+                                >
+                                  {c.done && <Icon.Check />}
+                                </button>
+                                <span>{c.text}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Recent completions */}
+              {doneJobs.length > 0 && (
+                <>
+                  <div className="fac-section-head" style={{ marginTop: 22 }}>
+                    <div>
+                      <div className="fac-section-title">Recent completions</div>
+                      <div className="fac-section-sub">Last 30 days</div>
+                    </div>
+                  </div>
+                  <div className="fac-jobs-list">
+                    {doneJobs.map((j) => (
+                      <div key={j.id} className="fac-job done">
+                        <div className="fac-job-head">
+                          <div>
+                            <div className="fac-job-eyebrow">
+                              <span className="fac-priority done">✓ DONE</span>
+                              <span className="fac-job-type">{j.typeLabel}</span>
+                            </div>
+                            <div className="fac-job-title">{j.title}</div>
+                            <div className="fac-job-meta">
+                              <span>
+                                <strong>{j.assigneeName}</strong>
+                              </span>
+                              <span>
+                                Completed {new Date(j.dueDate).toLocaleDateString('en-GB', {
+                                  day: 'numeric',
+                                  month: 'short',
+                                })}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {tab === 'load' && (
+            <div className="fac-tab-body">
+              <div className="fac-objective">
+                <div className="fac-objective-eyebrow">Objective</div>
+                <div className="fac-objective-text">
+                  Track how hard the ground is being worked. Load index reflects fixture density
+                  and balls bowled — high numbers mean more turf renewal is due.
+                </div>
+              </div>
+
+              <div className="fac-load-kpis">
+                <div className="fac-load-kpi">
+                  <div className="fac-load-l">Fixtures played</div>
+                  <div className="fac-load-n">
+                    {load.fixturesPlayed}
+                    <span className="fac-load-of">/ {load.fixturesPlanned}</span>
+                  </div>
+                  <div className="fac-load-meta">
+                    Last: {new Date(load.lastMatchDate).toLocaleDateString('en-GB', {
+                      day: 'numeric',
+                      month: 'short',
+                    })}
+                  </div>
+                </div>
+                <div className="fac-load-kpi">
+                  <div className="fac-load-l">Total overs</div>
+                  <div className="fac-load-n">{load.totalOvers.toLocaleString()}</div>
+                  <div className="fac-load-meta">Bowled on this square</div>
+                </div>
+                <div className="fac-load-kpi">
+                  <div className="fac-load-l">Total balls</div>
+                  <div className="fac-load-n">{load.totalBalls.toLocaleString()}</div>
+                  <div className="fac-load-meta">Point of turf contact</div>
+                </div>
+                <div className={`fac-load-kpi tone-${loadTone(load.loadIndex)}`}>
+                  <div className="fac-load-l">Load index</div>
+                  <div className="fac-load-n">{load.loadIndex}</div>
+                  <div className="fac-load-meta">
+                    {load.loadIndex >= 80 ? 'High wear' : load.loadIndex >= 55 ? 'Moderate' : 'Comfortable'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="fac-section-head" style={{ marginTop: 22 }}>
+                <div>
+                  <div className="fac-section-title">Scoring events on this ground</div>
+                  <div className="fac-section-sub">
+                    Batting outcomes distributed across {load.totalBalls.toLocaleString()} legal deliveries
+                  </div>
+                </div>
+              </div>
+
+              <div className="fac-events">
+                {[
+                  { l: 'Dot balls', v: load.dotBalls, color: 'var(--muted-2)' },
+                  { l: 'Singles', v: load.singles, color: 'var(--green)' },
+                  { l: 'Twos', v: load.twos, color: '#6BAD82' },
+                  { l: 'Threes', v: load.threes, color: '#3E7D5A' },
+                  { l: 'Fours', v: load.fours, color: '#B79420' },
+                  { l: 'Sixes', v: load.sixes, color: '#B44' },
+                ].map((e) => {
+                  const pct = (e.v / load.totalBalls) * 100;
+                  return (
+                    <div key={e.l} className="fac-event">
+                      <div className="fac-event-head">
+                        <span className="fac-event-l">{e.l}</span>
+                        <span className="fac-event-v">
+                          {e.v.toLocaleString()} <span className="fac-event-pct">{pct.toFixed(1)}%</span>
+                        </span>
+                      </div>
+                      <div className="fac-event-bar">
+                        <div
+                          className="fac-event-bar-fill"
+                          style={{ width: `${pct}%`, background: e.color }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="fac-load-note">
+                Boundaries + sixes concentrated in a small area of the outfield accelerate wear on
+                boundary rope pegs and long-on/long-off turf. Consider scheduling a{' '}
+                <strong>top-soil</strong> job card if fours/sixes exceed 8% for consecutive rounds.
+              </div>
+            </div>
+          )}
+
+          {tab === 'team' && (
+            <div className="fac-tab-body">
+              <div className="fac-objective">
+                <div className="fac-objective-eyebrow">Objective</div>
+                <div className="fac-objective-text">
+                  Who's responsible for this ground — ownership, groundstaff on the ground, and
+                  the teams that call it home. This is the escalation path when a job card stalls.
+                </div>
+              </div>
+
+              <div className="fac-section-head">
+                <div>
+                  <div className="fac-section-title">Ownership &amp; management</div>
+                </div>
+              </div>
+              <div className="fac-own-card">
+                <div className="fac-own-badge">
+                  {ownership.ownership === 'club'
+                    ? '⌂ Club-maintained'
+                    : ownership.ownership === 'municipality'
+                      ? '🏛 Municipality'
+                      : ownership.ownership === 'university'
+                        ? '🎓 University'
+                        : '↔ Shared arrangement'}
+                </div>
+                <div className="fac-own-owner">{ownership.ownerLabel}</div>
+                <div className="fac-own-meta">
+                  <span>Contract renews {new Date(ownership.contractRenews).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                  <span>Annual budget · R {ownership.budgetAnnual.toLocaleString()}</span>
+                </div>
+              </div>
+
+              <div className="fac-section-head" style={{ marginTop: 22 }}>
+                <div>
+                  <div className="fac-section-title">Groundstaff on site</div>
+                  <div className="fac-section-sub">Dispatch job cards to one of these people</div>
+                </div>
+              </div>
+              <div className="fac-staff-grid">
+                {[ownership.head, ...ownership.assistants].map((s) => (
+                  <div key={s.id} className={`fac-staff-card ${s.id === ownership.head.id ? 'head' : ''}`}>
+                    <div className="fac-staff-avatar">
+                      {s.name.split(' ').map((w) => w[0]).slice(0, 2).join('')}
+                    </div>
+                    <div className="fac-staff-info">
+                      <div className="fac-staff-name">{s.name}</div>
+                      <div className="fac-staff-role">
+                        {s.role} · {s.years} yrs
+                      </div>
+                      <div className="fac-staff-contact">{s.phone}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="fac-section-head" style={{ marginTop: 22 }}>
+                <div>
+                  <div className="fac-section-title">Teams using this ground</div>
+                </div>
+              </div>
+              <div className="fac-teams-list">
+                {ownership.teamsUsing.map((t) => (
+                  <Pill key={t} tone="navy">
+                    {t}
+                  </Pill>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* RIGHT — sticky satellite snapshot */}
+        <aside className="fac-detail-right">
+          <div className="fac-thumb-wrap">
+            <div className="fac-thumb" ref={mapRef} />
+            <button className="fac-thumb-fullscreen" onClick={onGotoSatellite}>
+              ⤢ Full satellite view
+            </button>
+          </div>
+
+          <div className="fac-side-card">
+            <div className="fac-side-eyebrow">Groundskeeper snapshot</div>
+            <div className={`fac-side-score ${facility.trendPerYear > 0 ? 'up' : facility.trendPerYear < 0 ? 'down' : ''}`}>
+              {facility.score.toFixed(1)}
+            </div>
+            <div className="fac-side-condition">{facility.condition} turf</div>
+            <div className="fac-side-obs">
+              Observed{' '}
+              {new Date(facility.lastObserved).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} ·{' '}
+              {facility.daysAgo}d ago
+            </div>
+
+            <div className="fac-side-grid">
+              <div>
+                <div className="fac-detail-l">5-y mean</div>
+                <div className="fac-detail-v">{facility.mean5y.toFixed(2)}</div>
+              </div>
+              <div>
+                <div className="fac-detail-l">Trend</div>
+                <div
+                  className={`fac-detail-v ${facility.trendPerYear > 0 ? 'up' : facility.trendPerYear < 0 ? 'down' : ''}`}
+                >
+                  {facility.trendPerYear > 0 ? '▲' : facility.trendPerYear < 0 ? '▼' : '▬'}{' '}
+                  {Math.abs(facility.trendPerYear).toFixed(2)}/yr
+                </div>
+              </div>
+              <div>
+                <div className="fac-detail-l">Area</div>
+                <div className="fac-detail-v">{facility.areaHa.toFixed(2)} ha</div>
+              </div>
+              <div>
+                <div className="fac-detail-l">Compliance</div>
+                <div className="fac-detail-v">{facility.compliance}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="fac-side-card compact">
+            <div className="fac-side-eyebrow">This ground · load</div>
+            <div className="fac-side-load-row">
+              <span>Load index</span>
+              <span className={`fac-side-load-n tone-${loadTone(load.loadIndex)}`}>{load.loadIndex}</span>
+            </div>
+            <div className="fac-side-load-row">
+              <span>Fixtures played</span>
+              <span>
+                {load.fixturesPlayed} of {load.fixturesPlanned}
+              </span>
+            </div>
+            <div className="fac-side-load-row">
+              <span>Open jobs</span>
+              <span className={openJobs.length ? 'fac-side-load-warn' : ''}>{openJobs.length}</span>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+/* ─── CreateJobCard · dispatch a new maintenance job ─── */
+function CreateJobCard({ facility, onSubmit, onCancel }) {
+  const ownership = FACILITY_OWNERSHIP[facility.clubId];
+  const staff = [ownership.head, ...ownership.assistants];
+
+  const [type, setType] = useState(JOB_TYPES[0].key);
+  const [title, setTitle] = useState('');
+  const [assigneeId, setAssigneeId] = useState(ownership.head.id);
+  const [priority, setPriority] = useState('medium');
+  const [dueDate, setDueDate] = useState(() => {
+    const d = new Date('2026-06-05');
+    d.setDate(d.getDate() + 7);
+    return d.toISOString().slice(0, 10);
+  });
+  const [notes, setNotes] = useState('');
+  const [checklistCustom, setChecklistCustom] = useState([]);
+
+  const typeObj = JOB_TYPES.find((t) => t.key === type);
+  const effectiveChecklist = [...typeObj.checklist, ...checklistCustom.filter(Boolean)];
+
+  const canSubmit = title.trim().length > 0 && assigneeId && dueDate;
+
+  function submit() {
+    if (!canSubmit) return;
+    const assignee = staff.find((s) => s.id === assigneeId) || GROUNDSTAFF.find((s) => s.id === assigneeId);
+    const job = {
+      id: 'job-' + Date.now(),
+      facilityId: facility.clubId,
+      type,
+      typeLabel: typeObj.label,
+      title: title.trim(),
+      status: 'open',
+      priority,
+      assigneeId,
+      assigneeName: assignee?.name || 'Unassigned',
+      dueDate,
+      createdAt: new Date().toISOString().slice(0, 10),
+      checklist: effectiveChecklist.map((text) => ({ done: false, text })),
+      notes: notes.trim(),
+    };
+    onSubmit(job);
+  }
+
+  return (
+    <div className="fix-confirm" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div className="fix-confirm-box" style={{ maxWidth: 620, textAlign: 'left' }}>
+        <div className="fac-jobmodal-head">
+          <div>
+            <div className="fac-detail-eyebrow">Dispatch to groundstaff</div>
+            <div className="fac-jobmodal-title">Create job card · {facility.venue}</div>
+          </div>
+          <button className="fac-detail-close" onClick={onCancel}>
+            <Icon.X />
+          </button>
+        </div>
+
+        <div className="fac-jobmodal-body">
+          <div className="fac-jobmodal-row">
+            <label className="field-label">Job type</label>
+            <select className="field-select" value={type} onChange={(e) => setType(e.target.value)}>
+              {JOB_TYPES.map((t) => (
+                <option key={t.key} value={t.key}>
+                  {t.icon} · {t.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="fac-jobmodal-row">
+            <label className="field-label">
+              Job title <span className="req">*</span>
+            </label>
+            <input
+              className="field-input"
+              placeholder="e.g. Prep pitch for Sat premier fixture"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+          </div>
+
+          <div className="field-grid-2">
+            <div>
+              <label className="field-label">
+                Assign to <span className="req">*</span>
+              </label>
+              <select
+                className="field-select"
+                value={assigneeId}
+                onChange={(e) => setAssigneeId(e.target.value)}
+              >
+                {staff.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} · {s.role}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="field-label">
+                Due date <span className="req">*</span>
+              </label>
+              <input
+                type="date"
+                className="field-input"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="field-label">Priority</label>
+            <div className="seg">
+              {['low', 'medium', 'high'].map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  className={`seg-btn ${priority === p ? 'on' : ''}`}
+                  onClick={() => setPriority(p)}
+                >
+                  {p === 'high' ? '⚑ ' : ''}
+                  {p[0].toUpperCase() + p.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="field-label">Checklist</label>
+            <div className="fac-jobmodal-checklist">
+              {typeObj.checklist.length > 0 && (
+                <div className="fac-jobmodal-preset">
+                  <div className="fac-jobmodal-preset-l">Prefilled from {typeObj.label}</div>
+                  {typeObj.checklist.map((c, i) => (
+                    <div key={i} className="fac-jobmodal-item preset">
+                      <span className="fac-jobmodal-tick">✓</span> {c}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {checklistCustom.map((c, i) => (
+                <div key={i} className="fac-jobmodal-item">
+                  <input
+                    className="field-input"
+                    placeholder="Add a step…"
+                    value={c}
+                    onChange={(e) =>
+                      setChecklistCustom((prev) => prev.map((x, xi) => (xi === i ? e.target.value : x)))
+                    }
+                  />
+                  <button
+                    className="fac-jobmodal-remove"
+                    onClick={() =>
+                      setChecklistCustom((prev) => prev.filter((_, xi) => xi !== i))
+                    }
+                  >
+                    <Icon.X />
+                  </button>
+                </div>
+              ))}
+              <button
+                className="fac-jobmodal-add"
+                onClick={() => setChecklistCustom((prev) => [...prev, ''])}
+              >
+                + Add step
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="field-label">Notes</label>
+            <textarea
+              className="field-textarea"
+              placeholder="Anything the groundstaff should know before starting…"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+            />
+          </div>
+        </div>
+
+        <div className="fix-confirm-actions" style={{ paddingTop: 16 }}>
+          <Btn tone="outline" onClick={onCancel}>
+            Cancel
+          </Btn>
+          <Btn tone="teal" icon={Icon.Check} onClick={submit} disabled={!canSubmit}>
+            Dispatch job card
+          </Btn>
+        </div>
+      </div>
     </div>
   );
 }

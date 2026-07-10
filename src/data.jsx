@@ -882,6 +882,242 @@ const FACILITIES = SAMPLE_CLUBS.map((club) => {
   };
 });
 
+/* ─── Facility management: jobs, load, ownership ─── */
+
+// Job types the admin can dispatch to a groundskeeper
+const JOB_TYPES = [
+  {
+    key: 'pitch-prep',
+    label: 'Pitch preparation',
+    icon: '◇',
+    checklist: [
+      'Confirm fixture list for the week',
+      'Water pitch square to depth',
+      'Roll with 1-tonne roller',
+      'Mow to 12mm',
+      'Apply pre-match line marking',
+    ],
+  },
+  {
+    key: 'grass-cutting',
+    label: 'Grass cutting · outfield',
+    icon: '≣',
+    checklist: [
+      'Mow outfield to 18mm',
+      'Trim boundary edge to 12mm',
+      'Collect + dispose of clippings',
+    ],
+  },
+  {
+    key: 'top-soil',
+    label: 'Top soil / re-turfing',
+    icon: '▤',
+    checklist: [
+      'Assess bare patches on pitch square',
+      'Rake and level worn areas',
+      'Apply top-soil dressing (loamy)',
+      'Reseed with kikuyu blend',
+      'Water and cordon off for 14 days',
+    ],
+  },
+  {
+    key: 'rolling',
+    label: 'Rolling / consolidation',
+    icon: '◉',
+    checklist: [
+      'Check moisture reading (target 22-26%)',
+      'Roll square with 1-tonne',
+      'Cross-roll at 45°',
+      'Roll ends 3x each',
+    ],
+  },
+  {
+    key: 'boundary-rope',
+    label: 'Boundary rope / gullies',
+    icon: '○',
+    checklist: [
+      'Inspect rope for wear',
+      'Measure boundary distances',
+      'Fix loose pegs',
+      'Rake/cover rain gullies',
+    ],
+  },
+  {
+    key: 'nets',
+    label: 'Practice nets maintenance',
+    icon: '⌗',
+    checklist: [
+      'Inspect net panels for tears',
+      'Tighten mesh attachments',
+      'Check pitch-mat condition',
+      'Sweep and clear debris',
+    ],
+  },
+  {
+    key: 'sightscreen',
+    label: 'Sightscreen / boundary boards',
+    icon: '▤',
+    checklist: [
+      'Inspect sightscreen wheels',
+      'Repaint if faded',
+      'Test rolling movement',
+    ],
+  },
+  {
+    key: 'drainage',
+    label: 'Drainage / covers',
+    icon: '⇩',
+    checklist: [
+      'Inspect drain covers',
+      'Clear leaves / debris',
+      'Test rain-covers roll out',
+      'Assess sub-surface saturation',
+    ],
+  },
+  {
+    key: 'other',
+    label: 'Other',
+    icon: '⌂',
+    checklist: [],
+  },
+];
+
+// Groundstaff pool — assigned to each facility by clubId below.
+const GROUNDSTAFF = [
+  { id: 'gs-sipho',    name: 'Sipho Dlamini',    role: 'Head Groundsman', phone: '083 421 5502', years: 8 },
+  { id: 'gs-nkosi',    name: 'Nkosinathi Zulu',  role: 'Assistant',       phone: '072 991 4408', years: 3 },
+  { id: 'gs-anwar',    name: 'Anwar Naidoo',     role: 'Curator',         phone: '076 552 3399', years: 12 },
+  { id: 'gs-thabo',    name: 'Thabo Mokoena',    role: 'Curator',         phone: '082 300 1156', years: 6 },
+  { id: 'gs-lerato',   name: 'Lerato Khumalo',   role: 'Assistant',       phone: '074 128 6631', years: 2 },
+  { id: 'gs-ravi',     name: 'Ravi Chetty',      role: 'Head Groundsman', phone: '083 001 7788', years: 14 },
+  { id: 'gs-jabu',     name: 'Jabu Mchunu',      role: 'Assistant',       phone: '071 444 9002', years: 4 },
+  { id: 'gs-yolanda',  name: 'Yolanda Naicker',  role: 'Curator',         phone: '079 812 4457', years: 9 },
+];
+
+// Ownership + staffing per facility (facilityId = clubId)
+const FACILITY_OWNERSHIP = FACILITIES.reduce((acc, f) => {
+  const r = seededRand(f.clubId, 100);
+  const ownership = f.clubId === 'ukzn' ? 'university' : r > 0.6 ? 'club' : r > 0.3 ? 'municipality' : 'shared';
+  const ownerLabelMap = {
+    club: `${f.clubName} Executive`,
+    municipality: 'eThekwini Metro · Parks & Rec',
+    shared: `${f.clubName} + eThekwini Metro`,
+    university: 'UKZN Sports Admin',
+  };
+  const headIdx = Math.floor(seededRand(f.clubId, 101) * GROUNDSTAFF.length);
+  const asst1Idx = (headIdx + 1) % GROUNDSTAFF.length;
+  const asst2Idx = (headIdx + 3) % GROUNDSTAFF.length;
+  acc[f.clubId] = {
+    ownership,
+    ownerLabel: ownerLabelMap[ownership],
+    contractStart: '2024-08-01',
+    contractRenews: '2027-07-31',
+    budgetAnnual: 40000 + Math.round(seededRand(f.clubId, 102) * 80000),
+    head: GROUNDSTAFF[headIdx],
+    assistants: [GROUNDSTAFF[asst1Idx], GROUNDSTAFF[asst2Idx]],
+    // Teams that use this ground — pulled from the club record where possible
+    teamsUsing: (() => {
+      const club = SAMPLE_CLUBS.find((c) => c.id === f.clubId);
+      const list = ['Premier Men'];
+      if ((club?.teams || 0) > 1) list.push('Promotion Men');
+      if ((club?.women || 0) > 0) list.push('Premier Women');
+      if ((club?.juniors || 0) > 0) list.push('Under-19', 'Under-15');
+      return list;
+    })(),
+  };
+  return acc;
+}, {});
+
+// Match-load metrics per facility — fixtures already played this season +
+// the derived batting-event breakdown that drives wear on the square.
+const FACILITY_LOAD = FACILITIES.reduce((acc, f) => {
+  const r = (s) => seededRand(f.clubId, 200 + s);
+  const fixturesPlayed = Math.max(2, Math.round(r(0) * 10 + 3));
+  const fixturesPlanned = fixturesPlayed + Math.round(r(1) * 12 + 6);
+  const totalOvers = fixturesPlayed * (40 + Math.round(r(2) * 12));
+  const totalBalls = totalOvers * 6;
+  // Distribute balls across scoring buckets — roughly matches SA club-cricket norms
+  const singles = Math.round(totalBalls * (0.19 + r(3) * 0.05));
+  const twos = Math.round(totalBalls * (0.033 + r(4) * 0.012));
+  const threes = Math.round(totalBalls * (0.002 + r(5) * 0.002));
+  const fours = Math.round(totalBalls * (0.062 + r(6) * 0.02));
+  const sixes = Math.round(totalBalls * (0.017 + r(7) * 0.008));
+  // Load index: 100 = fully utilised, higher = wear risk.
+  const loadIndex = Math.min(
+    98,
+    Math.round((fixturesPlayed / (fixturesPlanned || 1)) * 100 + (totalBalls / 3600) * 20)
+  );
+  acc[f.clubId] = {
+    fixturesPlayed,
+    fixturesPlanned,
+    totalOvers,
+    totalBalls,
+    singles,
+    twos,
+    threes,
+    fours,
+    sixes,
+    dotBalls: totalBalls - singles - twos - threes - fours - sixes,
+    loadIndex,
+    lastMatchDate: '2026-05-24',
+  };
+  return acc;
+}, {});
+
+// Live job cards — some open per facility so the admin has something to see.
+// Each is dispatched to a specific staffer with a checklist and status.
+const FACILITY_JOBS = (() => {
+  const jobs = [];
+  const today = '2026-06-05';
+  FACILITIES.forEach((f, i) => {
+    const r = (s) => seededRand(f.clubId, 300 + s);
+    const ownership = FACILITY_OWNERSHIP[f.clubId];
+    const staff = [ownership.head, ...ownership.assistants];
+    const jobCount = Math.round(r(0) * 3) + 1;
+    for (let j = 0; j < jobCount; j++) {
+      const typeIdx = Math.floor(r(j * 5 + 1) * (JOB_TYPES.length - 1));
+      const t = JOB_TYPES[typeIdx];
+      const assignee = staff[Math.floor(r(j * 7 + 2) * staff.length)];
+      const status = r(j * 9 + 3) < 0.15 ? 'done' : r(j * 9 + 3) < 0.45 ? 'in-progress' : 'open';
+      const priority = r(j * 11 + 4) > 0.75 ? 'high' : r(j * 11 + 4) > 0.4 ? 'medium' : 'low';
+      const daysToDue = status === 'done' ? -Math.round(r(j * 13 + 5) * 10) : Math.round(r(j * 13 + 5) * 12) - 2;
+      const dueDate = new Date(today);
+      dueDate.setDate(dueDate.getDate() + daysToDue);
+      const doneCount = status === 'done' ? t.checklist.length : Math.floor(r(j * 15 + 6) * t.checklist.length);
+      jobs.push({
+        id: `job-${f.clubId}-${j}`,
+        facilityId: f.clubId,
+        type: t.key,
+        typeLabel: t.label,
+        title:
+          j === 0 && t.key === 'pitch-prep'
+            ? `Prep pitch for Sat premier fixture · ${f.venue}`
+            : `${t.label} · round ${(i % 4) + 1}`,
+        status,
+        priority,
+        assigneeId: assignee.id,
+        assigneeName: assignee.name,
+        dueDate: dueDate.toISOString().slice(0, 10),
+        createdAt: '2026-05-30',
+        checklist: t.checklist.map((text, ci) => ({ done: ci < doneCount, text })),
+        notes: '',
+      });
+    }
+  });
+  return jobs;
+})();
+
+// Helpers used by the drilldown UI
+function jobStatusTone(s) {
+  return s === 'done' ? 'teal' : s === 'in-progress' ? 'gold' : 'coral';
+}
+function jobPriorityTone(p) {
+  return p === 'high' ? 'coral' : p === 'medium' ? 'gold' : 'muted';
+}
+function loadTone(idx) {
+  return idx >= 80 ? 'coral' : idx >= 55 ? 'gold' : 'teal';
+}
+
 export {
   DISTRICTS,
   LEAGUES,
@@ -910,4 +1146,12 @@ export {
   vinisCondition,
   complianceScore,
   complianceBand,
+  JOB_TYPES,
+  GROUNDSTAFF,
+  FACILITY_OWNERSHIP,
+  FACILITY_LOAD,
+  FACILITY_JOBS,
+  jobStatusTone,
+  jobPriorityTone,
+  loadTone,
 };
