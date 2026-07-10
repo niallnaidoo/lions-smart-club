@@ -6222,6 +6222,565 @@
           font-size: 16px;
         }
       }
+
+      /* ─── Facilities / VINIS satellite intelligence ─── */
+      .fac-mode-switch {
+        display: inline-flex;
+        gap: 2px;
+        padding: 3px;
+        background: var(--paper);
+        border-radius: 10px;
+        border: 1px solid var(--line);
+      }
+      .fac-mode-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 12px;
+        border: 0;
+        background: transparent;
+        color: var(--muted);
+        font-family: 'Montserrat', sans-serif;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        border-radius: 8px;
+        cursor: pointer;
+        transition:
+          background 0.15s ease,
+          color 0.15s ease;
+      }
+      .fac-mode-btn svg {
+        width: 14px;
+        height: 14px;
+      }
+      .fac-mode-btn:hover {
+        color: var(--ink);
+      }
+      .fac-mode-btn.active {
+        background: var(--ink);
+        color: #fff;
+      }
+
+      /* Selection checkbox in table */
+      .fac-check {
+        display: inline-flex;
+        align-items: center;
+        cursor: pointer;
+      }
+      .fac-check input {
+        width: 16px;
+        height: 16px;
+        accent-color: var(--green);
+        cursor: pointer;
+      }
+      .row-selected {
+        background: rgba(31, 170, 92, 0.06);
+      }
+
+      /* Compliance table cell — stacked number + pill */
+      .fac-compliance-cell {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .fac-compliance-num {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 16px;
+        font-weight: 800;
+        color: var(--ink);
+        letter-spacing: -0.02em;
+      }
+
+      /* VINIS field-health cell — score + sparkline */
+      .fac-vinis-cell {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        justify-content: space-between;
+      }
+      .fac-vinis-left {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .fac-vinis-score {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 6px;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 15px;
+        font-weight: 800;
+        color: var(--ink);
+        letter-spacing: -0.02em;
+        font-variant-numeric: tabular-nums;
+      }
+      .fac-vinis-trend {
+        font-size: 10.5px;
+        font-weight: 700;
+        color: var(--muted);
+        letter-spacing: 0.02em;
+      }
+      .fac-vinis-score.up .fac-vinis-trend {
+        color: var(--green);
+      }
+      .fac-vinis-score.down .fac-vinis-trend {
+        color: #C33;
+      }
+      .fac-vinis-word {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11px;
+        color: var(--muted);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        font-weight: 700;
+      }
+
+      /* Selection strip — pinned to the bottom of the view like Groundskeeper */
+      .fac-selection-strip {
+        margin-top: 18px;
+        padding: 12px 16px;
+        background: var(--ink);
+        color: #fff;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .fac-selection-count {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10.5px;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--gold-mid);
+      }
+      .fac-selection-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        flex: 1;
+      }
+      .fac-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 10px 5px 12px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 99px;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .fac-chip button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        height: 16px;
+        border: 0;
+        background: rgba(255, 255, 255, 0.14);
+        color: #fff;
+        border-radius: 50%;
+        cursor: pointer;
+        padding: 0;
+      }
+      .fac-chip button svg {
+        width: 8px;
+        height: 8px;
+      }
+      .fac-chip button:hover {
+        background: #fff;
+        color: var(--ink);
+      }
+      .fac-selection-actions {
+        display: flex;
+        gap: 8px;
+      }
+
+      /* ─── Satellite layout ─── */
+      .fac-sat-layout {
+        display: grid;
+        grid-template-columns: 240px 1fr;
+        gap: 14px;
+        margin-top: 14px;
+      }
+      .fac-sat-filters {
+        background: var(--white);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+        align-self: flex-start;
+        position: sticky;
+        top: 14px;
+      }
+      .fac-filter-label {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted-2);
+        margin-bottom: 8px;
+        display: flex;
+        justify-content: space-between;
+      }
+      .fac-filter-value {
+        color: var(--ink);
+        text-transform: none;
+        letter-spacing: 0;
+        font-size: 11px;
+      }
+      .fac-filter-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .fac-filter-chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 5px 10px;
+        border: 1px solid var(--line);
+        border-radius: 99px;
+        background: var(--white);
+        color: var(--ink);
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        transition:
+          background 0.14s ease,
+          border-color 0.14s ease,
+          color 0.14s ease;
+      }
+      .fac-filter-chip:hover:not(:disabled) {
+        border-color: var(--ink3);
+      }
+      .fac-filter-chip.active {
+        background: var(--ink);
+        color: #fff;
+        border-color: var(--ink);
+      }
+      .fac-filter-chip:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .fac-range {
+        width: 100%;
+        accent-color: var(--green);
+      }
+      .fac-filter-hint {
+        margin-top: 8px;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10.5px;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+      .fac-filter-count {
+        margin-top: auto;
+        padding-top: 10px;
+        border-top: 1px solid var(--line2);
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11.5px;
+        color: var(--muted);
+        font-weight: 600;
+      }
+
+      .fac-sat-main {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        position: relative;
+      }
+      .fac-map {
+        width: 100%;
+        height: 520px;
+        border-radius: 14px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        background: #111;
+      }
+
+      /* Score-badge markers on the map */
+      .fac-marker-dot {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        border: 2px solid #fff;
+        box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 12px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      /* Detail card — floats over the map (right side) */
+      .fac-detail {
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        width: 320px;
+        background: var(--white);
+        border-radius: 12px;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+        border: 1px solid var(--line);
+        animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        overflow: hidden;
+        z-index: 1000;
+      }
+      .fac-detail-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        padding: 16px 18px 12px;
+        border-bottom: 1px solid var(--line2);
+      }
+      .fac-detail-eyebrow {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 9.5px;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--green);
+        margin-bottom: 4px;
+      }
+      .fac-detail-title {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 15px;
+        font-weight: 800;
+        color: var(--ink);
+        letter-spacing: -0.01em;
+      }
+      .fac-detail-sub {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11.5px;
+        color: var(--muted);
+        margin-top: 2px;
+      }
+      .fac-detail-close {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: var(--paper);
+        border: 0;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+      }
+      .fac-detail-close svg {
+        width: 10px;
+        height: 10px;
+      }
+      .fac-detail-close:hover {
+        background: var(--ink);
+        color: #fff;
+      }
+      .fac-detail-body {
+        padding: 16px 18px 18px;
+      }
+      .fac-detail-hero {
+        text-align: center;
+        padding: 6px 0 12px;
+        border-bottom: 1px dashed var(--line2);
+        margin-bottom: 14px;
+      }
+      .fac-detail-score {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 44px;
+        font-weight: 800;
+        color: var(--ink);
+        letter-spacing: -0.03em;
+        line-height: 1;
+      }
+      .fac-detail-score.up {
+        color: var(--green);
+      }
+      .fac-detail-score.down {
+        color: #C33;
+      }
+      .fac-detail-condition {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-top: 4px;
+      }
+      .fac-detail-meta {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11px;
+        color: var(--muted);
+        margin-top: 6px;
+      }
+      .fac-detail-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px 14px;
+      }
+      .fac-detail-l {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 9.5px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted-2);
+        margin-bottom: 4px;
+      }
+      .fac-detail-v {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 15px;
+        font-weight: 800;
+        color: var(--ink);
+        letter-spacing: -0.01em;
+        font-variant-numeric: tabular-nums;
+      }
+      .fac-detail-v.up {
+        color: var(--green);
+      }
+      .fac-detail-v.down {
+        color: #C33;
+      }
+
+      /* Compare panel — Groundskeeper-parallel */
+      .fac-compare {
+        background: var(--white);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 20px 22px;
+        animation: fadeUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+      }
+      .fac-compare-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        margin-bottom: 14px;
+      }
+      .fac-compare-title {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 20px;
+        font-weight: 800;
+        color: var(--ink);
+        letter-spacing: -0.02em;
+      }
+      .fac-compare-count {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10.5px;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--muted);
+        padding: 5px 10px;
+        border: 1px solid var(--line);
+        border-radius: 99px;
+      }
+      .fac-compare-grid {
+        display: grid;
+        gap: 12px;
+      }
+      .fac-compare-card {
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 16px;
+        position: relative;
+      }
+      .fac-compare-name {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 14px;
+        font-weight: 800;
+        color: var(--ink);
+        letter-spacing: -0.01em;
+        margin-bottom: 10px;
+      }
+      .fac-compare-score {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 36px;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        line-height: 1;
+      }
+      .fac-compare-score.up {
+        color: var(--green);
+      }
+      .fac-compare-score.down {
+        color: #C33;
+      }
+      .fac-compare-condition {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-top: 4px;
+      }
+      .fac-compare-remove {
+        margin-top: 12px;
+        width: 100%;
+        padding: 8px;
+        background: transparent;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--muted);
+        cursor: pointer;
+      }
+      .fac-compare-remove:hover {
+        border-color: var(--ink);
+        color: var(--ink);
+      }
+
+      .fac-compare-section {
+        margin-top: 20px;
+        padding-top: 18px;
+        border-top: 1px solid var(--line2);
+      }
+      .fac-compare-sub {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 16px;
+        font-weight: 800;
+        color: var(--ink);
+        letter-spacing: -0.01em;
+      }
+      .fac-city-sub {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 3px;
+      }
+
+      /* Mobile: stack the satellite layout */
+      @media (max-width: 900px) {
+        .fac-sat-layout {
+          grid-template-columns: 1fr;
+        }
+        .fac-sat-filters {
+          position: static;
+        }
+        .fac-detail {
+          position: static;
+          width: 100%;
+        }
+        .fac-map {
+          height: 340px;
+        }
+        .fac-vinis-cell {
+          gap: 8px;
+        }
+      }
     </style>
   </head>
   <body>

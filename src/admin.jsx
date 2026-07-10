@@ -1,7 +1,9 @@
 /* ─── Admin views ─── */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import {
   Icon,
   Pill,
@@ -30,6 +32,8 @@ import {
   isClearanceOverdue,
   clearanceDaysElapsed,
   clearanceDaysRemaining,
+  FACILITIES,
+  LIONS_HQ,
 } from './data.jsx';
 
 /* ─── AdminFixtures — series cards + drilldown fixture table with distance + travel-cost ─── */
@@ -2511,6 +2515,676 @@ function AdminClearances({ clubs, players, clearanceRequests, onAdminOverride, t
   );
 }
 
+/* ─── AdminFacilities · cohort satellite view of every ground ───
+   Two modes:
+     "table"     — dense sortable table (default)
+     "satellite" — Groundskeeper-style tile grid + compare panel
+   Data source: FACILITIES from data.jsx (one entry per club ground). */
+
+function toneForScore(score) {
+  if (score >= 75) return 'teal';
+  if (score >= 60) return 'gold';
+  if (score >= 45) return 'gold';
+  return 'coral';
+}
+function trendGlyph(t) {
+  if (t > 0.4) return '▲';
+  if (t < -0.4) return '▼';
+  return '▬';
+}
+function trendClass(t) {
+  if (t > 0.4) return 'up';
+  if (t < -0.4) return 'down';
+  return 'flat';
+}
+
+/* Small SVG bar sparkline for VINIS score history */
+function VinisSpark({ series }) {
+  const w = 96,
+    h = 26;
+  const max = 100,
+    min = 20;
+  const step = w / (series.length - 1);
+  const pts = series.map((p, i) => {
+    const x = i * step;
+    const y = h - ((p.score - min) / (max - min)) * h;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  const last = series[series.length - 1].score;
+  const stroke = last >= 60 ? 'var(--green)' : last >= 45 ? '#B79420' : '#C33';
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
+      <polyline
+        points={pts.join(' ')}
+        fill="none"
+        stroke={stroke}
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx={w} cy={h - ((last - min) / (max - min)) * h} r="2.6" fill={stroke} />
+    </svg>
+  );
+}
+
+/* Compliance band → pill tone */
+function compTone(band) {
+  return band === 'Compliant'
+    ? 'teal'
+    : band === 'Partial'
+      ? 'gold'
+      : band === 'At risk'
+        ? 'gold'
+        : 'coral';
+}
+
+function AdminFacilities({ toast }) {
+  const [mode, setMode] = useState('table'); // "table" | "satellite"
+  const [sort, setSort] = useState({ k: 'compliance', dir: 'desc' });
+  const [scoreMin, setScoreMin] = useState(0);
+  const [trendFilter, setTrendFilter] = useState('all'); // all | up | down
+  const [typeFilter, setTypeFilter] = useState(null);
+  const [selected, setSelected] = useState([]); // ground clubIds pinned for compare
+  const [detail, setDetail] = useState(null); // clubId whose full card is showing
+
+  const filtered = FACILITIES.filter(
+    (f) =>
+      f.score >= scoreMin &&
+      (trendFilter === 'all' ||
+        (trendFilter === 'up' && f.trendPerYear > 0) ||
+        (trendFilter === 'down' && f.trendPerYear < 0)) &&
+      (!typeFilter || f.type === typeFilter)
+  );
+
+  const sorted = [...filtered].sort((a, b) => {
+    const av = a[sort.k],
+      bv = b[sort.k];
+    if (typeof av === 'string') return sort.dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+    return sort.dir === 'asc' ? av - bv : bv - av;
+  });
+
+  const clickSort = (k) => setSort((s) => ({ k, dir: s.k === k && s.dir === 'desc' ? 'asc' : 'desc' }));
+  const sortArrow = (k) => (sort.k !== k ? '' : sort.dir === 'desc' ? ' ▼' : ' ▲');
+
+  const toggleSelect = (id) =>
+    setSelected((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : prev.length >= 4 ? prev : [...prev, id]
+    );
+
+  // Aggregate KPIs
+  const avgCompliance = Math.round(FACILITIES.reduce((s, f) => s + f.compliance, 0) / FACILITIES.length);
+  const avgHealth = Math.round(FACILITIES.reduce((s, f) => s + f.score, 0) / FACILITIES.length);
+  const critical = FACILITIES.filter((f) => f.complianceBand === 'Non-compliant' || f.score < 40).length;
+  const closestKm = Math.round(Math.min(...FACILITIES.map((f) => f.distanceKm)));
+
+  return (
+    <div>
+      <div className="page-head">
+        <div className="ph-left">
+          <div className="ph-crumb">Lions · Admin Console / Facilities</div>
+          <h1 className="ph-title">
+            Facilities &amp; <em>Field Intelligence</em>
+          </h1>
+          <p className="ph-desc">
+            Cohort-wide view of every affiliated ground — compliance status, VINIS satellite-derived turf
+            health, and travel distance from Wanderers Stadium. Click any ground to compare in the satellite
+            view.
+          </p>
+        </div>
+        <div className="ph-actions">
+          <Btn tone="outline" size="sm" icon={Icon.Download}>
+            Export
+          </Btn>
+          {/* Table ↔ Satellite toggle — same visual language as our role-switch */}
+          <div className="fac-mode-switch" role="tablist">
+            <button
+              role="tab"
+              className={`fac-mode-btn ${mode === 'table' ? 'active' : ''}`}
+              onClick={() => setMode('table')}
+            >
+              <svg viewBox="0 0 16 16" fill="none">
+                <rect x="2" y="3" width="12" height="10" rx="1.2" stroke="currentColor" strokeWidth="1.4" />
+                <path d="M2 6.5h12M2 9.5h12M5.5 6.5v6.5" stroke="currentColor" strokeWidth="1.2" />
+              </svg>
+              Table
+            </button>
+            <button
+              role="tab"
+              className={`fac-mode-btn ${mode === 'satellite' ? 'active' : ''}`}
+              onClick={() => setMode('satellite')}
+            >
+              <svg viewBox="0 0 16 16" fill="none">
+                <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4" />
+                <path d="M2 8h12M8 2c2.5 3 2.5 9 0 12M8 2c-2.5 3-2.5 9 0 12" stroke="currentColor" strokeWidth="1.2" />
+              </svg>
+              Satellite
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* KPI strip — cohort-level facilities snapshot */}
+      <div className="players-stats">
+        <div className="players-stat">
+          <div className="players-stat-l">Grounds</div>
+          <div className="players-stat-n">{FACILITIES.length}</div>
+        </div>
+        <div className="players-stat">
+          <div className="players-stat-l">Avg compliance</div>
+          <div
+            className="players-stat-n"
+            style={{ color: avgCompliance >= 75 ? 'var(--green)' : 'var(--ink)' }}
+          >
+            {avgCompliance}
+          </div>
+        </div>
+        <div className="players-stat">
+          <div className="players-stat-l">Avg VINIS health</div>
+          <div
+            className="players-stat-n"
+            style={{ color: avgHealth >= 60 ? 'var(--green)' : 'var(--gold)' }}
+          >
+            {avgHealth}
+          </div>
+        </div>
+        <div className="players-stat">
+          <div className="players-stat-l">Critical</div>
+          <div className="players-stat-n" style={{ color: critical ? 'var(--coral)' : 'var(--ink)' }}>
+            {critical}
+          </div>
+        </div>
+      </div>
+
+      {mode === 'table' ? (
+        <FacilitiesTable
+          rows={sorted}
+          onSelect={toggleSelect}
+          selected={selected}
+          clickSort={clickSort}
+          sortArrow={sortArrow}
+        />
+      ) : (
+        <FacilitiesSatellite
+          filtered={filtered}
+          selected={selected}
+          setSelected={setSelected}
+          toggleSelect={toggleSelect}
+          detail={detail}
+          setDetail={setDetail}
+          scoreMin={scoreMin}
+          setScoreMin={setScoreMin}
+          trendFilter={trendFilter}
+          setTrendFilter={setTrendFilter}
+          typeFilter={typeFilter}
+          setTypeFilter={setTypeFilter}
+        />
+      )}
+
+      {/* Selection strip — Groundskeeper-style: chips at the bottom */}
+      {selected.length > 0 && (
+        <div className="fac-selection-strip">
+          <span className="fac-selection-count">
+            {selected.length} of 4 selected
+          </span>
+          <div className="fac-selection-chips">
+            {selected.map((id) => {
+              const f = FACILITIES.find((x) => x.clubId === id);
+              return (
+                <div key={id} className="fac-chip">
+                  <span>{f?.venue}</span>
+                  <button onClick={() => toggleSelect(id)} title="Remove">
+                    <Icon.X />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          <div className="fac-selection-actions">
+            <Btn tone="outline" size="sm" onClick={() => setSelected([])}>
+              Clear
+            </Btn>
+            {mode === 'table' && (
+              <Btn tone="teal" size="sm" icon={Icon.Arrow} onClick={() => setMode('satellite')}>
+                Open Compare
+              </Btn>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Table view ─── */
+function FacilitiesTable({ rows, onSelect, selected, clickSort, sortArrow }) {
+  return (
+    <div className="tbl-w" style={{ marginTop: 14 }}>
+      <table className="tbl">
+        <thead>
+          <tr>
+            <th style={{ width: 42 }}></th>
+            <th onClick={() => clickSort('venue')} style={{ cursor: 'pointer' }}>
+              Ground{sortArrow('venue')}
+            </th>
+            <th>Home club</th>
+            <th onClick={() => clickSort('compliance')} style={{ cursor: 'pointer' }}>
+              Compliance{sortArrow('compliance')}
+            </th>
+            <th onClick={() => clickSort('score')} style={{ cursor: 'pointer', width: 220 }}>
+              VINIS field health{sortArrow('score')}
+            </th>
+            <th
+              onClick={() => clickSort('distanceKm')}
+              style={{ cursor: 'pointer', textAlign: 'right' }}
+            >
+              Distance from Wanderers{sortArrow('distanceKm')}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((f) => {
+            const isSel = selected.includes(f.clubId);
+            return (
+              <tr
+                key={f.clubId}
+                className={`clickable ${isSel ? 'row-selected' : ''}`}
+                onClick={() => onSelect(f.clubId)}
+              >
+                <td onClick={(e) => e.stopPropagation()}>
+                  <label className="fac-check">
+                    <input
+                      type="checkbox"
+                      checked={isSel}
+                      onChange={() => onSelect(f.clubId)}
+                    />
+                  </label>
+                </td>
+                <td>
+                  <div
+                    style={{
+                      fontFamily: "'Montserrat',sans-serif",
+                      fontWeight: 700,
+                      fontSize: 13,
+                      color: 'var(--ink)',
+                    }}
+                  >
+                    {f.venue}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 10.5,
+                      color: 'var(--muted)',
+                      fontFamily: "'Montserrat',sans-serif",
+                    }}
+                  >
+                    {f.suburb} · {f.type}
+                  </div>
+                </td>
+                <td>
+                  <div
+                    style={{
+                      fontSize: 12.5,
+                      color: 'var(--ink)',
+                      fontFamily: "'Montserrat',sans-serif",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {f.clubName}
+                  </div>
+                </td>
+                <td>
+                  <div className="fac-compliance-cell">
+                    <div className="fac-compliance-num">{f.compliance}</div>
+                    <Pill tone={compTone(f.complianceBand)} dot>
+                      {f.complianceBand}
+                    </Pill>
+                  </div>
+                </td>
+                <td>
+                  <div className="fac-vinis-cell">
+                    <div className="fac-vinis-left">
+                      <div className={`fac-vinis-score ${trendClass(f.trendPerYear)}`}>
+                        {f.score.toFixed(1)}
+                        <span className="fac-vinis-trend">
+                          {trendGlyph(f.trendPerYear)}{' '}
+                          {Math.abs(f.trendPerYear).toFixed(2)}/yr
+                        </span>
+                      </div>
+                      <div className="fac-vinis-word">{f.condition}</div>
+                    </div>
+                    <VinisSpark series={f.years5} />
+                  </div>
+                </td>
+                <td style={{ textAlign: 'right' }}>
+                  <div
+                    style={{
+                      fontFamily: "'Montserrat',sans-serif",
+                      fontWeight: 700,
+                      fontSize: 13,
+                      color: 'var(--ink)',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    {Math.round(f.distanceKm).toLocaleString()} km
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 10.5,
+                      color: 'var(--muted)',
+                      fontFamily: "'Montserrat',sans-serif",
+                    }}
+                  >
+                    {(f.distanceKm / 100).toFixed(1)}h drive
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/* ─── Satellite view — Groundskeeper-style ─── */
+function FacilitiesSatellite({
+  filtered,
+  selected,
+  toggleSelect,
+  detail,
+  setDetail,
+  scoreMin,
+  setScoreMin,
+  trendFilter,
+  setTrendFilter,
+  typeFilter,
+  setTypeFilter,
+}) {
+  const mapRef = useRef(null);
+  const mapInstance = useRef(null);
+  const markersRef = useRef([]);
+
+  // Build the Leaflet map (satellite tiles via Esri World Imagery, free/public).
+  useEffect(() => {
+    if (!mapRef.current || mapInstance.current || !L) return;
+    const map = L.map(mapRef.current, { zoomControl: true, attributionControl: false }).setView(
+      [-29.85, 30.9],
+      10
+    );
+    L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      { maxZoom: 19 }
+    ).addTo(map);
+    // Faint labels overlay so we can still read place names on satellite
+    L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+      { maxZoom: 19, opacity: 0.85 }
+    ).addTo(map);
+    mapInstance.current = map;
+  }, []);
+
+  // (Re)draw markers whenever the filtered set changes
+  useEffect(() => {
+    const map = mapInstance.current;
+    if (!map || !L) return;
+    markersRef.current.forEach((m) => map.removeLayer(m));
+    markersRef.current = [];
+    const bounds = [];
+    filtered.forEach((f) => {
+      const tone =
+        f.score >= 60 ? '#1FAA5C' : f.score >= 45 ? '#C8A84B' : '#B44';
+      const icon = L.divIcon({
+        className: 'fac-marker',
+        html: `<div class="fac-marker-dot" style="background:${tone};"><span>${Math.round(f.score)}</span></div>`,
+        iconSize: [34, 34],
+        iconAnchor: [17, 17],
+      });
+      const m = L.marker([f.lat, f.lon], { icon })
+        .addTo(map)
+        .on('click', () => setDetail(f.clubId));
+      markersRef.current.push(m);
+      bounds.push([f.lat, f.lon]);
+    });
+    if (bounds.length > 1) {
+      map.fitBounds(bounds, { padding: [30, 30] });
+    }
+  }, [filtered, setDetail]);
+
+  const detailFacility = detail ? FACILITIES.find((f) => f.clubId === detail) : null;
+  const compareRows = selected.map((id) => FACILITIES.find((f) => f.clubId === id)).filter(Boolean);
+
+  const types = [...new Set(FACILITIES.map((f) => f.type))];
+
+  return (
+    <div className="fac-sat-layout">
+      {/* Left filter rail — mirrors Groundskeeper */}
+      <aside className="fac-sat-filters">
+        <div className="fac-filter-section">
+          <div className="fac-filter-label">Type</div>
+          <div className="fac-filter-chips">
+            {types.map((t) => (
+              <button
+                key={t}
+                className={`fac-filter-chip ${typeFilter === t ? 'active' : ''}`}
+                onClick={() => setTypeFilter(typeFilter === t ? null : t)}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="fac-filter-section">
+          <div className="fac-filter-label">
+            Score <span className="fac-filter-value">{scoreMin} +</span>
+          </div>
+          <input
+            className="fac-range"
+            type="range"
+            min="0"
+            max="100"
+            value={scoreMin}
+            onChange={(e) => setScoreMin(parseInt(e.target.value, 10))}
+          />
+        </div>
+
+        <div className="fac-filter-section">
+          <div className="fac-filter-label">Trend</div>
+          <div className="fac-filter-chips">
+            {[
+              { k: 'all', l: 'Any' },
+              { k: 'up', l: '▲ Improving' },
+              { k: 'down', l: '▼ Declining' },
+            ].map((t) => (
+              <button
+                key={t.k}
+                className={`fac-filter-chip ${trendFilter === t.k ? 'active' : ''}`}
+                onClick={() => setTrendFilter(t.k)}
+              >
+                {t.l}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="fac-filter-section">
+          <div className="fac-filter-label">Context</div>
+          <div className="fac-filter-chips">
+            <button className="fac-filter-chip" disabled>Wanderers ≤ 500 km</button>
+            <button className="fac-filter-chip" disabled>Built-up</button>
+          </div>
+          <div className="fac-filter-hint">
+            Wanderers HQ · {LIONS_HQ.city} · used as travel origin
+          </div>
+        </div>
+
+        <div className="fac-filter-count">
+          {filtered.length} of {FACILITIES.length} grounds
+        </div>
+      </aside>
+
+      {/* Main pane — satellite map + detail card + compare panel */}
+      <section className="fac-sat-main">
+        <div className="fac-map" ref={mapRef} />
+
+        {/* Sliding detail card when a marker is clicked */}
+        {detailFacility && (
+          <div className="fac-detail">
+            <div className="fac-detail-head">
+              <div>
+                <div className="fac-detail-eyebrow">{detailFacility.type}</div>
+                <div className="fac-detail-title">{detailFacility.venue}</div>
+                <div className="fac-detail-sub">
+                  {detailFacility.clubName} · {detailFacility.suburb}
+                </div>
+              </div>
+              <button className="fac-detail-close" onClick={() => setDetail(null)}>
+                <Icon.X />
+              </button>
+            </div>
+            <div className="fac-detail-body">
+              <div className="fac-detail-hero">
+                <div className={`fac-detail-score ${trendClass(detailFacility.trendPerYear)}`}>
+                  {detailFacility.score.toFixed(1)}
+                </div>
+                <div className="fac-detail-condition">{detailFacility.condition}</div>
+                <div className="fac-detail-meta">
+                  Observed {new Date(detailFacility.lastObserved).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} ·{' '}
+                  {detailFacility.daysAgo}d ago
+                </div>
+              </div>
+              <div className="fac-detail-grid">
+                <div>
+                  <div className="fac-detail-l">5-y mean</div>
+                  <div className="fac-detail-v">{detailFacility.mean5y.toFixed(2)}</div>
+                </div>
+                <div>
+                  <div className="fac-detail-l">Trend</div>
+                  <div className={`fac-detail-v ${trendClass(detailFacility.trendPerYear)}`}>
+                    {trendGlyph(detailFacility.trendPerYear)} {Math.abs(detailFacility.trendPerYear).toFixed(2)}/yr
+                  </div>
+                </div>
+                <div>
+                  <div className="fac-detail-l">Area</div>
+                  <div className="fac-detail-v">{detailFacility.areaHa.toFixed(2)} ha</div>
+                </div>
+                <div>
+                  <div className="fac-detail-l">Compliance</div>
+                  <div className="fac-detail-v">{detailFacility.compliance}</div>
+                </div>
+              </div>
+              <Btn
+                tone={selected.includes(detailFacility.clubId) ? 'outline' : 'teal'}
+                size="sm"
+                icon={Icon.Check}
+                onClick={() => toggleSelect(detailFacility.clubId)}
+                style={{ width: '100%', justifyContent: 'center', marginTop: 14 }}
+              >
+                {selected.includes(detailFacility.clubId) ? 'Remove from compare' : 'Add to compare'}
+              </Btn>
+            </div>
+          </div>
+        )}
+
+        {/* Compare panel — shown below the map when >= 2 selected */}
+        {compareRows.length >= 2 && (
+          <div className="fac-compare">
+            <div className="fac-compare-head">
+              <div>
+                <div className="fac-detail-eyebrow">Compare</div>
+                <h2 className="fac-compare-title">Shortlisted grounds</h2>
+              </div>
+              <span className="fac-compare-count">{compareRows.length} of 4 selected</span>
+            </div>
+
+            <div className="fac-compare-grid" style={{ gridTemplateColumns: `repeat(${compareRows.length}, 1fr)` }}>
+              {compareRows.map((f) => (
+                <div key={f.clubId} className="fac-compare-card">
+                  <div className="fac-detail-eyebrow">{f.type}</div>
+                  <h3 className="fac-compare-name">{f.venue}</h3>
+                  <div className={`fac-compare-score ${trendClass(f.trendPerYear)}`}>{f.score.toFixed(1)}</div>
+                  <div className="fac-compare-condition">{f.condition}</div>
+                  <div className="fac-detail-grid" style={{ marginTop: 12 }}>
+                    <div>
+                      <div className="fac-detail-l">5-y mean</div>
+                      <div className="fac-detail-v">{f.mean5y.toFixed(2)}</div>
+                    </div>
+                    <div>
+                      <div className="fac-detail-l">Trend</div>
+                      <div className={`fac-detail-v ${trendClass(f.trendPerYear)}`}>
+                        {trendGlyph(f.trendPerYear)} {Math.abs(f.trendPerYear).toFixed(2)}/yr
+                      </div>
+                    </div>
+                    <div>
+                      <div className="fac-detail-l">Area</div>
+                      <div className="fac-detail-v">{f.areaHa.toFixed(2)} ha</div>
+                    </div>
+                    <div>
+                      <div className="fac-detail-l">Compliance</div>
+                      <div className="fac-detail-v">{f.compliance}</div>
+                    </div>
+                  </div>
+                  <button
+                    className="fac-compare-remove"
+                    onClick={() => toggleSelect(f.clubId)}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* "Where they sit in the city" — same section as Groundskeeper */}
+            <div className="fac-compare-section">
+              <h3 className="fac-compare-sub">Where they sit in the region</h3>
+              <div className="fac-city-sub">
+                Distances from Wanderers, nearest hospital, nearest major road, and built-up character.
+              </div>
+              <div className="tbl-w" style={{ marginTop: 8 }}>
+                <table className="tbl">
+                  <thead>
+                    <tr>
+                      <th>Ground</th>
+                      <th style={{ textAlign: 'right' }}>Wanderers</th>
+                      <th style={{ textAlign: 'right' }}>Hospital</th>
+                      <th style={{ textAlign: 'right' }}>Mall</th>
+                      <th style={{ textAlign: 'right' }}>Major road</th>
+                      <th>Built-up</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {compareRows.map((f) => (
+                      <tr key={f.clubId}>
+                        <td>
+                          <div style={{ fontWeight: 700, fontSize: 12.5 }}>{f.venue}</div>
+                          <div style={{ fontSize: 10.5, color: 'var(--muted)' }}>{f.suburb}</div>
+                        </td>
+                        <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                          {Math.round(f.distanceKm).toLocaleString()} km
+                        </td>
+                        <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                          {f.nearHospitalKm} km
+                        </td>
+                        <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                          {f.nearMallKm} km
+                        </td>
+                        <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                          {f.nearMajorRoadKm} km
+                        </td>
+                        <td>{f.builtUp ? 'Yes' : 'No'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
 export {
   AdminDashboard,
   AdminClubsList,
@@ -2518,4 +3192,5 @@ export {
   AdminFixtures,
   CreateSeriesForm,
   AdminClearances,
+  AdminFacilities,
 };

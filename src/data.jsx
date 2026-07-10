@@ -770,6 +770,118 @@ function clearanceDaysRemaining(req, deadlineDays = 14) {
   return Math.max(0, deadlineDays - clearanceDaysElapsed(req));
 }
 
+/* ─── Facilities · VINIS-style satellite intelligence + compliance ───
+   Per-ground metadata that layers on top of SAMPLE_CLUBS[i].ground.
+   VINIS = ND-vegetation-derived turf-condition score (0-100).
+   Distance is from the Lions provincial stadium (Wanderers, Jhb).
+   Data model mirrors the Groundskeeper reference UI: score, condition
+   word (Lush / Healthy / Adequate / Stressed / Bare), 5-year mean,
+   yearly trend, area (hectares), 12-month seasonal profile, and a
+   5-year composite condition series for the sparkline / line chart. */
+
+const LIONS_HQ = {
+  name: 'Wanderers Stadium',
+  city: 'Johannesburg',
+  lat: -26.1815,
+  lon: 28.053,
+};
+
+// Turf condition word ladder — matches Groundskeeper's semantics.
+function vinisCondition(score) {
+  if (score >= 75) return 'Lush';
+  if (score >= 60) return 'Healthy';
+  if (score >= 45) return 'Adequate';
+  if (score >= 30) return 'Stressed';
+  return 'Bare';
+}
+
+// Compliance banding: cross-cuts docs + affiliation into a single score.
+function complianceScore(club) {
+  const docCount = Object.values(club.docs || {}).filter(Boolean).length;
+  const docPct = (docCount / 4) * 60; // 4 docs → 60 pts max
+  const affPts = club.paid ? 25 : club.affiliation === 'in_progress' ? 10 : 0;
+  const cqiPts = Math.min(15, ((club.cqi || 0) / 100) * 15);
+  return Math.round(docPct + affPts + cqiPts);
+}
+function complianceBand(score) {
+  if (score >= 85) return 'Compliant';
+  if (score >= 65) return 'Partial';
+  if (score >= 40) return 'At risk';
+  return 'Non-compliant';
+}
+
+// Deterministic pseudo-random from a string seed — so seeded facilities
+// data is stable across reloads without a rand call in module scope.
+function seededRand(seed, salt = 0) {
+  let h = 2166136261 ^ salt;
+  for (let i = 0; i < seed.length; i++) h = Math.imul(h ^ seed.charCodeAt(i), 16777619);
+  h = (h ^ (h >>> 16)) >>> 0;
+  return (h % 10000) / 10000;
+}
+
+// Attach VINIS + compliance + distance to every club ground.
+const FACILITIES = SAMPLE_CLUBS.map((club) => {
+  const r = (salt) => seededRand(club.id, salt);
+  // Base score anchors — CQI-heavy clubs get slightly better turf on average.
+  const base = 50 + (club.cqi ? (club.cqi - 60) * 0.35 : 0) + (r(1) - 0.5) * 20;
+  const score = Math.max(18, Math.min(92, Math.round(base * 10) / 10));
+  const trend = Math.round((r(2) - 0.4) * 6 * 100) / 100; // ±3.6/yr, biased up
+  const mean5y = Math.round((score - trend * 2 + (r(3) - 0.5) * 6) * 100) / 100;
+  const areaHa = Math.round((0.02 + r(4) * 0.14) * 100) / 100;
+  const distanceKm = haversineKm(LIONS_HQ, club.ground);
+
+  // 12-month seasonal profile — Highveld cricket-season shape (dry Jul-Sep, wet Nov-Mar)
+  const seasonBias = [1.05, 1.02, 0.95, 1.0, 0.9, 0.7, 0.55, 0.5, 0.55, 0.75, 1.0, 1.1];
+  const monthly = seasonBias.map((b) => Math.max(15, Math.round(score * b + (r(10 + b * 3) - 0.5) * 10)));
+
+  // 5-year composite condition series (yearly average points, oldest → newest)
+  const years5 = [0, 1, 2, 3, 4, 5].map((i) => ({
+    year: 2021 + i,
+    score: Math.max(20, Math.round(mean5y + trend * i + (r(20 + i) - 0.5) * 8)),
+  }));
+
+  const cScore = complianceScore(club);
+
+  return {
+    clubId: club.id,
+    clubName: club.name,
+    clubShort: club.short || club.name.split(' ')[0],
+    venue: club.ground.venue,
+    suburb: club.ground.suburb,
+    lat: club.ground.lat,
+    lon: club.ground.lon,
+    // VINIS field health
+    score,
+    condition: vinisCondition(score),
+    mean5y,
+    trendPerYear: trend,
+    areaHa,
+    lastObserved: '2026-05-20',
+    daysAgo: 16,
+    monthly,
+    years5,
+    // Compliance
+    compliance: cScore,
+    complianceBand: complianceBand(cScore),
+    // Distance from Lions HQ (Wanderers)
+    distanceKm,
+    // Context — Groundskeeper-style
+    nearMallKm: Math.round((2 + r(30) * 8) * 10) / 10,
+    nearHospitalKm: Math.round((1.5 + r(31) * 10) * 10) / 10,
+    nearMajorRoadKm: Math.round((0.3 + r(32) * 3) * 100) / 100,
+    builtUp: r(33) > 0.35,
+    // Type (school / club / uni) — reuse Groundskeeper's ladder
+    type:
+      club.id === 'ukzn'
+        ? 'University'
+        : r(40) > 0.85
+          ? 'Primary/High School'
+          : r(40) > 0.6
+            ? 'Combined School'
+            : 'Cricket Club',
+  };
+});
+
 export {
   DISTRICTS,
   LEAGUES,
@@ -793,4 +905,9 @@ export {
   clearanceDaysElapsed,
   isClearanceOverdue,
   clearanceDaysRemaining,
+  FACILITIES,
+  LIONS_HQ,
+  vinisCondition,
+  complianceScore,
+  complianceBand,
 };
