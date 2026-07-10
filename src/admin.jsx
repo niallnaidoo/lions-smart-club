@@ -2611,6 +2611,9 @@ function AdminFacilities({ toast }) {
   // Editable asset assessments live at the parent so edits persist across tab switches.
   const [assessments, setAssessments] = useState(FACILITY_ASSETS);
   const [assessing, setAssessing] = useState(null); // {clubId, key} — which asset section is being edited
+  // Custom assets added by the admin — keyed by clubId → array of asset objects.
+  const [customAssets, setCustomAssets] = useState({});
+  const [addingAsset, setAddingAsset] = useState(null); // clubId — when non-null, Add-asset modal is open
 
   function addJob(job) {
     setJobs((prev) => [...prev, job]);
@@ -2623,20 +2626,37 @@ function AdminFacilities({ toast }) {
     setJobCardType(t);
     setShowCreateJob(true);
   }
+  function addCustomAsset(clubId, asset) {
+    setCustomAssets((prev) => ({
+      ...prev,
+      [clubId]: [...(prev[clubId] || []), { ...asset, id: 'ca-' + Date.now() }],
+    }));
+    setAddingAsset(null);
+    toast?.(`Added to ${FACILITIES.find((f) => f.clubId === clubId)?.venue} · ${asset.category}`);
+  }
   function saveAssessment(clubId, key, next) {
-    setAssessments((prev) => {
-      const cur = prev[clubId];
-      // key is a dot-path: e.g. "pitch" or "nets.outdoor"
-      const parts = key.split('.');
-      const parent = { ...cur };
-      let ref = parent;
-      for (let i = 0; i < parts.length - 1; i++) {
-        ref[parts[i]] = { ...ref[parts[i]] };
-        ref = ref[parts[i]];
-      }
-      ref[parts[parts.length - 1]] = { ...ref[parts[parts.length - 1]], ...next };
-      return { ...prev, [clubId]: parent };
-    });
+    if (key?.startsWith('custom.')) {
+      // Update the specific custom asset record.
+      const id = key.slice(7);
+      setCustomAssets((prev) => ({
+        ...prev,
+        [clubId]: (prev[clubId] || []).map((c) => (c.id === id ? { ...c, ...next } : c)),
+      }));
+    } else {
+      setAssessments((prev) => {
+        const cur = prev[clubId];
+        // key is a dot-path: e.g. "pitch" or "nets.outdoor"
+        const parts = key.split('.');
+        const parent = { ...cur };
+        let ref = parent;
+        for (let i = 0; i < parts.length - 1; i++) {
+          ref[parts[i]] = { ...ref[parts[i]] };
+          ref = ref[parts[i]];
+        }
+        ref[parts[parts.length - 1]] = { ...ref[parts[parts.length - 1]], ...next };
+        return { ...prev, [clubId]: parent };
+      });
+    }
     setAssessing(null);
     toast?.('Assessment saved · ' + new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }));
   }
@@ -2664,17 +2684,20 @@ function AdminFacilities({ toast }) {
       return null;
     }
     const facilityAssets = assessments[facility.clubId] || FACILITY_ASSETS[facility.clubId];
+    const facilityCustomAssets = customAssets[facility.clubId] || [];
     return (
       <>
         <AdminFacilityDetail
           facility={facility}
           assets={facilityAssets}
+          customAssets={facilityCustomAssets}
           jobs={jobs.filter((j) => j.facilityId === facility.clubId)}
           onBack={() => setOpenGround(null)}
           onOpenCreateJob={openCreateJobForType}
           onToggleChecklistItem={toggleChecklistItem}
           onMarkJobStatus={markJobStatus}
           onOpenAssess={(key) => setAssessing({ clubId: facility.clubId, key })}
+          onOpenAddAsset={() => setAddingAsset(facility.clubId)}
           onGotoSatellite={() => {
             setSelected((s) => (s.includes(facility.clubId) ? s : [...s, facility.clubId]));
             setMode('satellite');
@@ -2702,8 +2725,18 @@ function AdminFacilities({ toast }) {
               facility={facility}
               assetKey={assessing.key}
               assets={facilityAssets}
+              customAssets={facilityCustomAssets}
               onSave={(next) => saveAssessment(facility.clubId, assessing.key, next)}
               onCancel={() => setAssessing(null)}
+            />,
+            document.body
+          )}
+        {addingAsset === facility.clubId &&
+          ReactDOM.createPortal(
+            <AddAssetModal
+              facility={facility}
+              onSubmit={(asset) => addCustomAsset(facility.clubId, asset)}
+              onCancel={() => setAddingAsset(null)}
             />,
             document.body
           )}
@@ -3318,12 +3351,14 @@ function FacilitiesSatellite({
 function AdminFacilityDetail({
   facility,
   assets,
+  customAssets,
   jobs,
   onBack,
   onOpenCreateJob,
   onToggleChecklistItem,
   onMarkJobStatus,
   onOpenAssess,
+  onOpenAddAsset,
   onGotoSatellite,
   toast,
 }) {
@@ -3840,8 +3875,10 @@ function AdminFacilityDetail({
             <FacilityAssetsTab
               facility={facility}
               assets={assets}
+              customAssets={customAssets || []}
               onCreateJob={onOpenCreateJob}
               onAssess={onOpenAssess}
+              onAddAsset={onOpenAddAsset}
             />
           )}
 
@@ -4278,7 +4315,14 @@ function AssetCard({ title, cqiRefLabel, badge, badgeTone, lastAssessed, onAsses
   );
 }
 
-function FacilityAssetsTab({ facility, assets: assetsProp, onCreateJob, onAssess }) {
+function FacilityAssetsTab({
+  facility,
+  assets: assetsProp,
+  customAssets = [],
+  onCreateJob,
+  onAssess,
+  onAddAsset,
+}) {
   const assets = assetsProp || FACILITY_ASSETS[facility.clubId];
   const pitch = assets.pitch;
   const covers = assets.covers;
@@ -4286,6 +4330,46 @@ function FacilityAssetsTab({ facility, assets: assetsProp, onCreateJob, onAssess
   const indoor = assets.nets.indoor;
   const bm = assets.nets.bowlingMachines;
   const sup = assets.support;
+
+  // "Today" so overdue calc is stable across the prototype.
+  const today = new Date('2026-07-11');
+  function daysSince(iso) {
+    if (!iso) return null;
+    return Math.round((today - new Date(iso)) / 86400000);
+  }
+  function statusFor(a) {
+    const d = daysSince(a?.lastAssessed);
+    if (d === null) return { label: '⚠ Never assessed', tone: 'coral' };
+    if (d > 30) return { label: `${d}d ago · overdue`, tone: 'coral' };
+    if (d > 14) return { label: `${d}d ago`, tone: 'gold' };
+    return { label: `${d}d ago`, tone: 'teal' };
+  }
+
+  // The full inventory for the dropdown selector.
+  const inventory = [
+    { key: 'pitch', label: 'Pitch square', status: statusFor(pitch) },
+    { key: 'covers', label: covers.has ? 'Covers' : 'Covers (missing)', status: statusFor(covers) },
+    { key: 'nets.outdoor', label: 'Outdoor practice nets', status: statusFor(outdoor) },
+    {
+      key: 'nets.indoor',
+      label: indoor.count > 0 ? 'Indoor practice nets' : 'Indoor nets (missing)',
+      status: statusFor(indoor),
+    },
+    {
+      key: 'nets.bowlingMachines',
+      label: bm.count > 0 ? 'Bowling machine(s)' : 'Bowling machine (missing)',
+      status: statusFor(bm),
+    },
+    { key: 'support', label: 'Support kit (sightscreens, boundary, scoreboard)', status: statusFor(sup) },
+    // Custom assets show up alongside the standard ones so the selector is complete.
+    ...customAssets.map((ca) => ({
+      key: `custom.${ca.id}`,
+      label: `${ca.category} · ${ca.description || 'custom'}`,
+      status: statusFor(ca),
+      custom: true,
+    })),
+  ];
+  const needAssessing = inventory.filter((i) => i.status.tone !== 'teal').length;
 
   return (
     <div className="fac-tab-body">
@@ -4298,6 +4382,38 @@ function FacilityAssetsTab({ facility, assets: assetsProp, onCreateJob, onAssess
           set the next inspection date. Data flows into the Job cards + Facility costing
           tabs.
         </div>
+      </div>
+
+      {/* Top-of-tab: pick an asset to assess + add asset */}
+      <div className="fac-assets-toolbar">
+        <div className="fac-assets-picker">
+          <label className="fac-assets-picker-l">
+            Assets on this facility · {inventory.length}
+            {needAssessing > 0 && (
+              <span className="fac-assets-picker-warn"> · {needAssessing} need attention</span>
+            )}
+          </label>
+          <select
+            className="field-select fac-assets-picker-select"
+            value=""
+            onChange={(e) => e.target.value && onAssess?.(e.target.value)}
+          >
+            <option value="">— Assess an asset —</option>
+            {inventory.map((i) => (
+              <option key={i.key} value={i.key}>
+                {i.status.tone === 'coral'
+                  ? '⚠ '
+                  : i.status.tone === 'gold'
+                    ? '⏳ '
+                    : '✓ '}
+                {i.label} · {i.status.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <Btn tone="teal" size="sm" icon={Icon.Plus} onClick={onAddAsset}>
+          Add asset to facility
+        </Btn>
       </div>
 
       {/* PITCH */}
@@ -4582,11 +4698,250 @@ function FacilityAssetsTab({ facility, assets: assetsProp, onCreateJob, onAssess
           </div>
         ))}
       </div>
+
+      {/* Custom assets added by the admin */}
+      {customAssets.length > 0 && (
+        <>
+          <div className="fac-section-head" style={{ marginTop: 22 }}>
+            <div>
+              <div className="fac-section-title">Added by the admin · {customAssets.length}</div>
+              <div className="fac-section-sub">
+                Items outside the standard CQI inventory — assessed and budgeted the same way
+              </div>
+            </div>
+          </div>
+          {customAssets.map((ca) => (
+            <AssetCard
+              key={ca.id}
+              title={`${ca.quantity} × ${ca.category}${ca.description ? ' · ' + ca.description : ''}`}
+              cqiRefLabel="Custom entry (not on CQI)"
+              badge={conditionWord(ca.condition || 3)}
+              badgeTone={conditionTone(ca.condition || 3)}
+              lastAssessed={ca.lastAssessed}
+              onAssess={() => onAssess?.(`custom.${ca.id}`)}
+              cta={
+                <Btn tone="outline" size="sm" icon={Icon.Plus} onClick={() => onCreateJob?.()}>
+                  Dispatch job for this asset
+                </Btn>
+              }
+            >
+              <div className="fac-asset-grid">
+                {ca.quantity != null && (
+                  <div>
+                    <div className="fac-detail-l">Quantity</div>
+                    <div className="fac-detail-v">{ca.quantity}</div>
+                  </div>
+                )}
+                {ca.purchaseCost > 0 && (
+                  <div>
+                    <div className="fac-detail-l">Purchase cost</div>
+                    <div className="fac-detail-v">R {ca.purchaseCost.toLocaleString()}</div>
+                  </div>
+                )}
+                {ca.purchaseDate && (
+                  <div>
+                    <div className="fac-detail-l">Acquired</div>
+                    <div className="fac-detail-v" style={{ fontSize: 13 }}>
+                      {new Date(ca.purchaseDate).toLocaleDateString('en-GB', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+              {ca.notes && (
+                <div className="fac-issues" style={{ borderLeftColor: 'var(--green)' }}>
+                  <div className="fac-issues-l">Admin note</div>
+                  <div className="fac-issue">{ca.notes}</div>
+                </div>
+              )}
+            </AssetCard>
+          ))}
+        </>
+      )}
     </div>
   );
 }
 
-/* ─── Investment plan tab · Capex + recurring maintenance ─── */
+/* ─── AddAssetModal · admin adds a new asset to the facility inventory ─── */
+
+const ASSET_CATEGORIES = [
+  { key: 'Pitch square',   icon: '◇', quantityL: 'Number of pitches' },
+  { key: 'Cover',          icon: '☂', quantityL: 'Number of covers' },
+  { key: 'Outdoor net',    icon: '⌗', quantityL: 'Number of net lanes' },
+  { key: 'Indoor net',     icon: '⌗', quantityL: 'Number of net lanes' },
+  { key: 'Bowling machine', icon: '◉', quantityL: 'Number of machines' },
+  { key: 'Sightscreen',    icon: '▤', quantityL: 'Number of screens' },
+  { key: 'Boundary rope',  icon: '○', quantityL: 'Number of rope sets' },
+  { key: 'Scoreboard',     icon: '▤', quantityL: 'Number of scoreboards' },
+  { key: 'Sprinkler / irrigation', icon: '⇩', quantityL: 'Number of zones' },
+  { key: 'Roller / mower', icon: '◉', quantityL: 'Number of units' },
+  { key: 'Other',          icon: '⌂', quantityL: 'Quantity' },
+];
+
+function AddAssetModal({ facility, onSubmit, onCancel }) {
+  const [category, setCategory] = useState(ASSET_CATEGORIES[0].key);
+  const [description, setDescription] = useState('');
+  const [quantity, setQuantity] = useState(1);
+  const [condition, setCondition] = useState(4);
+  const [purchaseCost, setPurchaseCost] = useState('');
+  const [purchaseDate, setPurchaseDate] = useState('');
+  const [notes, setNotes] = useState('');
+
+  const catObj = ASSET_CATEGORIES.find((c) => c.key === category) || ASSET_CATEGORIES[0];
+  const canSubmit = category && quantity > 0;
+
+  function submit() {
+    if (!canSubmit) return;
+    onSubmit({
+      category,
+      description: description.trim(),
+      quantity: Number(quantity),
+      condition: Number(condition),
+      purchaseCost: purchaseCost ? Number(purchaseCost) : 0,
+      purchaseDate: purchaseDate || null,
+      notes: notes.trim(),
+      lastAssessed: null,
+      issues: [],
+    });
+  }
+
+  return (
+    <div className="fix-confirm" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div className="fix-confirm-box jobmodal-box">
+        <div className="fac-jobmodal-head">
+          <div>
+            <div className="fac-detail-eyebrow">Facility inventory · {facility.venue}</div>
+            <div className="fac-jobmodal-title">Add asset · {facility.venue}</div>
+          </div>
+          <button className="fac-detail-close" onClick={onCancel}>
+            <Icon.X />
+          </button>
+        </div>
+
+        <div className="fac-jobmodal-body">
+          {/* STEP 1 — asset type tile grid */}
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">Step 1 · What kind of asset?</div>
+            <div className="jobmodal-type-grid">
+              {ASSET_CATEGORIES.map((c) => (
+                <button
+                  key={c.key}
+                  type="button"
+                  className={`jobmodal-type ${category === c.key ? 'on' : ''}`}
+                  onClick={() => setCategory(c.key)}
+                >
+                  <span className="jobmodal-type-icon">{c.icon}</span>
+                  <span className="jobmodal-type-label">{c.key}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* STEP 2 — details */}
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">Step 2 · Asset details</div>
+
+            <div className="field-grid-2">
+              <div>
+                <label className="field-label">{catObj.quantityL}</label>
+                <input
+                  className="field-input"
+                  type="number"
+                  min="1"
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="field-label">Description / spec</label>
+                <input
+                  className="field-input"
+                  placeholder="e.g. Roll-on flat cover · 24m wide"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div style={{ marginTop: 12 }}>
+              <label className="field-label">
+                Initial condition <span style={{ color: 'var(--muted)' }}>· {condition.toFixed?.(1) || condition}/5</span>
+              </label>
+              <input
+                type="range"
+                className="fac-range"
+                min="0"
+                max="5"
+                step="0.1"
+                value={condition}
+                onChange={(e) => setCondition(parseFloat(e.target.value))}
+              />
+              <div className="assess-condition-scale" style={{ color: 'var(--muted-2)' }}>
+                <span>Critical</span>
+                <span>Poor</span>
+                <span>Fair</span>
+                <span>Good</span>
+                <span>Excellent</span>
+              </div>
+            </div>
+
+            <div className="field-grid-2" style={{ marginTop: 12 }}>
+              <div>
+                <label className="field-label">Purchase cost (optional)</label>
+                <input
+                  className="field-input"
+                  type="number"
+                  min="0"
+                  placeholder="R 0"
+                  value={purchaseCost}
+                  onChange={(e) => setPurchaseCost(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="field-label">Acquired / installed (optional)</label>
+                <input
+                  className="field-input"
+                  type="date"
+                  value={purchaseDate}
+                  onChange={(e) => setPurchaseDate(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div style={{ marginTop: 12 }}>
+              <label className="field-label">Notes</label>
+              <textarea
+                className="field-textarea"
+                rows={3}
+                placeholder="Anything the admin should remember about this asset — supplier, warranty, model number…"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="jobmodal-footer">
+          <div className="jobmodal-footer-summary">
+            <strong>{quantity}</strong> × <strong>{category}</strong> · initial condition{' '}
+            <strong>{condition.toFixed ? condition.toFixed(1) : condition}/5</strong>
+          </div>
+          <div className="jobmodal-footer-actions">
+            <Btn tone="outline" onClick={onCancel}>
+              Cancel
+            </Btn>
+            <Btn tone="teal" icon={Icon.Check} onClick={submit} disabled={!canSubmit}>
+              Add to facility
+            </Btn>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /* ─── AssessmentEditor · portaled modal for a single asset section ─── */
 
@@ -4607,8 +4962,19 @@ function getAssetAt(assets, path) {
   return ref || {};
 }
 
-function AssessmentEditor({ facility, assetKey, assets, onSave, onCancel }) {
-  const initial = getAssetAt(assets, assetKey);
+function AssessmentEditor({ facility, assetKey, assets, customAssets = [], onSave, onCancel }) {
+  // Support "custom.<id>" keys — look up in the customAssets array.
+  let initial;
+  let title;
+  if (assetKey?.startsWith('custom.')) {
+    const id = assetKey.slice(7);
+    const found = customAssets.find((c) => c.id === id);
+    initial = found || {};
+    title = found ? `${found.category}${found.description ? ' · ' + found.description : ''}` : 'Custom asset';
+  } else {
+    initial = getAssetAt(assets, assetKey);
+    title = ASSET_TITLES[assetKey] || assetKey;
+  }
   const [condition, setCondition] = useState(initial.condition || 0);
   const [issues, setIssues] = useState(initial.issues || []);
   const [nextIssue, setNextIssue] = useState('');
@@ -4646,7 +5012,7 @@ function AssessmentEditor({ facility, assetKey, assets, onSave, onCancel }) {
         <div className="fac-jobmodal-head">
           <div>
             <div className="fac-detail-eyebrow">Physical inspection · {facility.venue}</div>
-            <div className="fac-jobmodal-title">Assess · {ASSET_TITLES[assetKey] || assetKey}</div>
+            <div className="fac-jobmodal-title">Assess · {title}</div>
           </div>
           <button className="fac-detail-close" onClick={onCancel}>
             <Icon.X />
