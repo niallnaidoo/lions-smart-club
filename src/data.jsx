@@ -1054,6 +1054,39 @@ const FACILITY_LOAD = FACILITIES.reduce((acc, f) => {
     98,
     Math.round((fixturesPlayed / (fixturesPlanned || 1)) * 100 + (totalBalls / 3600) * 20)
   );
+  // Seed match log — one entry per fixture played on this ground.
+  const OPPONENTS_POOL = [
+    'UKZN CC', 'Clares CC', 'Chatsworth Sporting CC', 'Umlazi CC', 'Crusaders CC',
+    'Berea Rovers CC', 'Rhythm DHSOB CC', 'African Warriors CC', 'Phoenix CC',
+    'Verulam CC', 'Harlequins CC', 'Spartan Sporting CC',
+  ];
+  const RESULTS_POOL = ['Won', 'Lost', 'Tied', 'Won', 'Won', 'Lost'];
+  const SERIES_LABELS = ['Premier · Round', 'Promotion · Round', 'T20 Cup · Round', 'Premier · Round'];
+  const startDate = new Date('2026-08-02');
+  const matches = Array.from({ length: fixturesPlayed }).map((_, i) => {
+    const oppIdx = Math.floor(r(50 + i) * OPPONENTS_POOL.length);
+    let opp = OPPONENTS_POOL[oppIdx];
+    if (opp === f.clubName) opp = OPPONENTS_POOL[(oppIdx + 1) % OPPONENTS_POOL.length];
+    const seriesIdx = Math.floor(r(60 + i) * SERIES_LABELS.length);
+    const overs = 40 + Math.round(r(70 + i) * 12);
+    const result = RESULTS_POOL[Math.floor(r(80 + i) * RESULTS_POOL.length)];
+    const scoreFor = 140 + Math.round(r(90 + i) * 140);
+    const scoreAgainst = result === 'Won' ? scoreFor - Math.round(r(100 + i) * 60 + 10) : scoreFor + Math.round(r(110 + i) * 60 + 5);
+    const matchDate = new Date(startDate);
+    matchDate.setDate(matchDate.getDate() - i * 14 - Math.round(r(120 + i) * 5));
+    return {
+      id: `m-${f.clubId}-${i}`,
+      date: matchDate.toISOString().slice(0, 10),
+      series: SERIES_LABELS[seriesIdx] + ' ' + ((i % 6) + 1),
+      opponent: opp,
+      home: true,
+      result,
+      scoreFor,
+      scoreAgainst,
+      overs,
+    };
+  });
+
   acc[f.clubId] = {
     fixturesPlayed,
     fixturesPlanned,
@@ -1067,6 +1100,7 @@ const FACILITY_LOAD = FACILITIES.reduce((acc, f) => {
     dotBalls: totalBalls - singles - twos - threes - fours - sixes,
     loadIndex,
     lastMatchDate: '2026-05-24',
+    matches,
   };
   return acc;
 }, {});
@@ -1373,6 +1407,42 @@ const FACILITY_MAINTENANCE_SCHEDULE = FACILITIES.reduce((acc, f) => {
   return acc;
 }, {});
 
+// Facility spend ledger — YTD actuals per asset. Prototype: seeded from
+// the maintenance schedule with a random-variance factor per club so the
+// budget-vs-actual variance panels have honest looking numbers.
+const FACILITY_SPEND = FACILITIES.reduce((acc, f) => {
+  const schedule = FACILITY_MAINTENANCE_SCHEDULE[f.clubId] || [];
+  const monthsElapsed = 8; // pretend we're at month 8 of the year
+  const r = (s) => seededRand(f.clubId, 700 + s);
+  const byAsset = {};
+  schedule.forEach((t) => {
+    const yearly =
+      t.cost *
+      (t.frequency === 'weekly'
+        ? 52
+        : t.frequency === 'monthly'
+          ? 12
+          : t.frequency === 'quarterly'
+            ? 4
+            : 1);
+    const budgeted = Math.round((yearly / 12) * monthsElapsed);
+    const varianceFactor = 0.75 + r(t.asset.length) * 0.6; // 0.75x – 1.35x
+    const actual = Math.round(budgeted * varianceFactor);
+    byAsset[t.asset] = byAsset[t.asset] || { budgeted: 0, actual: 0, yearlyBudget: 0 };
+    byAsset[t.asset].budgeted += budgeted;
+    byAsset[t.asset].actual += actual;
+    byAsset[t.asset].yearlyBudget += yearly;
+  });
+  acc[f.clubId] = {
+    monthsElapsed,
+    byAsset,
+    ytdBudget: Object.values(byAsset).reduce((s, a) => s + a.budgeted, 0),
+    ytdActual: Object.values(byAsset).reduce((s, a) => s + a.actual, 0),
+    yearlyBudget: Object.values(byAsset).reduce((s, a) => s + a.yearlyBudget, 0),
+  };
+  return acc;
+}, {});
+
 // Roll-up: annualise the maintenance schedule to £ per year
 function annualisedMaintCost(facilityId) {
   const items = FACILITY_MAINTENANCE_SCHEDULE[facilityId] || [];
@@ -1454,6 +1524,7 @@ export {
   FACILITY_ASSETS,
   FACILITY_CAPEX,
   FACILITY_MAINTENANCE_SCHEDULE,
+  FACILITY_SPEND,
   conditionWord,
   conditionTone,
   capexStatusTone,

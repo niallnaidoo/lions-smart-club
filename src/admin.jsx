@@ -45,6 +45,7 @@ import {
   FACILITY_ASSETS,
   FACILITY_CAPEX,
   FACILITY_MAINTENANCE_SCHEDULE,
+  FACILITY_SPEND,
   conditionWord,
   conditionTone,
   capexStatusTone,
@@ -2605,12 +2606,39 @@ function AdminFacilities({ toast }) {
   const [detail, setDetail] = useState(null); // clubId whose satellite floating card is showing
   const [openGround, setOpenGround] = useState(null); // clubId of full drilldown
   const [showCreateJob, setShowCreateJob] = useState(false);
+  const [jobCardType, setJobCardType] = useState(null); // pre-select a type when opened from an asset
   const [jobs, setJobs] = useState(FACILITY_JOBS);
+  // Editable asset assessments live at the parent so edits persist across tab switches.
+  const [assessments, setAssessments] = useState(FACILITY_ASSETS);
+  const [assessing, setAssessing] = useState(null); // {clubId, key} — which asset section is being edited
 
   function addJob(job) {
     setJobs((prev) => [...prev, job]);
     setShowCreateJob(false);
+    setJobCardType(null);
     toast?.(`Job card dispatched · ${job.assigneeName}`);
+  }
+
+  function openCreateJobForType(t) {
+    setJobCardType(t);
+    setShowCreateJob(true);
+  }
+  function saveAssessment(clubId, key, next) {
+    setAssessments((prev) => {
+      const cur = prev[clubId];
+      // key is a dot-path: e.g. "pitch" or "nets.outdoor"
+      const parts = key.split('.');
+      const parent = { ...cur };
+      let ref = parent;
+      for (let i = 0; i < parts.length - 1; i++) {
+        ref[parts[i]] = { ...ref[parts[i]] };
+        ref = ref[parts[i]];
+      }
+      ref[parts[parts.length - 1]] = { ...ref[parts[parts.length - 1]], ...next };
+      return { ...prev, [clubId]: parent };
+    });
+    setAssessing(null);
+    toast?.('Assessment saved · ' + new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }));
   }
   function toggleChecklistItem(jobId, idx) {
     setJobs((prev) =>
@@ -2635,15 +2663,18 @@ function AdminFacilities({ toast }) {
       setOpenGround(null);
       return null;
     }
+    const facilityAssets = assessments[facility.clubId] || FACILITY_ASSETS[facility.clubId];
     return (
       <>
         <AdminFacilityDetail
           facility={facility}
+          assets={facilityAssets}
           jobs={jobs.filter((j) => j.facilityId === facility.clubId)}
           onBack={() => setOpenGround(null)}
-          onOpenCreateJob={() => setShowCreateJob(true)}
+          onOpenCreateJob={openCreateJobForType}
           onToggleChecklistItem={toggleChecklistItem}
           onMarkJobStatus={markJobStatus}
+          onOpenAssess={(key) => setAssessing({ clubId: facility.clubId, key })}
           onGotoSatellite={() => {
             setSelected((s) => (s.includes(facility.clubId) ? s : [...s, facility.clubId]));
             setMode('satellite');
@@ -2656,8 +2687,23 @@ function AdminFacilities({ toast }) {
           ReactDOM.createPortal(
             <CreateJobCard
               facility={facility}
+              initialType={jobCardType}
               onSubmit={addJob}
-              onCancel={() => setShowCreateJob(false)}
+              onCancel={() => {
+                setShowCreateJob(false);
+                setJobCardType(null);
+              }}
+            />,
+            document.body
+          )}
+        {assessing &&
+          ReactDOM.createPortal(
+            <AssessmentEditor
+              facility={facility}
+              assetKey={assessing.key}
+              assets={facilityAssets}
+              onSave={(next) => saveAssessment(facility.clubId, assessing.key, next)}
+              onCancel={() => setAssessing(null)}
             />,
             document.body
           )}
@@ -3271,11 +3317,13 @@ function FacilitiesSatellite({
 
 function AdminFacilityDetail({
   facility,
+  assets,
   jobs,
   onBack,
   onOpenCreateJob,
   onToggleChecklistItem,
   onMarkJobStatus,
+  onOpenAssess,
   onGotoSatellite,
   toast,
 }) {
@@ -3345,7 +3393,7 @@ function AdminFacilityDetail({
           <Btn tone="outline" size="sm" onClick={onGotoSatellite}>
             View in satellite mode
           </Btn>
-          <Btn tone="teal" size="sm" icon={Icon.Plus} onClick={onOpenCreateJob}>
+          <Btn tone="teal" size="sm" icon={Icon.Plus} onClick={() => onOpenCreateJob?.()}>
             Create job card
           </Btn>
         </div>
@@ -3359,12 +3407,12 @@ function AdminFacilityDetail({
             {[
               {
                 k: 'maintenance',
-                l: 'Maintenance & jobs',
+                l: 'Job cards',
                 n: openJobs.length,
                 warn: highPriority,
               },
-              { k: 'assets', l: 'Assets', n: null },
-              { k: 'investment', l: 'Investment plan', n: null },
+              { k: 'assets', l: 'Asset assessment', n: null },
+              { k: 'investment', l: 'Facility costing', n: null },
               { k: 'load', l: 'Load & wear', n: load.fixturesPlayed },
               { k: 'team', l: 'Team & ownership', n: null },
             ].map((t) => (
@@ -3400,7 +3448,7 @@ function AdminFacilityDetail({
                   <div className="fac-section-title">Open job cards · {openJobs.length}</div>
                   <div className="fac-section-sub">Dispatched but not yet completed</div>
                 </div>
-                <Btn tone="teal" size="sm" icon={Icon.Plus} onClick={onOpenCreateJob}>
+                <Btn tone="teal" size="sm" icon={Icon.Plus} onClick={() => onOpenCreateJob?.()}>
                   Create job card
                 </Btn>
               </div>
@@ -3577,6 +3625,101 @@ function AdminFacilityDetail({
                 </div>
               </div>
 
+              {/* Matches played on this ground */}
+              <div className="fac-section-head" style={{ marginTop: 22 }}>
+                <div>
+                  <div className="fac-section-title">
+                    Matches played on this ground · {load.matches?.length || 0}
+                  </div>
+                  <div className="fac-section-sub">
+                    Fixture-by-fixture log of every match staged on the {facility.venue} square
+                  </div>
+                </div>
+              </div>
+              <div className="tbl-w" style={{ marginTop: 8 }}>
+                <table className="tbl">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Series</th>
+                      <th>Opponent</th>
+                      <th>H/A</th>
+                      <th>Result</th>
+                      <th style={{ textAlign: 'right' }}>Score</th>
+                      <th style={{ textAlign: 'right' }}>Overs</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(load.matches || []).map((m) => (
+                      <tr key={m.id}>
+                        <td>
+                          <div style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 12.5 }}>
+                            {new Date(m.date).toLocaleDateString('en-GB', {
+                              day: 'numeric',
+                              month: 'short',
+                            })}
+                          </div>
+                          <div style={{ fontSize: 10.5, color: 'var(--muted)' }}>
+                            {new Date(m.date).toLocaleDateString('en-GB', { weekday: 'short' })}
+                          </div>
+                        </td>
+                        <td>
+                          <span style={{ fontSize: 11.5, fontFamily: "'Montserrat',sans-serif", color: 'var(--muted)' }}>
+                            {m.series}
+                          </span>
+                        </td>
+                        <td>
+                          <div style={{ fontSize: 12.5, fontFamily: "'Montserrat',sans-serif", fontWeight: 600, color: 'var(--ink)' }}>
+                            {m.opponent}
+                          </div>
+                        </td>
+                        <td>
+                          <Pill tone="teal" dot>
+                            Home
+                          </Pill>
+                        </td>
+                        <td>
+                          <Pill tone={m.result === 'Won' ? 'teal' : m.result === 'Tied' ? 'gold' : 'coral'}>
+                            {m.result}
+                          </Pill>
+                        </td>
+                        <td
+                          style={{
+                            textAlign: 'right',
+                            fontFamily: "'Montserrat',sans-serif",
+                            fontVariantNumeric: 'tabular-nums',
+                          }}
+                        >
+                          <div style={{ fontWeight: 800, fontSize: 12.5 }}>
+                            {m.scoreFor}
+                            <span style={{ color: 'var(--muted-2)', margin: '0 4px' }}>vs</span>
+                            {m.scoreAgainst}
+                          </div>
+                        </td>
+                        <td
+                          style={{
+                            textAlign: 'right',
+                            fontFamily: "'Montserrat',sans-serif",
+                            fontVariantNumeric: 'tabular-nums',
+                            fontWeight: 700,
+                            fontSize: 12,
+                          }}
+                        >
+                          {m.overs}
+                        </td>
+                      </tr>
+                    ))}
+                    {(!load.matches || load.matches.length === 0) && (
+                      <tr>
+                        <td colSpan="7" style={{ textAlign: 'center', padding: 24, color: 'var(--muted)' }}>
+                          No matches played on this ground yet this season.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
               <div className="fac-section-head" style={{ marginTop: 22 }}>
                 <div>
                   <div className="fac-section-title">Scoring events on this ground</div>
@@ -3694,7 +3837,12 @@ function AdminFacilityDetail({
           )}
 
           {tab === 'assets' && (
-            <FacilityAssetsTab facility={facility} onCreateJob={onOpenCreateJob} />
+            <FacilityAssetsTab
+              facility={facility}
+              assets={assets}
+              onCreateJob={onOpenCreateJob}
+              onAssess={onOpenAssess}
+            />
           )}
 
           {tab === 'investment' && (
@@ -3772,12 +3920,24 @@ function AdminFacilityDetail({
 }
 
 /* ─── CreateJobCard · dispatch a new maintenance job ─── */
-function CreateJobCard({ facility, onSubmit, onCancel }) {
+function CreateJobCard({ facility, onSubmit, onCancel, initialType }) {
   const ownership = FACILITY_OWNERSHIP[facility.clubId];
   const staff = [ownership.head, ...ownership.assistants];
 
-  const [type, setType] = useState(JOB_TYPES[0].key);
-  const [title, setTitle] = useState('');
+  // Guard: only accept initialType if it matches a known job-type key.
+  const safeInitialType =
+    initialType && JOB_TYPES.some((t) => t.key === initialType) ? initialType : JOB_TYPES[0].key;
+  const [type, setType] = useState(safeInitialType);
+  const typeObj = JOB_TYPES.find((t) => t.key === type) || JOB_TYPES[0];
+
+  // Auto-suggest title when the type changes (user can edit).
+  function suggestTitle(t) {
+    const obj = JOB_TYPES.find((x) => x.key === t);
+    return `${obj.label} · ${facility.venue}`;
+  }
+  const [title, setTitle] = useState(suggestTitle(initialType || JOB_TYPES[0].key));
+  const [titleTouched, setTitleTouched] = useState(false);
+
   const [assigneeId, setAssigneeId] = useState(ownership.head.id);
   const [priority, setPriority] = useState('medium');
   const [dueDate, setDueDate] = useState(() => {
@@ -3787,9 +3947,18 @@ function CreateJobCard({ facility, onSubmit, onCancel }) {
   });
   const [notes, setNotes] = useState('');
   const [checklistCustom, setChecklistCustom] = useState([]);
+  const [checklistExcluded, setChecklistExcluded] = useState([]); // preset indices to skip
 
-  const typeObj = JOB_TYPES.find((t) => t.key === type);
-  const effectiveChecklist = [...typeObj.checklist, ...checklistCustom.filter(Boolean)];
+  function changeType(next) {
+    setType(next);
+    if (!titleTouched) setTitle(suggestTitle(next));
+    setChecklistExcluded([]);
+  }
+
+  const effectiveChecklist = [
+    ...typeObj.checklist.filter((_, i) => !checklistExcluded.includes(i)),
+    ...checklistCustom.filter(Boolean),
+  ];
 
   const canSubmit = title.trim().length > 0 && assigneeId && dueDate;
 
@@ -3816,7 +3985,7 @@ function CreateJobCard({ facility, onSubmit, onCancel }) {
 
   return (
     <div className="fix-confirm" onClick={(e) => e.target === e.currentTarget && onCancel()}>
-      <div className="fix-confirm-box" style={{ maxWidth: 620, textAlign: 'left' }}>
+      <div className="fix-confirm-box jobmodal-box">
         <div className="fac-jobmodal-head">
           <div>
             <div className="fac-detail-eyebrow">Dispatch to groundstaff</div>
@@ -3828,89 +3997,139 @@ function CreateJobCard({ facility, onSubmit, onCancel }) {
         </div>
 
         <div className="fac-jobmodal-body">
-          <div className="fac-jobmodal-row">
-            <label className="field-label">Job type</label>
-            <select className="field-select" value={type} onChange={(e) => setType(e.target.value)}>
+          {/* STEP 1 — pick the type of work. This drives the whole card. */}
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">Step 1 · What kind of work?</div>
+            <div className="jobmodal-type-grid">
               {JOB_TYPES.map((t) => (
-                <option key={t.key} value={t.key}>
-                  {t.icon} · {t.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="fac-jobmodal-row">
-            <label className="field-label">
-              Job title <span className="req">*</span>
-            </label>
-            <input
-              className="field-input"
-              placeholder="e.g. Prep pitch for Sat premier fixture"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-          </div>
-
-          <div className="field-grid-2">
-            <div>
-              <label className="field-label">
-                Assign to <span className="req">*</span>
-              </label>
-              <select
-                className="field-select"
-                value={assigneeId}
-                onChange={(e) => setAssigneeId(e.target.value)}
-              >
-                {staff.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} · {s.role}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="field-label">
-                Due date <span className="req">*</span>
-              </label>
-              <input
-                type="date"
-                className="field-input"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="field-label">Priority</label>
-            <div className="seg">
-              {['low', 'medium', 'high'].map((p) => (
                 <button
-                  key={p}
+                  key={t.key}
                   type="button"
-                  className={`seg-btn ${priority === p ? 'on' : ''}`}
-                  onClick={() => setPriority(p)}
+                  className={`jobmodal-type ${type === t.key ? 'on' : ''}`}
+                  onClick={() => changeType(t.key)}
+                  title={t.checklist.length ? `${t.checklist.length} preset steps` : 'No preset checklist'}
                 >
-                  {p === 'high' ? '⚑ ' : ''}
-                  {p[0].toUpperCase() + p.slice(1)}
+                  <span className="jobmodal-type-icon">{t.icon}</span>
+                  <span className="jobmodal-type-label">{t.label}</span>
+                  {t.checklist.length > 0 && (
+                    <span className="jobmodal-type-badge">{t.checklist.length} steps</span>
+                  )}
                 </button>
               ))}
             </div>
           </div>
 
-          <div>
-            <label className="field-label">Checklist</label>
-            <div className="fac-jobmodal-checklist">
-              {typeObj.checklist.length > 0 && (
-                <div className="fac-jobmodal-preset">
-                  <div className="fac-jobmodal-preset-l">Prefilled from {typeObj.label}</div>
-                  {typeObj.checklist.map((c, i) => (
-                    <div key={i} className="fac-jobmodal-item preset">
-                      <span className="fac-jobmodal-tick">✓</span> {c}
-                    </div>
-                  ))}
+          {/* STEP 2 — prefilled steps for this type. Big, obvious, dismissable. */}
+          {typeObj.checklist.length > 0 && (
+            <div className="jobmodal-prefill">
+              <div className="jobmodal-prefill-head">
+                <div className="jobmodal-prefill-eyebrow">
+                  ⚡ Auto-filled from <strong>{typeObj.label}</strong>
                 </div>
-              )}
+                <div className="jobmodal-prefill-title">
+                  {effectiveChecklist.filter((s) => typeObj.checklist.includes(s)).length} of{' '}
+                  {typeObj.checklist.length} preset steps will land on this card
+                </div>
+                <div className="jobmodal-prefill-sub">
+                  Uncheck any that don't apply. You can add custom steps below.
+                </div>
+              </div>
+              <ul className="jobmodal-prefill-list">
+                {typeObj.checklist.map((c, i) => {
+                  const on = !checklistExcluded.includes(i);
+                  return (
+                    <li key={i} className={on ? 'on' : 'off'}>
+                      <button
+                        type="button"
+                        className={`jobmodal-prefill-box ${on ? 'on' : ''}`}
+                        onClick={() =>
+                          setChecklistExcluded((prev) =>
+                            on ? [...prev, i] : prev.filter((x) => x !== i)
+                          )
+                        }
+                      >
+                        {on && <Icon.Check />}
+                      </button>
+                      <span>{c}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
+          {/* STEP 3 — the rest of the job details. */}
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">Step 2 · Job details</div>
+
+            <div className="fac-jobmodal-row">
+              <label className="field-label">
+                Job title <span className="req">*</span>{' '}
+                <span className="jobmodal-title-hint">
+                  auto-suggested from {typeObj.label}
+                </span>
+              </label>
+              <input
+                className="field-input"
+                placeholder="e.g. Prep pitch for Sat premier fixture"
+                value={title}
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  setTitleTouched(true);
+                }}
+              />
+            </div>
+
+            <div className="field-grid-2" style={{ marginTop: 12 }}>
+              <div>
+                <label className="field-label">
+                  Assign to <span className="req">*</span>
+                </label>
+                <select
+                  className="field-select"
+                  value={assigneeId}
+                  onChange={(e) => setAssigneeId(e.target.value)}
+                >
+                  {staff.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} · {s.role}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="field-label">
+                  Due date <span className="req">*</span>
+                </label>
+                <input
+                  type="date"
+                  className="field-input"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div style={{ marginTop: 12 }}>
+              <label className="field-label">Priority</label>
+              <div className="seg">
+                {['low', 'medium', 'high'].map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    className={`seg-btn ${priority === p ? 'on' : ''}`}
+                    onClick={() => setPriority(p)}
+                  >
+                    {p === 'high' ? '⚑ ' : ''}
+                    {p[0].toUpperCase() + p.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Custom checklist items — additive on top of the preset */}
+            <div style={{ marginTop: 12 }}>
+              <label className="field-label">Extra steps (optional)</label>
               {checklistCustom.map((c, i) => (
                 <div key={i} className="fac-jobmodal-item">
                   <input
@@ -3935,30 +4154,39 @@ function CreateJobCard({ facility, onSubmit, onCancel }) {
                 className="fac-jobmodal-add"
                 onClick={() => setChecklistCustom((prev) => [...prev, ''])}
               >
-                + Add step
+                + Add custom step
               </button>
             </div>
-          </div>
 
-          <div>
-            <label className="field-label">Notes</label>
-            <textarea
-              className="field-textarea"
-              placeholder="Anything the groundstaff should know before starting…"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-            />
+            <div style={{ marginTop: 12 }}>
+              <label className="field-label">Notes</label>
+              <textarea
+                className="field-textarea"
+                placeholder="Anything the groundstaff should know before starting…"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+              />
+            </div>
           </div>
         </div>
 
-        <div className="fix-confirm-actions" style={{ paddingTop: 16 }}>
-          <Btn tone="outline" onClick={onCancel}>
-            Cancel
-          </Btn>
-          <Btn tone="teal" icon={Icon.Check} onClick={submit} disabled={!canSubmit}>
-            Dispatch job card
-          </Btn>
+        <div className="jobmodal-footer">
+          <div className="jobmodal-footer-summary">
+            <strong>{effectiveChecklist.length}</strong> steps · assigned to{' '}
+            <strong>{staff.find((s) => s.id === assigneeId)?.name}</strong> · due{' '}
+            <strong>
+              {new Date(dueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+            </strong>
+          </div>
+          <div className="jobmodal-footer-actions">
+            <Btn tone="outline" onClick={onCancel}>
+              Cancel
+            </Btn>
+            <Btn tone="teal" icon={Icon.Arrow} onClick={submit} disabled={!canSubmit}>
+              Dispatch job card
+            </Btn>
+          </div>
         </div>
       </div>
     </div>
@@ -3992,24 +4220,66 @@ function CQIRef({ label }) {
   );
 }
 
-function AssetCard({ title, cqiRefLabel, badge, badgeTone, children, cta }) {
+function AssetCard({ title, cqiRefLabel, badge, badgeTone, lastAssessed, onAssess, children, cta }) {
+  const clickable = !!onAssess;
   return (
-    <div className="fac-asset">
+    <div
+      className={`fac-asset ${clickable ? 'clickable' : ''}`}
+      onClick={clickable ? onAssess : undefined}
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+    >
       <div className="fac-asset-head">
         <div>
-          <div className="fac-asset-title">{title}</div>
+          <div className="fac-asset-title">
+            {title}
+            {clickable && <span className="fac-asset-hint">Tap to assess</span>}
+          </div>
           {cqiRefLabel && <CQIRef label={cqiRefLabel} />}
+          {lastAssessed && (
+            <div className="fac-asset-assessed">
+              Last assessed{' '}
+              {new Date(lastAssessed).toLocaleDateString('en-GB', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric',
+              })}
+            </div>
+          )}
         </div>
-        {badge && <Pill tone={badgeTone || 'muted'} dot>{badge}</Pill>}
+        <div className="fac-asset-head-right">
+          {badge && (
+            <Pill tone={badgeTone || 'muted'} dot>
+              {badge}
+            </Pill>
+          )}
+          {clickable && (
+            <button
+              className="fac-asset-assess-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAssess();
+              }}
+            >
+              Assess ›
+            </button>
+          )}
+        </div>
       </div>
-      <div className="fac-asset-body">{children}</div>
-      {cta && <div className="fac-asset-cta">{cta}</div>}
+      <div className="fac-asset-body" onClick={(e) => e.stopPropagation()}>
+        {children}
+      </div>
+      {cta && (
+        <div className="fac-asset-cta" onClick={(e) => e.stopPropagation()}>
+          {cta}
+        </div>
+      )}
     </div>
   );
 }
 
-function FacilityAssetsTab({ facility, onCreateJob }) {
-  const assets = FACILITY_ASSETS[facility.clubId];
+function FacilityAssetsTab({ facility, assets: assetsProp, onCreateJob, onAssess }) {
+  const assets = assetsProp || FACILITY_ASSETS[facility.clubId];
   const pitch = assets.pitch;
   const covers = assets.covers;
   const outdoor = assets.nets.outdoor;
@@ -4022,9 +4292,11 @@ function FacilityAssetsTab({ facility, onCreateJob }) {
       <div className="fac-objective">
         <div className="fac-objective-eyebrow">Objective</div>
         <div className="fac-objective-text">
-          Current-state inventory of every asset at <strong>{facility.venue}</strong> — sourced from
-          the club's CQI submission and enriched with condition scoring, issues, and links back
-          into the maintenance workflow. Every asset section can dispatch a job card directly.
+          The management team's <strong>physical inspection worksheet</strong> for{' '}
+          <strong>{facility.venue}</strong>. Every section is <strong>clickable</strong> —
+          tap "Assess" to record a new condition score, log issues found on site, and
+          set the next inspection date. Data flows into the Job cards + Facility costing
+          tabs.
         </div>
       </div>
 
@@ -4042,8 +4314,10 @@ function FacilityAssetsTab({ facility, onCreateJob }) {
         cqiRefLabel="Grass / Artificial fields"
         badge={conditionWord(pitch.condition)}
         badgeTone={conditionTone(pitch.condition)}
+        lastAssessed={pitch.lastAssessed}
+        onAssess={() => onAssess?.('pitch')}
         cta={
-          <Btn tone="outline" size="sm" icon={Icon.Plus} onClick={onCreateJob}>
+          <Btn tone="outline" size="sm" icon={Icon.Plus} onClick={() => onCreateJob?.('pitch-prep')}>
             Dispatch pitch job
           </Btn>
         }
@@ -4099,8 +4373,10 @@ function FacilityAssetsTab({ facility, onCreateJob }) {
           cqiRefLabel="Square covers available (Yes)"
           badge={conditionWord(covers.condition)}
           badgeTone={conditionTone(covers.condition)}
+          lastAssessed={covers.lastAssessed}
+          onAssess={() => onAssess?.('covers')}
           cta={
-            <Btn tone="outline" size="sm" icon={Icon.Plus} onClick={onCreateJob}>
+            <Btn tone="outline" size="sm" icon={Icon.Plus} onClick={() => onCreateJob?.('boundary-rope')}>
               Dispatch covers job
             </Btn>
           }
@@ -4134,6 +4410,7 @@ function FacilityAssetsTab({ facility, onCreateJob }) {
           cqiRefLabel="Square covers available (No)"
           badge="Gap"
           badgeTone="coral"
+          onAssess={() => onAssess?.('covers')}
           cta={
             <Btn tone="outline" size="sm">
               Add to capex plan
@@ -4159,8 +4436,10 @@ function FacilityAssetsTab({ facility, onCreateJob }) {
         cqiRefLabel="Grass + Artificial nets"
         badge={conditionWord(outdoor.condition)}
         badgeTone={conditionTone(outdoor.condition)}
+        lastAssessed={outdoor.lastAssessed}
+        onAssess={() => onAssess?.('nets.outdoor')}
         cta={
-          <Btn tone="outline" size="sm" icon={Icon.Plus} onClick={onCreateJob}>
+          <Btn tone="outline" size="sm" icon={Icon.Plus} onClick={() => onCreateJob?.('nets')}>
             Dispatch nets job
           </Btn>
         }
@@ -4204,6 +4483,7 @@ function FacilityAssetsTab({ facility, onCreateJob }) {
           cqiRefLabel="Indoor nets"
           badge={conditionWord(indoor.condition)}
           badgeTone={conditionTone(indoor.condition)}
+          onAssess={() => onAssess?.('nets.indoor')}
         >
           <div className="fac-asset-grid">
             <div>
@@ -4218,6 +4498,7 @@ function FacilityAssetsTab({ facility, onCreateJob }) {
           cqiRefLabel="Indoor nets (0)"
           badge="Gap"
           badgeTone="muted"
+          onAssess={() => onAssess?.('nets.indoor')}
         >
           <div className="fac-asset-empty">
             No all-weather practice option. Winter drop-off in player attendance is typically 40%+ —
@@ -4232,6 +4513,7 @@ function FacilityAssetsTab({ facility, onCreateJob }) {
           cqiRefLabel="Bowling machines"
           badge={bm.condition}
           badgeTone="teal"
+          onAssess={() => onAssess?.('nets.bowlingMachines')}
         >
           <div className="fac-asset-grid">
             <div>
@@ -4264,6 +4546,7 @@ function FacilityAssetsTab({ facility, onCreateJob }) {
           cqiRefLabel="Bowling machines (0)"
           badge="Gap"
           badgeTone="muted"
+          onAssess={() => onAssess?.('nets.bowlingMachines')}
         >
           <div className="fac-asset-empty">
             No bowling machine on inventory. Coaches typically hire from a neighbouring club at
@@ -4305,9 +4588,206 @@ function FacilityAssetsTab({ facility, onCreateJob }) {
 
 /* ─── Investment plan tab · Capex + recurring maintenance ─── */
 
+/* ─── AssessmentEditor · portaled modal for a single asset section ─── */
+
+// Titles per asset dot-path
+const ASSET_TITLES = {
+  pitch: 'Pitch square',
+  covers: 'Covers',
+  'nets.outdoor': 'Outdoor practice nets',
+  'nets.indoor': 'Indoor practice nets',
+  'nets.bowlingMachines': 'Bowling machine(s)',
+  support: 'Support kit',
+};
+
+function getAssetAt(assets, path) {
+  const parts = path.split('.');
+  let ref = assets;
+  for (const p of parts) ref = ref?.[p];
+  return ref || {};
+}
+
+function AssessmentEditor({ facility, assetKey, assets, onSave, onCancel }) {
+  const initial = getAssetAt(assets, assetKey);
+  const [condition, setCondition] = useState(initial.condition || 0);
+  const [issues, setIssues] = useState(initial.issues || []);
+  const [nextIssue, setNextIssue] = useState('');
+  const [notes, setNotes] = useState(initial.assessmentNotes || '');
+  const [assessedBy, setAssessedBy] = useState(
+    initial.assessedBy || FACILITY_OWNERSHIP[facility.clubId].head.name
+  );
+  const staff = [
+    FACILITY_OWNERSHIP[facility.clubId].head,
+    ...FACILITY_OWNERSHIP[facility.clubId].assistants,
+  ];
+
+  function addIssue() {
+    if (!nextIssue.trim()) return;
+    setIssues((prev) => [...prev, nextIssue.trim()]);
+    setNextIssue('');
+  }
+  function removeIssue(i) {
+    setIssues((prev) => prev.filter((_, x) => x !== i));
+  }
+
+  function save() {
+    onSave({
+      condition,
+      issues,
+      assessmentNotes: notes.trim(),
+      assessedBy,
+      lastAssessed: new Date().toISOString().slice(0, 10),
+    });
+  }
+
+  return (
+    <div className="fix-confirm" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div className="fix-confirm-box jobmodal-box">
+        <div className="fac-jobmodal-head">
+          <div>
+            <div className="fac-detail-eyebrow">Physical inspection · {facility.venue}</div>
+            <div className="fac-jobmodal-title">Assess · {ASSET_TITLES[assetKey] || assetKey}</div>
+          </div>
+          <button className="fac-detail-close" onClick={onCancel}>
+            <Icon.X />
+          </button>
+        </div>
+
+        <div className="fac-jobmodal-body">
+          {/* Condition slider */}
+          <div className="assess-condition">
+            <div className="assess-condition-l">Condition score</div>
+            <div className="assess-condition-main">
+              <div className={`assess-condition-n ${condition >= 3.6 ? 'good' : condition >= 2.8 ? 'ok' : 'bad'}`}>
+                {condition.toFixed(1)}
+                <span>/5</span>
+              </div>
+              <div className="assess-condition-word">
+                {condition >= 4.3
+                  ? 'Excellent'
+                  : condition >= 3.6
+                    ? 'Good'
+                    : condition >= 2.8
+                      ? 'Fair'
+                      : condition >= 1.8
+                        ? 'Poor'
+                        : 'Critical'}
+              </div>
+            </div>
+            <input
+              type="range"
+              className="fac-range"
+              min="0"
+              max="5"
+              step="0.1"
+              value={condition}
+              onChange={(e) => setCondition(parseFloat(e.target.value))}
+            />
+            <div className="assess-condition-scale">
+              <span>Critical</span>
+              <span>Poor</span>
+              <span>Fair</span>
+              <span>Good</span>
+              <span>Excellent</span>
+            </div>
+          </div>
+
+          {/* Issues */}
+          <div className="assess-section">
+            <label className="field-label">Issues found on inspection</label>
+            <div className="assess-issues">
+              {issues.length === 0 && (
+                <div className="assess-issues-empty">
+                  Nothing logged yet — add any wear, damage, or safety concerns below.
+                </div>
+              )}
+              {issues.map((iss, i) => (
+                <div key={i} className="assess-issue">
+                  <span className="assess-issue-icon">⚠</span>
+                  <span className="assess-issue-text">{iss}</span>
+                  <button className="assess-issue-remove" onClick={() => removeIssue(i)}>
+                    <Icon.X />
+                  </button>
+                </div>
+              ))}
+              <div className="assess-issue-add">
+                <input
+                  className="field-input"
+                  placeholder="e.g. Wear on middle strip, cover wheel bearing seized…"
+                  value={nextIssue}
+                  onChange={(e) => setNextIssue(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addIssue()}
+                />
+                <Btn tone="outline" size="sm" onClick={addIssue}>
+                  Add
+                </Btn>
+              </div>
+            </div>
+          </div>
+
+          {/* Attribution + notes */}
+          <div className="field-grid-2">
+            <div>
+              <label className="field-label">Assessed by</label>
+              <select
+                className="field-select"
+                value={assessedBy}
+                onChange={(e) => setAssessedBy(e.target.value)}
+              >
+                {staff.map((s) => (
+                  <option key={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="field-label">Inspection date</label>
+              <input
+                className="field-input"
+                value={new Date().toLocaleDateString('en-GB', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })}
+                disabled
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="field-label">Inspection notes</label>
+            <textarea
+              className="field-textarea"
+              rows={3}
+              placeholder="What did you look at, and what did you find that isn't already an issue?"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="jobmodal-footer">
+          <div className="jobmodal-footer-summary">
+            <strong>{issues.length}</strong> {issues.length === 1 ? 'issue' : 'issues'} logged ·
+            condition <strong>{condition.toFixed(1)}</strong>/5
+          </div>
+          <div className="jobmodal-footer-actions">
+            <Btn tone="outline" onClick={onCancel}>
+              Cancel
+            </Btn>
+            <Btn tone="teal" icon={Icon.Check} onClick={save}>
+              Save assessment
+            </Btn>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FacilityInvestmentTab({ facility, onCreateJob }) {
   const capex = FACILITY_CAPEX[facility.clubId] || [];
   const maint = FACILITY_MAINTENANCE_SCHEDULE[facility.clubId] || [];
+  const spend = FACILITY_SPEND[facility.clubId] || { byAsset: {}, ytdBudget: 0, ytdActual: 0, yearlyBudget: 0 };
   const capexSum = capexTotal(facility.clubId);
   const annualMaint = annualisedMaintCost(facility.clubId);
 
@@ -4328,43 +4808,103 @@ function FacilityInvestmentTab({ facility, onCreateJob }) {
     support: 'Support kit',
   };
 
+  const variance = spend.ytdActual - spend.ytdBudget;
+  const variancePct = spend.ytdBudget ? ((variance / spend.ytdBudget) * 100).toFixed(1) : '0';
+  const overBudget = variance > 0;
+
   return (
     <div className="fac-tab-body">
       <div className="fac-objective">
         <div className="fac-objective-eyebrow">Objective</div>
         <div className="fac-objective-text">
-          Plan the money side of {facility.venue}. <strong>Capex</strong> covers one-off asset
-          purchases and renewals; <strong>recurring maintenance</strong> is the weekly / monthly
-          / quarterly work needed to keep those assets in good order. Both roll into the annual
-          budget for the Union grant conversation.
+          <strong>Track and forecast the cost of keeping {facility.venue} match-ready.</strong>{' '}
+          Three views: <strong>YTD spend</strong> (what you've actually paid so far), the{' '}
+          <strong>annual maintenance budget</strong> (what recurring work costs across the year),
+          and <strong>capex</strong> (one-off renewals + upgrades). Together they build the number
+          you take into the Union grant conversation.
         </div>
       </div>
 
-      {/* Totals strip */}
-      <div className="fac-load-kpis">
-        <div className="fac-load-kpi">
-          <div className="fac-load-l">Capex requested</div>
-          <div className="fac-load-n">R {capexSum.toLocaleString()}</div>
-          <div className="fac-load-meta">{capex.length} item{capex.length === 1 ? '' : 's'} across all assets</div>
-        </div>
-        <div className="fac-load-kpi">
-          <div className="fac-load-l">Annual maintenance</div>
-          <div className="fac-load-n">R {annualMaint.toLocaleString()}</div>
-          <div className="fac-load-meta">Recurring · {maint.length} tasks</div>
-        </div>
-        <div className="fac-load-kpi">
-          <div className="fac-load-l">High-priority capex</div>
-          <div className="fac-load-n" style={{ color: 'var(--coral)' }}>
-            {capex.filter((c) => c.priority === 'high').length}
+      {/* ─── COST PANEL — the primary lens ─── */}
+      <div className="fac-section-head" style={{ marginTop: 6 }}>
+        <div>
+          <div className="fac-section-title">Facility cost tracker</div>
+          <div className="fac-section-sub">
+            YTD actuals vs budget · month {spend.monthsElapsed} of 12
           </div>
-          <div className="fac-load-meta">Blocking eligibility or safety</div>
-        </div>
-        <div className="fac-load-kpi">
-          <div className="fac-load-l">Total to plan</div>
-          <div className="fac-load-n">R {(capexSum + annualMaint).toLocaleString()}</div>
-          <div className="fac-load-meta">Capex + one year of maintenance</div>
         </div>
       </div>
+
+      <div className="fac-cost-hero">
+        <div className="fac-cost-hero-main">
+          <div className="fac-cost-hero-l">YTD spend</div>
+          <div className="fac-cost-hero-n">R {spend.ytdActual.toLocaleString()}</div>
+          <div className="fac-cost-hero-meta">
+            of R {spend.ytdBudget.toLocaleString()} budgeted
+          </div>
+          <div className={`fac-cost-hero-variance ${overBudget ? 'over' : 'under'}`}>
+            {overBudget ? '▲' : '▼'} R {Math.abs(variance).toLocaleString()} ·{' '}
+            {variancePct}% {overBudget ? 'over budget' : 'under budget'}
+          </div>
+        </div>
+        <div className="fac-cost-hero-side">
+          <div className="fac-cost-side-row">
+            <span>Yearly maintenance budget</span>
+            <strong>R {spend.yearlyBudget.toLocaleString()}</strong>
+          </div>
+          <div className="fac-cost-side-row">
+            <span>Capex under proposal</span>
+            <strong>R {capexSum.toLocaleString()}</strong>
+          </div>
+          <div className="fac-cost-side-row primary">
+            <span>Total for the grant conversation</span>
+            <strong>R {(spend.yearlyBudget + capexSum).toLocaleString()}</strong>
+          </div>
+        </div>
+      </div>
+
+      {/* Per-asset spend breakdown */}
+      <div className="fac-section-head" style={{ marginTop: 22 }}>
+        <div>
+          <div className="fac-section-title">Cost by asset · YTD</div>
+          <div className="fac-section-sub">Where the maintenance rand is actually going</div>
+        </div>
+      </div>
+      <div className="fac-cost-breakdown">
+        {Object.keys(spend.byAsset).map((asset) => {
+          const a = spend.byAsset[asset];
+          const pct = spend.ytdActual ? (a.actual / spend.ytdActual) * 100 : 0;
+          const varAmount = a.actual - a.budgeted;
+          const varPct = a.budgeted ? ((varAmount / a.budgeted) * 100).toFixed(0) : '0';
+          return (
+            <div key={asset} className="fac-cost-row">
+              <div className="fac-cost-row-l">
+                <div className="fac-cost-row-name">{ASSET_LABELS[asset] || asset}</div>
+                <div className="fac-cost-row-sub">
+                  Yearly budget · R {a.yearlyBudget.toLocaleString()}
+                </div>
+              </div>
+              <div className="fac-cost-row-bar">
+                <div className="fac-cost-row-track">
+                  <div className="fac-cost-row-fill" style={{ width: `${Math.min(100, pct)}%` }} />
+                </div>
+                <div className="fac-cost-row-pct">{pct.toFixed(0)}%</div>
+              </div>
+              <div className="fac-cost-row-num">
+                <div className="fac-cost-row-actual">R {a.actual.toLocaleString()}</div>
+                <div
+                  className={`fac-cost-row-var ${varAmount > 0 ? 'over' : 'under'}`}
+                  title={`Budget R ${a.budgeted.toLocaleString()}`}
+                >
+                  {varAmount > 0 ? '▲' : '▼'} R {Math.abs(varAmount).toLocaleString()} · {varPct}%
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Existing capex + maintenance sections — keep, but they now sit *under* the cost panel */}
 
       {/* CAPEX */}
       <div className="fac-section-head" style={{ marginTop: 22 }}>
@@ -4423,7 +4963,7 @@ function FacilityInvestmentTab({ facility, onCreateJob }) {
             Planned work, grouped by asset — annualised into the budget
           </div>
         </div>
-        <Btn tone="outline" size="sm" icon={Icon.Plus} onClick={onCreateJob}>
+        <Btn tone="outline" size="sm" icon={Icon.Plus} onClick={() => onCreateJob?.()}>
           Dispatch as job card
         </Btn>
       </div>

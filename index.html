@@ -7843,6 +7843,562 @@
         }
       }
 
+      /* ─── Job card modal — bigger, prefilled section is unmissable ─── */
+      .jobmodal-box {
+        max-width: 780px !important;
+        width: 100%;
+        text-align: left;
+        padding: 0 !important;
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .jobmodal-box > .fac-jobmodal-head {
+        padding: 22px 26px 16px;
+        margin-bottom: 0 !important;
+      }
+      .jobmodal-box > .fac-jobmodal-body {
+        padding: 0 26px 22px;
+        overflow-y: auto;
+        flex: 1;
+      }
+
+      .jobmodal-step {
+        padding-top: 16px;
+      }
+      .jobmodal-step + .jobmodal-step {
+        border-top: 1px solid var(--line2);
+        margin-top: 16px;
+      }
+      .jobmodal-step-eyebrow {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--green);
+        margin-bottom: 10px;
+      }
+
+      /* Job-type picker grid (replaces the dropdown) */
+      .jobmodal-type-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 8px;
+      }
+      .jobmodal-type {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 12px 14px;
+        border: 1.5px solid var(--line);
+        border-radius: 10px;
+        background: var(--white);
+        cursor: pointer;
+        text-align: left;
+        transition:
+          border-color 0.15s ease,
+          background 0.15s ease;
+      }
+      .jobmodal-type:hover {
+        border-color: var(--ink3);
+      }
+      .jobmodal-type.on {
+        border-color: var(--green);
+        background: var(--green-pale);
+      }
+      .jobmodal-type-icon {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 16px;
+        font-weight: 800;
+        color: var(--muted);
+      }
+      .jobmodal-type.on .jobmodal-type-icon {
+        color: var(--green);
+      }
+      .jobmodal-type-label {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 12.5px;
+        font-weight: 700;
+        color: var(--ink);
+        line-height: 1.3;
+      }
+      .jobmodal-type-badge {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 9.5px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .jobmodal-type.on .jobmodal-type-badge {
+        color: var(--green);
+      }
+
+      /* Prefilled checklist panel — hero of the modal */
+      .jobmodal-prefill {
+        margin-top: 16px;
+        background: linear-gradient(180deg, var(--green-pale) 0%, rgba(255, 255, 255, 0.6) 100%);
+        border: 1.5px solid rgba(15, 77, 46, 0.25);
+        border-radius: 14px;
+        padding: 18px 20px;
+      }
+      .jobmodal-prefill-eyebrow {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10.5px;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--green);
+        margin-bottom: 6px;
+      }
+      .jobmodal-prefill-title {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 15px;
+        font-weight: 800;
+        color: var(--ink);
+        letter-spacing: -0.01em;
+      }
+      .jobmodal-prefill-sub {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11.5px;
+        color: var(--muted);
+        margin-top: 3px;
+      }
+      .jobmodal-prefill-list {
+        list-style: none;
+        margin: 12px 0 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .jobmodal-prefill-list li {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 13px;
+        color: var(--ink);
+        padding: 8px 10px;
+        background: var(--white);
+        border-radius: 8px;
+        border: 1px solid rgba(15, 77, 46, 0.14);
+      }
+      .jobmodal-prefill-list li.off {
+        opacity: 0.55;
+      }
+      .jobmodal-prefill-list li.off > span {
+        text-decoration: line-through;
+      }
+      .jobmodal-prefill-box {
+        width: 22px;
+        height: 22px;
+        border-radius: 6px;
+        border: 1.5px solid var(--green);
+        background: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--green);
+        cursor: pointer;
+        flex-shrink: 0;
+      }
+      .jobmodal-prefill-box.on {
+        background: var(--green);
+      }
+      .jobmodal-prefill-box.on svg {
+        color: #fff;
+      }
+      .jobmodal-prefill-box svg {
+        width: 12px;
+        height: 12px;
+      }
+
+      .jobmodal-title-hint {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--green);
+        text-transform: none;
+        letter-spacing: 0.06em;
+        margin-left: 4px;
+      }
+
+      .jobmodal-footer {
+        border-top: 1px solid var(--line2);
+        padding: 14px 26px;
+        background: var(--paper);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .jobmodal-footer-summary {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .jobmodal-footer-summary strong {
+        color: var(--ink);
+        font-weight: 800;
+      }
+      .jobmodal-footer-actions {
+        display: flex;
+        gap: 10px;
+      }
+
+      /* ─── Asset section clickability + Assess button ─── */
+      .fac-asset.clickable {
+        cursor: pointer;
+        transition:
+          border-color 0.15s ease,
+          transform 0.15s ease,
+          box-shadow 0.15s ease;
+      }
+      .fac-asset.clickable:hover {
+        border-color: var(--ink3);
+        transform: translateY(-1px);
+        box-shadow: 0 6px 20px rgba(10, 15, 20, 0.05);
+      }
+      .fac-asset-head-right {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+      .fac-asset-hint {
+        display: inline-block;
+        margin-left: 10px;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 9.5px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--green);
+        opacity: 0.75;
+      }
+      .fac-asset-assess-btn {
+        background: var(--ink);
+        color: #fff;
+        border: 0;
+        border-radius: 8px;
+        padding: 7px 12px;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+      }
+      .fac-asset-assess-btn:hover {
+        background: var(--green);
+      }
+      .fac-asset-assessed {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10.5px;
+        color: var(--muted);
+        margin-top: 4px;
+      }
+
+      /* Assessment editor — condition slider hero */
+      .assess-condition {
+        background: var(--ink);
+        color: #fff;
+        border-radius: 12px;
+        padding: 18px 20px;
+      }
+      .assess-condition-l {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--gold-mid);
+      }
+      .assess-condition-main {
+        display: flex;
+        align-items: baseline;
+        gap: 14px;
+        margin: 6px 0 10px;
+      }
+      .assess-condition-n {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 44px;
+        font-weight: 800;
+        color: #fff;
+        letter-spacing: -0.03em;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+      }
+      .assess-condition-n span {
+        font-size: 20px;
+        color: rgba(255, 255, 255, 0.55);
+        margin-left: 4px;
+      }
+      .assess-condition-n.good {
+        color: var(--green-bright, #6BC791);
+      }
+      .assess-condition-n.ok {
+        color: #E0B850;
+      }
+      .assess-condition-n.bad {
+        color: #E88A8A;
+      }
+      .assess-condition-word {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        color: rgba(255, 255, 255, 0.75);
+      }
+      .assess-condition input[type='range'] {
+        width: 100%;
+        accent-color: var(--green-bright, #6BC791);
+      }
+      .assess-condition-scale {
+        display: flex;
+        justify-content: space-between;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 9.5px;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.5);
+        margin-top: 4px;
+      }
+
+      .assess-section {
+        display: flex;
+        flex-direction: column;
+      }
+      .assess-issues {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .assess-issues-empty {
+        padding: 12px;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 12px;
+        color: var(--muted);
+        background: var(--paper);
+        border-radius: 8px;
+        text-align: center;
+      }
+      .assess-issue {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 10px;
+        background: var(--paper);
+        border-radius: 8px;
+        border-left: 3px solid var(--gold, #C8A84B);
+      }
+      .assess-issue-icon {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 13px;
+        font-weight: 800;
+        color: var(--gold, #C8A84B);
+      }
+      .assess-issue-text {
+        flex: 1;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 12.5px;
+        color: var(--ink);
+      }
+      .assess-issue-remove {
+        border: 0;
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+      }
+      .assess-issue-remove svg {
+        width: 10px;
+        height: 10px;
+      }
+      .assess-issue-add {
+        display: flex;
+        gap: 6px;
+        margin-top: 6px;
+      }
+      .assess-issue-add .field-input {
+        flex: 1;
+      }
+
+      /* ─── Facility costing tab · cost tracker + breakdown ─── */
+      .fac-cost-hero {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+        margin-top: 6px;
+      }
+      .fac-cost-hero-main {
+        background: var(--ink);
+        color: #fff;
+        border-radius: 14px;
+        padding: 20px 24px;
+      }
+      .fac-cost-hero-l {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--gold-mid);
+      }
+      .fac-cost-hero-n {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 40px;
+        font-weight: 800;
+        color: #fff;
+        letter-spacing: -0.03em;
+        line-height: 1;
+        margin-top: 6px;
+        font-variant-numeric: tabular-nums;
+      }
+      .fac-cost-hero-meta {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.6);
+        margin-top: 4px;
+      }
+      .fac-cost-hero-variance {
+        display: inline-block;
+        margin-top: 12px;
+        padding: 5px 12px;
+        border-radius: 99px;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11.5px;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+      }
+      .fac-cost-hero-variance.under {
+        background: rgba(31, 170, 92, 0.2);
+        color: var(--green-bright, #6BC791);
+      }
+      .fac-cost-hero-variance.over {
+        background: rgba(200, 80, 80, 0.2);
+        color: #F0A2A2;
+      }
+      .fac-cost-hero-side {
+        background: var(--white);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 12px 18px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+      .fac-cost-side-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .fac-cost-side-row + .fac-cost-side-row {
+        border-top: 1px solid var(--line2);
+      }
+      .fac-cost-side-row strong {
+        color: var(--ink);
+        font-weight: 800;
+        font-size: 14px;
+        font-variant-numeric: tabular-nums;
+      }
+      .fac-cost-side-row.primary strong {
+        color: var(--green);
+        font-size: 16px;
+      }
+
+      /* Per-asset spend breakdown */
+      .fac-cost-breakdown {
+        background: var(--white);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 14px 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .fac-cost-row {
+        display: grid;
+        grid-template-columns: 180px 1fr 180px;
+        gap: 14px;
+        align-items: center;
+      }
+      .fac-cost-row-name {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 13px;
+        font-weight: 800;
+        color: var(--ink);
+      }
+      .fac-cost-row-sub {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10.5px;
+        color: var(--muted);
+        margin-top: 2px;
+      }
+      .fac-cost-row-bar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .fac-cost-row-track {
+        flex: 1;
+        height: 8px;
+        background: var(--paper);
+        border-radius: 99px;
+        overflow: hidden;
+      }
+      .fac-cost-row-fill {
+        height: 100%;
+        background: var(--green);
+        border-radius: 99px;
+      }
+      .fac-cost-row-pct {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11.5px;
+        font-weight: 800;
+        color: var(--muted);
+        min-width: 34px;
+        text-align: right;
+      }
+      .fac-cost-row-num {
+        text-align: right;
+      }
+      .fac-cost-row-actual {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 15px;
+        font-weight: 800;
+        color: var(--ink);
+        font-variant-numeric: tabular-nums;
+      }
+      .fac-cost-row-var {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10.5px;
+        font-weight: 700;
+        margin-top: 2px;
+      }
+      .fac-cost-row-var.over {
+        color: #C33;
+      }
+      .fac-cost-row-var.under {
+        color: var(--green);
+      }
+
+      @media (max-width: 900px) {
+        .fac-cost-hero {
+          grid-template-columns: 1fr;
+        }
+        .fac-cost-row {
+          grid-template-columns: 1fr;
+          gap: 6px;
+        }
+      }
+
       /* Drilldown: collapse to one column on smaller screens */
       @media (max-width: 1120px) {
         .fac-detail-layout {
