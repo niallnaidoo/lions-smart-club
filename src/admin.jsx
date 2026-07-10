@@ -42,6 +42,15 @@ import {
   jobStatusTone,
   jobPriorityTone,
   loadTone,
+  FACILITY_ASSETS,
+  FACILITY_CAPEX,
+  FACILITY_MAINTENANCE_SCHEDULE,
+  conditionWord,
+  conditionTone,
+  capexStatusTone,
+  capexPriorityTone,
+  annualisedMaintCost,
+  capexTotal,
 } from './data.jsx';
 
 /* ─── AdminFixtures — series cards + drilldown fixture table with distance + travel-cost ─── */
@@ -3354,6 +3363,8 @@ function AdminFacilityDetail({
                 n: openJobs.length,
                 warn: highPriority,
               },
+              { k: 'assets', l: 'Assets', n: null },
+              { k: 'investment', l: 'Investment plan', n: null },
               { k: 'load', l: 'Load & wear', n: load.fixturesPlayed },
               { k: 'team', l: 'Team & ownership', n: null },
             ].map((t) => (
@@ -3681,6 +3692,14 @@ function AdminFacilityDetail({
               </div>
             </div>
           )}
+
+          {tab === 'assets' && (
+            <FacilityAssetsTab facility={facility} onCreateJob={onOpenCreateJob} />
+          )}
+
+          {tab === 'investment' && (
+            <FacilityInvestmentTab facility={facility} onCreateJob={onOpenCreateJob} />
+          )}
         </section>
 
         {/* RIGHT — sticky satellite snapshot */}
@@ -3942,6 +3961,513 @@ function CreateJobCard({ facility, onSubmit, onCancel }) {
           </Btn>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ─── Assets tab · pitch / covers / nets — sourced from CQI ─── */
+
+// Star row for /5 condition scores
+function ConditionStars({ score }) {
+  const rounded = Math.round(score * 2) / 2; // 0.5 steps
+  const full = Math.floor(rounded);
+  const half = rounded - full === 0.5;
+  return (
+    <span className="fac-stars" title={`${score.toFixed(1)} / 5`}>
+      {[0, 1, 2, 3, 4].map((i) => (
+        <span key={i} className={`fac-star ${i < full ? 'on' : i === full && half ? 'half' : ''}`}>
+          ★
+        </span>
+      ))}
+      <span className="fac-star-n">{score.toFixed(1)}</span>
+    </span>
+  );
+}
+
+function CQIRef({ label }) {
+  return (
+    <span className="fac-cqi-ref" title="Sourced from the club's CQI submission">
+      From CQI · {label}
+    </span>
+  );
+}
+
+function AssetCard({ title, cqiRefLabel, badge, badgeTone, children, cta }) {
+  return (
+    <div className="fac-asset">
+      <div className="fac-asset-head">
+        <div>
+          <div className="fac-asset-title">{title}</div>
+          {cqiRefLabel && <CQIRef label={cqiRefLabel} />}
+        </div>
+        {badge && <Pill tone={badgeTone || 'muted'} dot>{badge}</Pill>}
+      </div>
+      <div className="fac-asset-body">{children}</div>
+      {cta && <div className="fac-asset-cta">{cta}</div>}
+    </div>
+  );
+}
+
+function FacilityAssetsTab({ facility, onCreateJob }) {
+  const assets = FACILITY_ASSETS[facility.clubId];
+  const pitch = assets.pitch;
+  const covers = assets.covers;
+  const outdoor = assets.nets.outdoor;
+  const indoor = assets.nets.indoor;
+  const bm = assets.nets.bowlingMachines;
+  const sup = assets.support;
+
+  return (
+    <div className="fac-tab-body">
+      <div className="fac-objective">
+        <div className="fac-objective-eyebrow">Objective</div>
+        <div className="fac-objective-text">
+          Current-state inventory of every asset at <strong>{facility.venue}</strong> — sourced from
+          the club's CQI submission and enriched with condition scoring, issues, and links back
+          into the maintenance workflow. Every asset section can dispatch a job card directly.
+        </div>
+      </div>
+
+      {/* PITCH */}
+      <div className="fac-section-head">
+        <div>
+          <div className="fac-section-title">Pitch square</div>
+          <div className="fac-section-sub">
+            Match wickets, soil profile, drainage, current condition
+          </div>
+        </div>
+      </div>
+      <AssetCard
+        title={`${pitch.count} × ${pitch.type} pitch${pitch.count > 1 ? 'es' : ''}`}
+        cqiRefLabel="Grass / Artificial fields"
+        badge={conditionWord(pitch.condition)}
+        badgeTone={conditionTone(pitch.condition)}
+        cta={
+          <Btn tone="outline" size="sm" icon={Icon.Plus} onClick={onCreateJob}>
+            Dispatch pitch job
+          </Btn>
+        }
+      >
+        <div className="fac-asset-grid">
+          <div>
+            <div className="fac-detail-l">Square size</div>
+            <div className="fac-detail-v">{pitch.squareSize}</div>
+          </div>
+          <div>
+            <div className="fac-detail-l">Wicket strips</div>
+            <div className="fac-detail-v">{pitch.squareStrips}</div>
+          </div>
+          <div>
+            <div className="fac-detail-l">Soil profile</div>
+            <div className="fac-detail-v" style={{ fontSize: 13 }}>{pitch.soilProfile}</div>
+          </div>
+          <div>
+            <div className="fac-detail-l">Drainage</div>
+            <div className="fac-detail-v" style={{ fontSize: 13 }}>{pitch.drainageRating}</div>
+          </div>
+          <div>
+            <div className="fac-detail-l">Last relaid</div>
+            <div className="fac-detail-v" style={{ fontSize: 13 }}>
+              {new Date(pitch.lastRelaid).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}
+            </div>
+          </div>
+          <div>
+            <div className="fac-detail-l">Condition</div>
+            <div className="fac-detail-v"><ConditionStars score={pitch.condition} /></div>
+          </div>
+        </div>
+        {pitch.issues.length > 0 && (
+          <div className="fac-issues">
+            <div className="fac-issues-l">Known issues · {pitch.issues.length}</div>
+            {pitch.issues.map((i, x) => (
+              <div key={x} className="fac-issue">⚠ {i}</div>
+            ))}
+          </div>
+        )}
+      </AssetCard>
+
+      {/* COVERS */}
+      <div className="fac-section-head" style={{ marginTop: 22 }}>
+        <div>
+          <div className="fac-section-title">Covers</div>
+          <div className="fac-section-sub">Rain protection for the match square</div>
+        </div>
+      </div>
+      {covers.has ? (
+        <AssetCard
+          title={`${covers.count} × ${covers.type}`}
+          cqiRefLabel="Square covers available (Yes)"
+          badge={conditionWord(covers.condition)}
+          badgeTone={conditionTone(covers.condition)}
+          cta={
+            <Btn tone="outline" size="sm" icon={Icon.Plus} onClick={onCreateJob}>
+              Dispatch covers job
+            </Btn>
+          }
+        >
+          <div className="fac-asset-grid">
+            <div>
+              <div className="fac-detail-l">Age</div>
+              <div className="fac-detail-v">{covers.age} yrs</div>
+            </div>
+            <div>
+              <div className="fac-detail-l">Replacement cost</div>
+              <div className="fac-detail-v">R {covers.replacementCost.toLocaleString()}</div>
+            </div>
+            <div>
+              <div className="fac-detail-l">Condition</div>
+              <div className="fac-detail-v"><ConditionStars score={covers.condition} /></div>
+            </div>
+          </div>
+          {covers.issues.length > 0 && (
+            <div className="fac-issues">
+              <div className="fac-issues-l">Known issues · {covers.issues.length}</div>
+              {covers.issues.map((i, x) => (
+                <div key={x} className="fac-issue">⚠ {i}</div>
+              ))}
+            </div>
+          )}
+        </AssetCard>
+      ) : (
+        <AssetCard
+          title="No covers on inventory"
+          cqiRefLabel="Square covers available (No)"
+          badge="Gap"
+          badgeTone="coral"
+          cta={
+            <Btn tone="outline" size="sm">
+              Add to capex plan
+            </Btn>
+          }
+        >
+          <div className="fac-asset-empty">
+            The club has not declared covers in its CQI submission. Match-day rain exposes the pitch
+            square directly — recommended to add a capex item for at least mobile flat covers.
+          </div>
+        </AssetCard>
+      )}
+
+      {/* NETS */}
+      <div className="fac-section-head" style={{ marginTop: 22 }}>
+        <div>
+          <div className="fac-section-title">Practice nets</div>
+          <div className="fac-section-sub">Outdoor, indoor, and bowling-machine inventory</div>
+        </div>
+      </div>
+      <AssetCard
+        title={`${outdoor.count} × outdoor net${outdoor.count === 1 ? '' : 's'} · ${outdoor.surface}`}
+        cqiRefLabel="Grass + Artificial nets"
+        badge={conditionWord(outdoor.condition)}
+        badgeTone={conditionTone(outdoor.condition)}
+        cta={
+          <Btn tone="outline" size="sm" icon={Icon.Plus} onClick={onCreateJob}>
+            Dispatch nets job
+          </Btn>
+        }
+      >
+        <div className="fac-asset-grid">
+          <div>
+            <div className="fac-detail-l">Grass nets</div>
+            <div className="fac-detail-v">{outdoor.grass}</div>
+          </div>
+          <div>
+            <div className="fac-detail-l">Artificial nets</div>
+            <div className="fac-detail-v">{outdoor.artificial}</div>
+          </div>
+          <div>
+            <div className="fac-detail-l">Last resurfaced</div>
+            <div className="fac-detail-v" style={{ fontSize: 13 }}>
+              {new Date(outdoor.lastResurfaced).toLocaleDateString('en-GB', {
+                month: 'short',
+                year: 'numeric',
+              })}
+            </div>
+          </div>
+          <div>
+            <div className="fac-detail-l">Condition</div>
+            <div className="fac-detail-v"><ConditionStars score={outdoor.condition} /></div>
+          </div>
+        </div>
+        {outdoor.issues.length > 0 && (
+          <div className="fac-issues">
+            <div className="fac-issues-l">Known issues · {outdoor.issues.length}</div>
+            {outdoor.issues.map((i, x) => (
+              <div key={x} className="fac-issue">⚠ {i}</div>
+            ))}
+          </div>
+        )}
+      </AssetCard>
+
+      {indoor.count > 0 ? (
+        <AssetCard
+          title={`${indoor.count} × indoor net${indoor.count === 1 ? '' : 's'}`}
+          cqiRefLabel="Indoor nets"
+          badge={conditionWord(indoor.condition)}
+          badgeTone={conditionTone(indoor.condition)}
+        >
+          <div className="fac-asset-grid">
+            <div>
+              <div className="fac-detail-l">Condition</div>
+              <div className="fac-detail-v"><ConditionStars score={indoor.condition} /></div>
+            </div>
+          </div>
+        </AssetCard>
+      ) : (
+        <AssetCard
+          title="No indoor practice facility"
+          cqiRefLabel="Indoor nets (0)"
+          badge="Gap"
+          badgeTone="muted"
+        >
+          <div className="fac-asset-empty">
+            No all-weather practice option. Winter drop-off in player attendance is typically 40%+ —
+            consider a capex bid for at least one indoor net.
+          </div>
+        </AssetCard>
+      )}
+
+      {bm.count > 0 ? (
+        <AssetCard
+          title={`${bm.count} × bowling machine${bm.count === 1 ? '' : 's'} · ${bm.model}`}
+          cqiRefLabel="Bowling machines"
+          badge={bm.condition}
+          badgeTone="teal"
+        >
+          <div className="fac-asset-grid">
+            <div>
+              <div className="fac-detail-l">Last service</div>
+              <div className="fac-detail-v" style={{ fontSize: 13 }}>
+                {new Date(bm.lastService).toLocaleDateString('en-GB', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })}
+              </div>
+            </div>
+            <div>
+              <div className="fac-detail-l">Status</div>
+              <div className="fac-detail-v" style={{ fontSize: 13 }}>{bm.condition}</div>
+            </div>
+          </div>
+          {bm.issues.length > 0 && (
+            <div className="fac-issues">
+              <div className="fac-issues-l">Known issues</div>
+              {bm.issues.map((i, x) => (
+                <div key={x} className="fac-issue">⚠ {i}</div>
+              ))}
+            </div>
+          )}
+        </AssetCard>
+      ) : (
+        <AssetCard
+          title="No bowling machine"
+          cqiRefLabel="Bowling machines (0)"
+          badge="Gap"
+          badgeTone="muted"
+        >
+          <div className="fac-asset-empty">
+            No bowling machine on inventory. Coaches typically hire from a neighbouring club at
+            R 400/session. Consider capex bid — payback usually 18-24 months.
+          </div>
+        </AssetCard>
+      )}
+
+      {/* SUPPORT KIT */}
+      <div className="fac-section-head" style={{ marginTop: 22 }}>
+        <div>
+          <div className="fac-section-title">Support kit</div>
+          <div className="fac-section-sub">Sightscreens, boundary rope, scoreboards</div>
+        </div>
+      </div>
+      <div className="fac-support-grid">
+        {[
+          { label: 'Sightscreens both ends', on: sup.sightscreensBothEnds, cqi: 'sightscreens' },
+          { label: 'Boundary rope in good order', on: sup.boundaryRope, cqi: 'boundary' },
+          { label: 'Scoreboard operational', on: sup.scoreboard, cqi: 'scoreboard' },
+        ].map((s) => (
+          <div key={s.label} className={`fac-support-item ${s.on ? 'on' : 'off'}`}>
+            <div className="fac-support-icon">{s.on ? '✓' : '⚠'}</div>
+            <div>
+              <div className="fac-support-title">{s.label}</div>
+              <div className="fac-cqi-ref" style={{ marginTop: 2 }}>
+                From CQI · {s.cqi}
+              </div>
+            </div>
+            <Pill tone={s.on ? 'teal' : 'coral'} dot>
+              {s.on ? 'In place' : 'Missing'}
+            </Pill>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Investment plan tab · Capex + recurring maintenance ─── */
+
+function FacilityInvestmentTab({ facility, onCreateJob }) {
+  const capex = FACILITY_CAPEX[facility.clubId] || [];
+  const maint = FACILITY_MAINTENANCE_SCHEDULE[facility.clubId] || [];
+  const capexSum = capexTotal(facility.clubId);
+  const annualMaint = annualisedMaintCost(facility.clubId);
+
+  const capexByAsset = capex.reduce((acc, c) => {
+    (acc[c.asset] = acc[c.asset] || []).push(c);
+    return acc;
+  }, {});
+  const maintByAsset = maint.reduce((acc, m) => {
+    (acc[m.asset] = acc[m.asset] || []).push(m);
+    return acc;
+  }, {});
+
+  const ASSET_LABELS = {
+    pitch: 'Pitch',
+    covers: 'Covers',
+    nets: 'Nets',
+    bowling: 'Bowling machines',
+    support: 'Support kit',
+  };
+
+  return (
+    <div className="fac-tab-body">
+      <div className="fac-objective">
+        <div className="fac-objective-eyebrow">Objective</div>
+        <div className="fac-objective-text">
+          Plan the money side of {facility.venue}. <strong>Capex</strong> covers one-off asset
+          purchases and renewals; <strong>recurring maintenance</strong> is the weekly / monthly
+          / quarterly work needed to keep those assets in good order. Both roll into the annual
+          budget for the Union grant conversation.
+        </div>
+      </div>
+
+      {/* Totals strip */}
+      <div className="fac-load-kpis">
+        <div className="fac-load-kpi">
+          <div className="fac-load-l">Capex requested</div>
+          <div className="fac-load-n">R {capexSum.toLocaleString()}</div>
+          <div className="fac-load-meta">{capex.length} item{capex.length === 1 ? '' : 's'} across all assets</div>
+        </div>
+        <div className="fac-load-kpi">
+          <div className="fac-load-l">Annual maintenance</div>
+          <div className="fac-load-n">R {annualMaint.toLocaleString()}</div>
+          <div className="fac-load-meta">Recurring · {maint.length} tasks</div>
+        </div>
+        <div className="fac-load-kpi">
+          <div className="fac-load-l">High-priority capex</div>
+          <div className="fac-load-n" style={{ color: 'var(--coral)' }}>
+            {capex.filter((c) => c.priority === 'high').length}
+          </div>
+          <div className="fac-load-meta">Blocking eligibility or safety</div>
+        </div>
+        <div className="fac-load-kpi">
+          <div className="fac-load-l">Total to plan</div>
+          <div className="fac-load-n">R {(capexSum + annualMaint).toLocaleString()}</div>
+          <div className="fac-load-meta">Capex + one year of maintenance</div>
+        </div>
+      </div>
+
+      {/* CAPEX */}
+      <div className="fac-section-head" style={{ marginTop: 22 }}>
+        <div>
+          <div className="fac-section-title">Capex requirements</div>
+          <div className="fac-section-sub">
+            One-off asset renewals and expansion — used for Union grant + sponsor bids
+          </div>
+        </div>
+        <Btn tone="outline" size="sm" icon={Icon.Plus}>
+          Add capex item
+        </Btn>
+      </div>
+
+      {capex.length === 0 && (
+        <div className="fac-empty">
+          No capex items proposed. Great news — either everything is in shape or the plan is stale.
+        </div>
+      )}
+
+      {Object.keys(capexByAsset).map((asset) => (
+        <div key={asset} className="fac-capex-group">
+          <div className="fac-capex-group-l">{ASSET_LABELS[asset] || asset}</div>
+          {capexByAsset[asset].map((c) => (
+            <div key={c.id} className="fac-capex-card">
+              <div className="fac-capex-head">
+                <div>
+                  <div className="fac-capex-eyebrow">
+                    <Pill tone={capexPriorityTone(c.priority)}>{c.priority.toUpperCase()}</Pill>
+                    <Pill tone={capexStatusTone(c.status)} dot>
+                      {c.status[0].toUpperCase() + c.status.slice(1)}
+                    </Pill>
+                    <span className="fac-capex-target">{c.targetYear}</span>
+                  </div>
+                  <div className="fac-capex-title">{c.title}</div>
+                </div>
+                <div className="fac-capex-cost">R {c.cost.toLocaleString()}</div>
+              </div>
+              <div className="fac-capex-justify">{c.justify}</div>
+              <div className="fac-capex-foot">
+                <span>
+                  <strong>Funder:</strong> {c.funder}
+                </span>
+                <button className="fac-job-btn">Open detail</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
+
+      {/* MAINTENANCE PLAN */}
+      <div className="fac-section-head" style={{ marginTop: 24 }}>
+        <div>
+          <div className="fac-section-title">Recurring maintenance plan</div>
+          <div className="fac-section-sub">
+            Planned work, grouped by asset — annualised into the budget
+          </div>
+        </div>
+        <Btn tone="outline" size="sm" icon={Icon.Plus} onClick={onCreateJob}>
+          Dispatch as job card
+        </Btn>
+      </div>
+
+      {Object.keys(maintByAsset).map((asset) => {
+        const total = maintByAsset[asset].reduce((s, t) => {
+          const per =
+            t.frequency === 'weekly'
+              ? 52
+              : t.frequency === 'monthly'
+                ? 12
+                : t.frequency === 'quarterly'
+                  ? 4
+                  : 1;
+          return s + t.cost * per;
+        }, 0);
+        return (
+          <div key={asset} className="fac-maint-group">
+            <div className="fac-maint-group-head">
+              <div className="fac-capex-group-l">{ASSET_LABELS[asset] || asset}</div>
+              <div className="fac-maint-total">R {total.toLocaleString()} <span>/ year</span></div>
+            </div>
+            <div className="fac-maint-table">
+              {maintByAsset[asset].map((m) => (
+                <div key={m.id} className="fac-maint-row">
+                  <Pill tone="muted">{m.frequency}</Pill>
+                  <div className="fac-maint-task">{m.task}</div>
+                  <div className="fac-maint-meta">
+                    <span>{m.assigneeName}</span>
+                    <span>
+                      Next{' '}
+                      {new Date(m.nextDue).toLocaleDateString('en-GB', {
+                        day: 'numeric',
+                        month: 'short',
+                      })}
+                    </span>
+                  </div>
+                  <div className="fac-maint-cost">R {m.cost.toLocaleString()}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

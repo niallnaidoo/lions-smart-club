@@ -345,16 +345,23 @@ const CQI_STRUCTURE = [
     title: 'Facilities',
     weight: 15,
     accent: 'var(--coral)',
-    desc: 'Playing fields, nets and venue ownership.',
+    desc: 'Playing fields, nets, covers, machines and venue ownership. Sourced by the club during CQI submission; drives the Facility Management dashboard.',
     questions: [
-      { key: 'covers', label: 'Square covers available', kind: 'yn', pts: 2 },
-      { key: 'boundary', label: 'Adequate boundary rope available', kind: 'yn', pts: 2 },
-      { key: 'scoreboard', label: 'Scoreboard available', kind: 'yn', pts: 2 },
-      { key: 'ownFacility', label: 'Responsible for own facility', kind: 'yn', pts: 2 },
-      { key: 'fieldsGrass', label: 'Number of Grass fields', kind: 'num', max: 10, pts: 3 },
+      // Pitch / field
+      { key: 'fieldsGrass', label: 'Number of Grass fields', kind: 'num', max: 10, pts: 2 },
       { key: 'fieldsArt', label: 'Number of Artificial fields', kind: 'num', max: 10, pts: 1 },
+      { key: 'ownFacility', label: 'Responsible for own facility', kind: 'yn', pts: 1 },
+      // Covers
+      { key: 'covers', label: 'Square covers available', kind: 'yn', pts: 2 },
+      // Nets
       { key: 'netsGrass', label: 'Number of Grass nets', kind: 'num', max: 12, pts: 2 },
       { key: 'netsArt', label: 'Number of Artificial nets', kind: 'num', max: 12, pts: 1 },
+      { key: 'netsIndoor', label: 'Number of Indoor nets', kind: 'num', max: 8, pts: 1 },
+      // Bowling + support kit
+      { key: 'bowlingMachines', label: 'Number of Bowling machines', kind: 'num', max: 4, pts: 2 },
+      { key: 'sightscreens', label: 'Sightscreens installed both ends', kind: 'yn', pts: 1 },
+      { key: 'boundary', label: 'Adequate boundary rope available', kind: 'yn', pts: 1 },
+      { key: 'scoreboard', label: 'Scoreboard available', kind: 'yn', pts: 1 },
     ],
   },
   {
@@ -1107,6 +1114,296 @@ const FACILITY_JOBS = (() => {
   return jobs;
 })();
 
+/* ─── Facility ASSETS · linked back to CQI questions ───
+   For every facility, we hold the club's CQI-declared counts + a richer
+   condition + issues profile that the admin manages. cqiKey lets us
+   badge each asset section with its CQI provenance. */
+
+const FACILITY_ASSETS = FACILITIES.reduce((acc, f) => {
+  const club = SAMPLE_CLUBS.find((c) => c.id === f.clubId);
+  const r = (s) => seededRand(f.clubId, 400 + s);
+  const cqi = club?.cqi || 0;
+  // Derive counts that scale roughly with the club's CQI score
+  const grassNets = Math.max(2, Math.round(2 + r(1) * 6 + (cqi / 100) * 3));
+  const artNets = Math.max(0, Math.round(r(2) * 4 + (cqi / 100) * 2));
+  const indoorNets = cqi > 75 && r(3) > 0.55 ? Math.round(r(4) * 3 + 1) : 0;
+  const hasCovers = r(5) > 0.35;
+  const coversCount = hasCovers ? Math.round(r(6) * 2) + 1 : 0;
+  const bowlingMachines = cqi > 70 && r(7) > 0.55 ? Math.round(r(8) * 2) + 1 : 0;
+
+  return {
+    ...acc,
+    [f.clubId]: {
+      pitch: {
+        count: Math.max(1, Math.round(r(10) * 2) + 1),
+        type: f.clubId === 'ukzn' || r(11) > 0.55 ? 'Natural turf' : 'Artificial (astro)',
+        squareSize: '28×24 m',
+        squareStrips: Math.round(r(12) * 3) + 6, // 6-9 wickets
+        condition: 3.2 + r(13) * 1.6, // 3.2–4.8 / 5
+        soilProfile: r(14) > 0.55 ? 'Loam · kikuyu blend' : 'Sandy loam · rye',
+        drainageRating: r(15) > 0.65 ? 'Good' : r(15) > 0.35 ? 'Adequate' : 'Poor',
+        lastRelaid: r(16) > 0.5 ? '2024-08' : '2023-05',
+        issues: [
+          r(17) > 0.6 && 'Wear on middle strip',
+          r(18) > 0.7 && 'Slight settlement at both ends',
+          r(19) > 0.75 && 'Bare patches near popping crease',
+        ].filter(Boolean),
+        cqiKey: 'fieldsGrass',
+      },
+      covers: {
+        has: hasCovers,
+        count: coversCount,
+        type: !hasCovers ? '—' : r(20) > 0.55 ? 'Mobile flat covers' : 'Roll-on square covers',
+        condition: hasCovers ? 2.5 + r(21) * 2.2 : 0,
+        age: hasCovers ? Math.round(r(22) * 7) + 2 : 0,
+        replacementCost: hasCovers ? Math.round(r(23) * 100 + 60) * 1000 : 180000,
+        issues: hasCovers
+          ? [
+              r(24) > 0.5 && 'Wheel bearing wear',
+              r(25) > 0.6 && 'Torn corner grommet',
+              r(26) > 0.75 && 'Waterproofing failing at seams',
+            ].filter(Boolean)
+          : ['No covers on site — pitch exposed to rain'],
+        cqiKey: 'covers',
+      },
+      nets: {
+        outdoor: {
+          count: grassNets + artNets,
+          grass: grassNets,
+          artificial: artNets,
+          surface: artNets > grassNets ? 'Concrete base + artificial mat' : 'Rolled grass square',
+          condition: 3.0 + r(30) * 1.8,
+          lastResurfaced: '2024-03',
+          issues: [
+            r(31) > 0.55 && `${Math.round(r(32) * grassNets)} nets have tears on side mesh`,
+            r(33) > 0.7 && 'Concrete base cracking on lane 3',
+          ].filter(Boolean),
+          cqiKey: 'netsGrass',
+        },
+        indoor: {
+          count: indoorNets,
+          condition: indoorNets > 0 ? 3.5 + r(34) * 1.3 : 0,
+          issues: indoorNets > 0 ? [] : ['No indoor facility on site'],
+          cqiKey: 'netsIndoor',
+        },
+        bowlingMachines: {
+          count: bowlingMachines,
+          model: bowlingMachines > 0 ? (r(35) > 0.5 ? 'BOLA Machine SR' : 'Cricket Freaks Pro') : '—',
+          condition: bowlingMachines > 0 ? 'Working' : 'None',
+          lastService: bowlingMachines > 0 ? '2026-03-14' : '—',
+          issues:
+            bowlingMachines > 0
+              ? r(36) > 0.7
+                ? ['Feeder mechanism jams intermittently']
+                : []
+              : ['No bowling machine on inventory'],
+          cqiKey: 'bowlingMachines',
+        },
+      },
+      support: {
+        sightscreensBothEnds: r(40) > 0.45,
+        scoreboard: r(41) > 0.4,
+        boundaryRope: r(42) > 0.5,
+        cqiKeys: { sightscreens: 'sightscreens', scoreboard: 'scoreboard', boundary: 'boundary' },
+      },
+    },
+  };
+}, {});
+
+// Formatting helpers
+function conditionWord(score /* /5 */) {
+  if (score >= 4.3) return 'Excellent';
+  if (score >= 3.6) return 'Good';
+  if (score >= 2.8) return 'Fair';
+  if (score >= 1.8) return 'Poor';
+  return 'Critical';
+}
+function conditionTone(score) {
+  if (score >= 3.6) return 'teal';
+  if (score >= 2.8) return 'gold';
+  return 'coral';
+}
+
+/* ─── FACILITY_CAPEX · investment requirements per facility ───
+   The admin uses this to plan and justify union / provincial grant
+   requests. Each item ties to an asset class (pitch / covers / nets /
+   bowling / support) so the Investment plan tab can group them. */
+
+const CAPEX_TEMPLATES = [
+  {
+    asset: 'covers',
+    title: 'Upgrade to permanent roll-on rainer covers',
+    justify:
+      'Current mobile covers 6+ years old and waterproofing failing at seams. Rain-affected fixtures cost the club R 12k+ in refund/replay costs last season.',
+    cost: 180000,
+    priority: 'high',
+    funder: 'KZNCU capital grant + club contribution',
+    targetYear: '2026/27',
+  },
+  {
+    asset: 'nets',
+    title: 'Add 2 outdoor grass nets + resurface existing 4',
+    justify:
+      'Current 4 nets over-utilised (junior + senior programs share slots). Two are unusable due to mesh damage. Expansion opens up junior program capacity.',
+    cost: 95000,
+    priority: 'medium',
+    funder: 'Lions development fund',
+    targetYear: '2026/27',
+  },
+  {
+    asset: 'bowling',
+    title: 'Purchase 1× BOLA Machine SR bowling machine',
+    justify:
+      'No bowling machine on inventory. Coaches currently rent from a nearby club (R 400/session). Payback in ~18 months on rental savings.',
+    cost: 42000,
+    priority: 'medium',
+    funder: 'Club reserves',
+    targetYear: '2027/28',
+  },
+  {
+    asset: 'pitch',
+    title: 'Relay pitch square (top 100mm loam + reseed)',
+    justify:
+      'Middle strip worn beyond safe use. Third-year relay is due per KZNCU turf standard. Extends life to 2032.',
+    cost: 55000,
+    priority: 'medium',
+    funder: 'Union pitch renewal programme',
+    targetYear: '2026/27',
+  },
+  {
+    asset: 'support',
+    title: 'New sightscreens (both ends)',
+    justify:
+      'Current makeshift boards fail KZNCU premier-league inspection. Blocking eligibility for Premier promotion.',
+    cost: 28000,
+    priority: 'high',
+    funder: 'Club fundraising + KZNCU',
+    targetYear: '2026/27',
+  },
+  {
+    asset: 'nets',
+    title: 'Add 1× indoor practice net (winter programme)',
+    justify:
+      'No all-weather practice option. Winter drop-off in player attendance is 40%+. Would enable a winter academy.',
+    cost: 210000,
+    priority: 'low',
+    funder: 'Sponsorship-linked (naming rights)',
+    targetYear: '2028/29',
+  },
+];
+
+const FACILITY_CAPEX = FACILITIES.reduce((acc, f) => {
+  const r = (s) => seededRand(f.clubId, 500 + s);
+  const assets = FACILITY_ASSETS[f.clubId];
+  const items = [];
+  // Emit capex items that fit this facility's gaps
+  if (!assets.covers.has || assets.covers.age >= 5) {
+    items.push({ ...CAPEX_TEMPLATES[0], id: `cap-${f.clubId}-covers`, status: r(1) > 0.6 ? 'submitted' : 'draft' });
+  }
+  if (assets.nets.outdoor.count < 6) {
+    items.push({ ...CAPEX_TEMPLATES[1], id: `cap-${f.clubId}-nets`, status: r(2) > 0.5 ? 'submitted' : 'draft' });
+  }
+  if (assets.nets.bowlingMachines.count === 0) {
+    items.push({ ...CAPEX_TEMPLATES[2], id: `cap-${f.clubId}-bowling`, status: r(3) > 0.5 ? 'draft' : 'submitted' });
+  }
+  if (assets.pitch.condition < 4.0) {
+    items.push({ ...CAPEX_TEMPLATES[3], id: `cap-${f.clubId}-pitch`, status: r(4) > 0.55 ? 'approved' : 'submitted' });
+  }
+  if (!assets.support.sightscreensBothEnds) {
+    items.push({ ...CAPEX_TEMPLATES[4], id: `cap-${f.clubId}-support`, status: r(5) > 0.4 ? 'submitted' : 'draft' });
+  }
+  if (assets.nets.indoor.count === 0 && r(6) > 0.7) {
+    items.push({ ...CAPEX_TEMPLATES[5], id: `cap-${f.clubId}-indoor`, status: 'draft' });
+  }
+  acc[f.clubId] = items;
+  return acc;
+}, {});
+
+/* ─── FACILITY_MAINTENANCE_SCHEDULE · recurring planned tasks ───
+   Distinct from reactive job cards. Weekly/monthly/quarterly maintenance
+   that the admin needs to budget for and staff against. */
+
+const MAINT_TEMPLATES = [
+  { asset: 'pitch',   frequency: 'weekly',    task: 'Mow pitch square to 12mm + roll',            cost: 250 },
+  { asset: 'pitch',   frequency: 'weekly',    task: 'Outfield mow to 18mm',                       cost: 350 },
+  { asset: 'pitch',   frequency: 'monthly',   task: 'Aerate + top-dress bare patches',            cost: 900 },
+  { asset: 'pitch',   frequency: 'seasonal',  task: 'End-of-season relay + reseed',               cost: 12000 },
+  { asset: 'covers',  frequency: 'monthly',   task: 'Wheel bearing service + waterproof check',   cost: 400 },
+  { asset: 'covers',  frequency: 'seasonal',  task: 'Deep clean + re-treat waterproof surface',   cost: 1800 },
+  { asset: 'nets',    frequency: 'weekly',    task: 'Sweep + rake nets · check mesh',             cost: 180 },
+  { asset: 'nets',    frequency: 'quarterly', task: 'Repair mesh tears + tighten fixings',        cost: 1200 },
+  { asset: 'nets',    frequency: 'seasonal',  task: 'Replace worn matting / mesh panels',         cost: 6000 },
+  { asset: 'bowling', frequency: 'quarterly', task: 'Bowling machine service + feeder overhaul',  cost: 1400 },
+  { asset: 'support', frequency: 'monthly',   task: 'Sightscreen · wheel + paint touch-up',       cost: 320 },
+  { asset: 'support', frequency: 'monthly',   task: 'Scoreboard bulb + digit check',              cost: 200 },
+];
+
+const FACILITY_MAINTENANCE_SCHEDULE = FACILITIES.reduce((acc, f) => {
+  const ownership = FACILITY_OWNERSHIP[f.clubId];
+  const staff = [ownership.head, ...ownership.assistants];
+  const assets = FACILITY_ASSETS[f.clubId];
+  const r = (s) => seededRand(f.clubId, 600 + s);
+  const items = MAINT_TEMPLATES
+    .filter((t) => {
+      if (t.asset === 'covers' && !assets.covers.has) return false;
+      if (t.asset === 'bowling' && assets.nets.bowlingMachines.count === 0) return false;
+      return true;
+    })
+    .map((t, i) => {
+      const assignee = staff[i % staff.length];
+      const daysAhead =
+        t.frequency === 'weekly'
+          ? Math.round(r(i * 3) * 5) + 1
+          : t.frequency === 'monthly'
+            ? Math.round(r(i * 5) * 25) + 3
+            : t.frequency === 'quarterly'
+              ? Math.round(r(i * 7) * 80) + 10
+              : 120;
+      const nextDue = new Date('2026-06-05');
+      nextDue.setDate(nextDue.getDate() + daysAhead);
+      return {
+        id: `maint-${f.clubId}-${i}`,
+        ...t,
+        assigneeId: assignee.id,
+        assigneeName: assignee.name,
+        nextDue: nextDue.toISOString().slice(0, 10),
+      };
+    });
+  acc[f.clubId] = items;
+  return acc;
+}, {});
+
+// Roll-up: annualise the maintenance schedule to £ per year
+function annualisedMaintCost(facilityId) {
+  const items = FACILITY_MAINTENANCE_SCHEDULE[facilityId] || [];
+  return items.reduce((s, t) => {
+    const per =
+      t.frequency === 'weekly'
+        ? 52
+        : t.frequency === 'monthly'
+          ? 12
+          : t.frequency === 'quarterly'
+            ? 4
+            : 1;
+    return s + t.cost * per;
+  }, 0);
+}
+function capexTotal(facilityId) {
+  const items = FACILITY_CAPEX[facilityId] || [];
+  return items.reduce((s, c) => s + c.cost, 0);
+}
+
+function capexStatusTone(s) {
+  return s === 'approved' || s === 'funded' || s === 'installed'
+    ? 'teal'
+    : s === 'submitted'
+      ? 'gold'
+      : 'muted';
+}
+function capexPriorityTone(p) {
+  return p === 'high' ? 'coral' : p === 'medium' ? 'gold' : 'muted';
+}
+
 // Helpers used by the drilldown UI
 function jobStatusTone(s) {
   return s === 'done' ? 'teal' : s === 'in-progress' ? 'gold' : 'coral';
@@ -1154,4 +1451,13 @@ export {
   jobStatusTone,
   jobPriorityTone,
   loadTone,
+  FACILITY_ASSETS,
+  FACILITY_CAPEX,
+  FACILITY_MAINTENANCE_SCHEDULE,
+  conditionWord,
+  conditionTone,
+  capexStatusTone,
+  capexPriorityTone,
+  annualisedMaintCost,
+  capexTotal,
 };
