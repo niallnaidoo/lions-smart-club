@@ -46,6 +46,7 @@ import {
   FACILITY_CAPEX,
   FACILITY_MAINTENANCE_SCHEDULE,
   FACILITY_SPEND,
+  FACILITY_OPTIONS,
   conditionWord,
   conditionTone,
   capexStatusTone,
@@ -2614,6 +2615,11 @@ function AdminFacilities({ toast }) {
   // Custom assets added by the admin — keyed by clubId → array of asset objects.
   const [customAssets, setCustomAssets] = useState({});
   const [addingAsset, setAddingAsset] = useState(null); // clubId — when non-null, Add-asset modal is open
+  // Capex plan lives here so admins can add / discard items.
+  const [capex, setCapex] = useState(FACILITY_CAPEX);
+  const [addingCapex, setAddingCapex] = useState(null); // clubId — Add capex modal open
+  // Editable job-type recipes. Admin can tweak the master checklist per type.
+  const [jobTypes, setJobTypes] = useState(JOB_TYPES);
 
   function addJob(job) {
     setJobs((prev) => [...prev, job]);
@@ -2633,6 +2639,39 @@ function AdminFacilities({ toast }) {
     }));
     setAddingAsset(null);
     toast?.(`Added to ${FACILITIES.find((f) => f.clubId === clubId)?.venue} · ${asset.category}`);
+  }
+  function discardCustomAsset(clubId, assetId) {
+    setCustomAssets((prev) => ({
+      ...prev,
+      [clubId]: (prev[clubId] || []).filter((a) => a.id !== assetId),
+    }));
+    toast?.('Asset removed from inventory');
+  }
+  function addCapex(clubId, item) {
+    setCapex((prev) => ({
+      ...prev,
+      [clubId]: [...(prev[clubId] || []), { ...item, id: 'cap-' + Date.now() }],
+    }));
+    setAddingCapex(null);
+    toast?.(`Capex item added · R ${item.cost?.toLocaleString?.() || item.cost}`);
+  }
+  function discardCapex(clubId, itemId) {
+    setCapex((prev) => ({
+      ...prev,
+      [clubId]: (prev[clubId] || []).filter((c) => c.id !== itemId),
+    }));
+    toast?.('Capex item removed');
+  }
+  // Job type template editor — writes back to jobTypes state, reset restores default.
+  function updateJobType(key, next) {
+    setJobTypes((prev) => prev.map((t) => (t.key === key ? { ...t, ...next } : t)));
+    toast?.('Job card template updated');
+  }
+  function resetJobType(key) {
+    const original = JOB_TYPES.find((t) => t.key === key);
+    if (!original) return;
+    setJobTypes((prev) => prev.map((t) => (t.key === key ? original : t)));
+    toast?.('Template reset to default');
   }
   function saveAssessment(clubId, key, next) {
     if (key?.startsWith('custom.')) {
@@ -2685,12 +2724,14 @@ function AdminFacilities({ toast }) {
     }
     const facilityAssets = assessments[facility.clubId] || FACILITY_ASSETS[facility.clubId];
     const facilityCustomAssets = customAssets[facility.clubId] || [];
+    const facilityCapex = capex[facility.clubId] || [];
     return (
       <>
         <AdminFacilityDetail
           facility={facility}
           assets={facilityAssets}
           customAssets={facilityCustomAssets}
+          capex={facilityCapex}
           jobs={jobs.filter((j) => j.facilityId === facility.clubId)}
           onBack={() => setOpenGround(null)}
           onOpenCreateJob={openCreateJobForType}
@@ -2698,6 +2739,9 @@ function AdminFacilities({ toast }) {
           onMarkJobStatus={markJobStatus}
           onOpenAssess={(key) => setAssessing({ clubId: facility.clubId, key })}
           onOpenAddAsset={() => setAddingAsset(facility.clubId)}
+          onDiscardAsset={(assetId) => discardCustomAsset(facility.clubId, assetId)}
+          onOpenAddCapex={() => setAddingCapex(facility.clubId)}
+          onDiscardCapex={(itemId) => discardCapex(facility.clubId, itemId)}
           onGotoSatellite={() => {
             setSelected((s) => (s.includes(facility.clubId) ? s : [...s, facility.clubId]));
             setMode('satellite');
@@ -2711,6 +2755,9 @@ function AdminFacilities({ toast }) {
             <CreateJobCard
               facility={facility}
               initialType={jobCardType}
+              jobTypes={jobTypes}
+              onUpdateJobType={updateJobType}
+              onResetJobType={resetJobType}
               onSubmit={addJob}
               onCancel={() => {
                 setShowCreateJob(false);
@@ -2737,6 +2784,15 @@ function AdminFacilities({ toast }) {
               facility={facility}
               onSubmit={(asset) => addCustomAsset(facility.clubId, asset)}
               onCancel={() => setAddingAsset(null)}
+            />,
+            document.body
+          )}
+        {addingCapex === facility.clubId &&
+          ReactDOM.createPortal(
+            <AddCapexModal
+              facility={facility}
+              onSubmit={(item) => addCapex(facility.clubId, item)}
+              onCancel={() => setAddingCapex(null)}
             />,
             document.body
           )}
@@ -3352,6 +3408,7 @@ function AdminFacilityDetail({
   facility,
   assets,
   customAssets,
+  capex,
   jobs,
   onBack,
   onOpenCreateJob,
@@ -3359,6 +3416,9 @@ function AdminFacilityDetail({
   onMarkJobStatus,
   onOpenAssess,
   onOpenAddAsset,
+  onDiscardAsset,
+  onOpenAddCapex,
+  onDiscardCapex,
   onGotoSatellite,
   toast,
 }) {
@@ -3879,11 +3939,18 @@ function AdminFacilityDetail({
               onCreateJob={onOpenCreateJob}
               onAssess={onOpenAssess}
               onAddAsset={onOpenAddAsset}
+              onDiscardAsset={onDiscardAsset}
             />
           )}
 
           {tab === 'investment' && (
-            <FacilityInvestmentTab facility={facility} onCreateJob={onOpenCreateJob} />
+            <FacilityInvestmentTab
+              facility={facility}
+              capex={capex || []}
+              onCreateJob={onOpenCreateJob}
+              onAddCapex={onOpenAddCapex}
+              onDiscardCapex={onDiscardCapex}
+            />
           )}
         </section>
 
@@ -3957,22 +4024,55 @@ function AdminFacilityDetail({
 }
 
 /* ─── CreateJobCard · dispatch a new maintenance job ─── */
-function CreateJobCard({ facility, onSubmit, onCancel, initialType }) {
+function CreateJobCard({
+  facility,
+  onSubmit,
+  onCancel,
+  initialType,
+  jobTypes: jobTypesProp,
+  onUpdateJobType,
+  onResetJobType,
+}) {
   const ownership = FACILITY_OWNERSHIP[facility.clubId];
   const staff = [ownership.head, ...ownership.assistants];
 
+  const activeJobTypes = jobTypesProp || JOB_TYPES;
+
   // Guard: only accept initialType if it matches a known job-type key.
   const safeInitialType =
-    initialType && JOB_TYPES.some((t) => t.key === initialType) ? initialType : JOB_TYPES[0].key;
+    initialType && activeJobTypes.some((t) => t.key === initialType)
+      ? initialType
+      : activeJobTypes[0].key;
   const [type, setType] = useState(safeInitialType);
-  const typeObj = JOB_TYPES.find((t) => t.key === type) || JOB_TYPES[0];
+  const typeObj = activeJobTypes.find((t) => t.key === type) || activeJobTypes[0];
+
+  // Template edit mode + working buffer.
+  const [editingTemplate, setEditingTemplate] = useState(false);
+  const [templateDraft, setTemplateDraft] = useState(typeObj.checklist);
+
+  function beginEdit() {
+    setTemplateDraft(typeObj.checklist);
+    setEditingTemplate(true);
+  }
+  function saveTemplate() {
+    onUpdateJobType?.(type, { checklist: templateDraft.filter((s) => s.trim()) });
+    setEditingTemplate(false);
+    setChecklistExcluded([]);
+  }
+  function resetTemplate() {
+    onResetJobType?.(type);
+    const orig = JOB_TYPES.find((t) => t.key === type);
+    if (orig) setTemplateDraft(orig.checklist);
+    setEditingTemplate(false);
+    setChecklistExcluded([]);
+  }
 
   // Auto-suggest title when the type changes (user can edit).
   function suggestTitle(t) {
-    const obj = JOB_TYPES.find((x) => x.key === t);
-    return `${obj.label} · ${facility.venue}`;
+    const obj = activeJobTypes.find((x) => x.key === t);
+    return `${obj?.label || ''} · ${facility.venue}`;
   }
-  const [title, setTitle] = useState(suggestTitle(initialType || JOB_TYPES[0].key));
+  const [title, setTitle] = useState(suggestTitle(safeInitialType));
   const [titleTouched, setTitleTouched] = useState(false);
 
   const [assigneeId, setAssigneeId] = useState(ownership.head.id);
@@ -3990,6 +4090,9 @@ function CreateJobCard({ facility, onSubmit, onCancel, initialType }) {
     setType(next);
     if (!titleTouched) setTitle(suggestTitle(next));
     setChecklistExcluded([]);
+    setEditingTemplate(false);
+    const obj = activeJobTypes.find((t) => t.key === next);
+    if (obj) setTemplateDraft(obj.checklist);
   }
 
   const effectiveChecklist = [
@@ -4038,7 +4141,7 @@ function CreateJobCard({ facility, onSubmit, onCancel, initialType }) {
           <div className="jobmodal-step">
             <div className="jobmodal-step-eyebrow">Step 1 · What kind of work?</div>
             <div className="jobmodal-type-grid">
-              {JOB_TYPES.map((t) => (
+              {activeJobTypes.map((t) => (
                 <button
                   key={t.key}
                   type="button"
@@ -4056,42 +4159,109 @@ function CreateJobCard({ facility, onSubmit, onCancel, initialType }) {
             </div>
           </div>
 
-          {/* STEP 2 — prefilled steps for this type. Big, obvious, dismissable. */}
-          {typeObj.checklist.length > 0 && (
+          {/* STEP 2 — prefilled steps for this type. Big, obvious, dismissable, EDITABLE. */}
+          {(typeObj.checklist.length > 0 || editingTemplate) && (
             <div className="jobmodal-prefill">
               <div className="jobmodal-prefill-head">
-                <div className="jobmodal-prefill-eyebrow">
-                  ⚡ Auto-filled from <strong>{typeObj.label}</strong>
-                </div>
-                <div className="jobmodal-prefill-title">
-                  {effectiveChecklist.filter((s) => typeObj.checklist.includes(s)).length} of{' '}
-                  {typeObj.checklist.length} preset steps will land on this card
-                </div>
-                <div className="jobmodal-prefill-sub">
-                  Uncheck any that don't apply. You can add custom steps below.
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <div className="jobmodal-prefill-eyebrow">
+                      ⚡ Auto-filled from <strong>{typeObj.label}</strong>
+                    </div>
+                    {editingTemplate ? (
+                      <>
+                        <div className="jobmodal-prefill-title">
+                          ✏️ Editing the master recipe for {typeObj.label}
+                        </div>
+                        <div className="jobmodal-prefill-sub">
+                          Changes here become the default for <strong>every future</strong> dispatch of this
+                          job type across every ground. This is the admin recipe.
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="jobmodal-prefill-title">
+                          {effectiveChecklist.filter((s) => typeObj.checklist.includes(s)).length} of{' '}
+                          {typeObj.checklist.length} preset steps will land on this card
+                        </div>
+                        <div className="jobmodal-prefill-sub">
+                          Uncheck any that don't apply, or edit the master recipe to change the default
+                          for future dispatches.
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    {editingTemplate ? (
+                      <>
+                        <button className="jobmodal-tmpl-btn" onClick={resetTemplate}>
+                          ↺ Reset
+                        </button>
+                        <button className="jobmodal-tmpl-btn primary" onClick={saveTemplate}>
+                          ✓ Save recipe
+                        </button>
+                      </>
+                    ) : (
+                      <button className="jobmodal-tmpl-btn" onClick={beginEdit}>
+                        ✏️ Edit template
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
-              <ul className="jobmodal-prefill-list">
-                {typeObj.checklist.map((c, i) => {
-                  const on = !checklistExcluded.includes(i);
-                  return (
-                    <li key={i} className={on ? 'on' : 'off'}>
-                      <button
-                        type="button"
-                        className={`jobmodal-prefill-box ${on ? 'on' : ''}`}
-                        onClick={() =>
-                          setChecklistExcluded((prev) =>
-                            on ? [...prev, i] : prev.filter((x) => x !== i)
-                          )
+              {editingTemplate ? (
+                <div className="jobmodal-prefill-list edit">
+                  {templateDraft.map((step, i) => (
+                    <div key={i} className="jobmodal-tmpl-row">
+                      <span className="jobmodal-tmpl-num">{i + 1}</span>
+                      <input
+                        className="field-input"
+                        value={step}
+                        onChange={(e) =>
+                          setTemplateDraft((prev) => prev.map((s, x) => (x === i ? e.target.value : s)))
                         }
+                      />
+                      <button
+                        className="jobmodal-tmpl-remove"
+                        onClick={() =>
+                          setTemplateDraft((prev) => prev.filter((_, x) => x !== i))
+                        }
+                        title="Remove step"
                       >
-                        {on && <Icon.Check />}
+                        <Icon.X />
                       </button>
-                      <span>{c}</span>
-                    </li>
-                  );
-                })}
-              </ul>
+                    </div>
+                  ))}
+                  <button
+                    className="jobmodal-tmpl-add"
+                    onClick={() => setTemplateDraft((prev) => [...prev, ''])}
+                  >
+                    + Add step to master recipe
+                  </button>
+                </div>
+              ) : (
+                <ul className="jobmodal-prefill-list">
+                  {typeObj.checklist.map((c, i) => {
+                    const on = !checklistExcluded.includes(i);
+                    return (
+                      <li key={i} className={on ? 'on' : 'off'}>
+                        <button
+                          type="button"
+                          className={`jobmodal-prefill-box ${on ? 'on' : ''}`}
+                          onClick={() =>
+                            setChecklistExcluded((prev) =>
+                              on ? [...prev, i] : prev.filter((x) => x !== i)
+                            )
+                          }
+                        >
+                          {on && <Icon.Check />}
+                        </button>
+                        <span>{c}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
           )}
 
@@ -4322,6 +4492,7 @@ function FacilityAssetsTab({
   onCreateJob,
   onAssess,
   onAddAsset,
+  onDiscardAsset,
 }) {
   const assets = assetsProp || FACILITY_ASSETS[facility.clubId];
   const pitch = assets.pitch;
@@ -4713,16 +4884,28 @@ function FacilityAssetsTab({
           {customAssets.map((ca) => (
             <AssetCard
               key={ca.id}
-              title={`${ca.quantity} × ${ca.category}${ca.description ? ' · ' + ca.description : ''}`}
+              title={`${ca.quantity} × ${ca.subType || ca.category}${ca.description ? ' · ' + ca.description : ''}`}
               cqiRefLabel="Custom entry (not on CQI)"
               badge={conditionWord(ca.condition || 3)}
               badgeTone={conditionTone(ca.condition || 3)}
               lastAssessed={ca.lastAssessed}
               onAssess={() => onAssess?.(`custom.${ca.id}`)}
               cta={
-                <Btn tone="outline" size="sm" icon={Icon.Plus} onClick={() => onCreateJob?.()}>
-                  Dispatch job for this asset
-                </Btn>
+                <div style={{ display: 'flex', gap: 8, width: '100%', justifyContent: 'space-between' }}>
+                  <button
+                    className="fac-discard-btn"
+                    onClick={() => {
+                      if (window.confirm('Remove this asset from the facility inventory?')) {
+                        onDiscardAsset?.(ca.id);
+                      }
+                    }}
+                  >
+                    🗑 Discard asset
+                  </button>
+                  <Btn tone="outline" size="sm" icon={Icon.Plus} onClick={() => onCreateJob?.()}>
+                    Dispatch job for this asset
+                  </Btn>
+                </div>
               }
             >
               <div className="fac-asset-grid">
@@ -4732,10 +4915,28 @@ function FacilityAssetsTab({
                     <div className="fac-detail-v">{ca.quantity}</div>
                   </div>
                 )}
+                {ca.subType && (
+                  <div>
+                    <div className="fac-detail-l">Sub-type</div>
+                    <div className="fac-detail-v" style={{ fontSize: 13 }}>{ca.subType}</div>
+                  </div>
+                )}
+                {ca.supplier && (
+                  <div>
+                    <div className="fac-detail-l">Supplier</div>
+                    <div className="fac-detail-v" style={{ fontSize: 13 }}>{ca.supplier}</div>
+                  </div>
+                )}
                 {ca.purchaseCost > 0 && (
                   <div>
                     <div className="fac-detail-l">Purchase cost</div>
                     <div className="fac-detail-v">R {ca.purchaseCost.toLocaleString()}</div>
+                  </div>
+                )}
+                {ca.warranty && (
+                  <div>
+                    <div className="fac-detail-l">Warranty</div>
+                    <div className="fac-detail-v" style={{ fontSize: 13 }}>{ca.warranty}</div>
                   </div>
                 )}
                 {ca.purchaseDate && (
@@ -4783,25 +4984,38 @@ const ASSET_CATEGORIES = [
 
 function AddAssetModal({ facility, onSubmit, onCancel }) {
   const [category, setCategory] = useState(ASSET_CATEGORIES[0].key);
+  const [subType, setSubType] = useState('');
   const [description, setDescription] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [condition, setCondition] = useState(4);
   const [purchaseCost, setPurchaseCost] = useState('');
   const [purchaseDate, setPurchaseDate] = useState('');
+  const [supplier, setSupplier] = useState('');
+  const [warranty, setWarranty] = useState('');
   const [notes, setNotes] = useState('');
 
   const catObj = ASSET_CATEGORIES.find((c) => c.key === category) || ASSET_CATEGORIES[0];
+  const subTypeOptions = FACILITY_OPTIONS.assetSubType[category] || [];
   const canSubmit = category && quantity > 0;
+
+  // Reset subType when category changes so we don't hold a stale value.
+  function changeCategory(k) {
+    setCategory(k);
+    setSubType('');
+  }
 
   function submit() {
     if (!canSubmit) return;
     onSubmit({
       category,
+      subType: subType || null,
       description: description.trim(),
       quantity: Number(quantity),
       condition: Number(condition),
       purchaseCost: purchaseCost ? Number(purchaseCost) : 0,
       purchaseDate: purchaseDate || null,
+      supplier: supplier || null,
+      warranty: warranty || null,
       notes: notes.trim(),
       lastAssessed: null,
       issues: [],
@@ -4831,7 +5045,7 @@ function AddAssetModal({ facility, onSubmit, onCancel }) {
                   key={c.key}
                   type="button"
                   className={`jobmodal-type ${category === c.key ? 'on' : ''}`}
-                  onClick={() => setCategory(c.key)}
+                  onClick={() => changeCategory(c.key)}
                 >
                   <span className="jobmodal-type-icon">{c.icon}</span>
                   <span className="jobmodal-type-label">{c.key}</span>
@@ -4844,7 +5058,25 @@ function AddAssetModal({ facility, onSubmit, onCancel }) {
           <div className="jobmodal-step">
             <div className="jobmodal-step-eyebrow">Step 2 · Asset details</div>
 
-            <div className="field-grid-2">
+            {subTypeOptions.length > 0 && (
+              <div>
+                <label className="field-label">Sub-type / spec</label>
+                <select
+                  className="field-select"
+                  value={subType}
+                  onChange={(e) => setSubType(e.target.value)}
+                >
+                  <option value="">Select a sub-type…</option>
+                  {subTypeOptions.map((o) => (
+                    <option key={o} value={o}>
+                      {o}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="field-grid-2" style={{ marginTop: subTypeOptions.length ? 12 : 0 }}>
               <div>
                 <label className="field-label">{catObj.quantityL}</label>
                 <input
@@ -4856,13 +5088,46 @@ function AddAssetModal({ facility, onSubmit, onCancel }) {
                 />
               </div>
               <div>
-                <label className="field-label">Description / spec</label>
+                <label className="field-label">Description / extra spec</label>
                 <input
                   className="field-input"
-                  placeholder="e.g. Roll-on flat cover · 24m wide"
+                  placeholder="e.g. 24m wide · covers full square"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                 />
+              </div>
+            </div>
+
+            <div className="field-grid-2" style={{ marginTop: 12 }}>
+              <div>
+                <label className="field-label">Supplier</label>
+                <select
+                  className="field-select"
+                  value={supplier}
+                  onChange={(e) => setSupplier(e.target.value)}
+                >
+                  <option value="">Select supplier…</option>
+                  {FACILITY_OPTIONS.supplier.map((o) => (
+                    <option key={o} value={o}>
+                      {o}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="field-label">Warranty</label>
+                <select
+                  className="field-select"
+                  value={warranty}
+                  onChange={(e) => setWarranty(e.target.value)}
+                >
+                  <option value="">Select warranty…</option>
+                  {FACILITY_OPTIONS.warranty.map((o) => (
+                    <option key={o} value={o}>
+                      {o}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -4960,6 +5225,172 @@ function getAssetAt(assets, path) {
   let ref = assets;
   for (const p of parts) ref = ref?.[p];
   return ref || {};
+}
+
+/* ─── AddCapexModal · propose a capex item for the financial year ─── */
+function AddCapexModal({ facility, onSubmit, onCancel }) {
+  const [asset, setAsset] = useState(FACILITY_OPTIONS.assetCategory[0]);
+  const [title, setTitle] = useState('');
+  const [justify, setJustify] = useState('');
+  const [cost, setCost] = useState('');
+  const [priority, setPriority] = useState('medium');
+  const [targetYear, setTargetYear] = useState(FACILITY_OPTIONS.targetYear[0]);
+  const [funder, setFunder] = useState(FACILITY_OPTIONS.funder[0]);
+  const [status, setStatus] = useState('draft');
+
+  const canSubmit = title.trim() && justify.trim() && Number(cost) > 0;
+
+  function submit() {
+    if (!canSubmit) return;
+    onSubmit({
+      asset,
+      title: title.trim(),
+      justify: justify.trim(),
+      cost: Number(cost),
+      priority,
+      targetYear,
+      funder,
+      status,
+    });
+  }
+
+  return (
+    <div className="fix-confirm" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div className="fix-confirm-box jobmodal-box">
+        <div className="fac-jobmodal-head">
+          <div>
+            <div className="fac-detail-eyebrow">Facility costing · {facility.venue}</div>
+            <div className="fac-jobmodal-title">Add capex item · {facility.venue}</div>
+          </div>
+          <button className="fac-detail-close" onClick={onCancel}>
+            <Icon.X />
+          </button>
+        </div>
+
+        <div className="fac-jobmodal-body">
+          {/* Which asset does this pay for? */}
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">Step 1 · What are you paying for?</div>
+            <div>
+              <label className="field-label">Asset category</label>
+              <select className="field-select" value={asset} onChange={(e) => setAsset(e.target.value)}>
+                {FACILITY_OPTIONS.assetCategory.map((o) => (
+                  <option key={o} value={o}>{o}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Title + justification */}
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">Step 2 · Item details</div>
+            <div>
+              <label className="field-label">Capex item title <span className="req">*</span></label>
+              <input
+                className="field-input"
+                placeholder="e.g. Upgrade to permanent roll-on rainer covers"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+              />
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <label className="field-label">Justification <span className="req">*</span></label>
+              <textarea
+                className="field-textarea"
+                rows={3}
+                placeholder="Why is this needed? What's the business impact if not funded?"
+                value={justify}
+                onChange={(e) => setJustify(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Money + timing */}
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">Step 3 · Money + timing</div>
+            <div className="field-grid-2">
+              <div>
+                <label className="field-label">Estimated cost (R) <span className="req">*</span></label>
+                <input
+                  className="field-input"
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={cost}
+                  onChange={(e) => setCost(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="field-label">Target financial year</label>
+                <select
+                  className="field-select"
+                  value={targetYear}
+                  onChange={(e) => setTargetYear(e.target.value)}
+                >
+                  {FACILITY_OPTIONS.targetYear.map((o) => (
+                    <option key={o} value={o}>{o}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="field-grid-2" style={{ marginTop: 12 }}>
+              <div>
+                <label className="field-label">Priority</label>
+                <div className="seg">
+                  {FACILITY_OPTIONS.priority.map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      className={`seg-btn ${priority === p ? 'on' : ''}`}
+                      onClick={() => setPriority(p)}
+                    >
+                      {p === 'high' ? '⚑ ' : ''}
+                      {p[0].toUpperCase() + p.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="field-label">Current status</label>
+                <select
+                  className="field-select"
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                >
+                  {FACILITY_OPTIONS.capexStatus.map((s) => (
+                    <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 12 }}>
+              <label className="field-label">Funder</label>
+              <select className="field-select" value={funder} onChange={(e) => setFunder(e.target.value)}>
+                {FACILITY_OPTIONS.funder.map((o) => (
+                  <option key={o} value={o}>{o}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="jobmodal-footer">
+          <div className="jobmodal-footer-summary">
+            <strong>{asset}</strong> · target{' '}
+            <strong>{targetYear}</strong> · <strong>R {(Number(cost) || 0).toLocaleString()}</strong>
+          </div>
+          <div className="jobmodal-footer-actions">
+            <Btn tone="outline" onClick={onCancel}>Cancel</Btn>
+            <Btn tone="teal" icon={Icon.Check} onClick={submit} disabled={!canSubmit}>
+              Add capex item
+            </Btn>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function AssessmentEditor({ facility, assetKey, assets, customAssets = [], onSave, onCancel }) {
@@ -5150,8 +5581,8 @@ function AssessmentEditor({ facility, assetKey, assets, customAssets = [], onSav
   );
 }
 
-function FacilityInvestmentTab({ facility, onCreateJob }) {
-  const capex = FACILITY_CAPEX[facility.clubId] || [];
+function FacilityInvestmentTab({ facility, capex: capexProp, onCreateJob, onAddCapex, onDiscardCapex }) {
+  const capex = capexProp || FACILITY_CAPEX[facility.clubId] || [];
   const maint = FACILITY_MAINTENANCE_SCHEDULE[facility.clubId] || [];
   const spend = FACILITY_SPEND[facility.clubId] || { byAsset: {}, ytdBudget: 0, ytdActual: 0, yearlyBudget: 0 };
   const capexSum = capexTotal(facility.clubId);
@@ -5280,7 +5711,7 @@ function FacilityInvestmentTab({ facility, onCreateJob }) {
             One-off asset renewals and expansion — used for Union grant + sponsor bids
           </div>
         </div>
-        <Btn tone="outline" size="sm" icon={Icon.Plus}>
+        <Btn tone="teal" size="sm" icon={Icon.Plus} onClick={onAddCapex}>
           Add capex item
         </Btn>
       </div>
@@ -5314,7 +5745,19 @@ function FacilityInvestmentTab({ facility, onCreateJob }) {
                 <span>
                   <strong>Funder:</strong> {c.funder}
                 </span>
-                <button className="fac-job-btn">Open detail</button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    className="fac-discard-btn"
+                    onClick={() => {
+                      if (window.confirm(`Discard this capex item?\n\n${c.title}`)) {
+                        onDiscardCapex?.(c.id);
+                      }
+                    }}
+                  >
+                    🗑 Discard
+                  </button>
+                  <button className="fac-job-btn">Open detail</button>
+                </div>
               </div>
             </div>
           ))}

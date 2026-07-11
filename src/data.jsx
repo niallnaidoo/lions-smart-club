@@ -1148,6 +1148,117 @@ const FACILITY_JOBS = (() => {
   return jobs;
 })();
 
+/* ─── FACILITY_OPTIONS · curated dropdown catalogs ───
+   One place for every dropdown value used across the Asset assessment
+   + Facility costing modals. Extend this to grow the picker set. */
+
+const FACILITY_OPTIONS = {
+  // Sub-type / spec dropdowns per asset category. Keys match ASSET_CATEGORIES.
+  assetSubType: {
+    'Pitch square': ['Natural turf', 'Artificial (astro)', 'Hybrid', 'Concrete + mat', 'Clay'],
+    Cover: [
+      'Mobile flat cover',
+      'Roll-on square cover',
+      'Permanent tarpaulin',
+      'Rainer / bubble',
+      'Hessian frost cover',
+    ],
+    'Outdoor net': [
+      'Grass + rolled square',
+      'Concrete base + artificial mat',
+      'Astro turf',
+      'Rubber mat',
+      'Clay + mat',
+    ],
+    'Indoor net': ['Standard indoor', 'Retractable', 'Cage · caged practice', 'Bay · single lane'],
+    'Bowling machine': [
+      'BOLA Machine SR',
+      'BOLA Junior',
+      'Cricket Freaks Pro',
+      'Sidearm feeder',
+      'Merlyn',
+      'ProBatter',
+    ],
+    Sightscreen: [
+      'Fixed timber',
+      'Fixed metal',
+      'Roll-out fabric',
+      'Wheeled composite',
+      'Motorised sliding',
+    ],
+    'Boundary rope': ['Standard fabric rope', 'Dolomite line + rope', 'Wheeled boundary marker'],
+    Scoreboard: ['Manual · flip', 'Electronic · LED', 'Digital · app-linked'],
+    'Sprinkler / irrigation': [
+      'Pop-up irrigation',
+      'Manual hose + spray',
+      'Drip line',
+      'Automated with weather link',
+    ],
+    'Roller / mower': [
+      '1-tonne roller',
+      '2-tonne roller',
+      'Ride-on mower',
+      'Cylinder mower',
+      'Rotary mower',
+    ],
+    Other: [],
+  },
+  // Curated suppliers (SA cricket + turf-care market).
+  supplier: [
+    'BOLA Manufacturing',
+    'Cricket Freaks',
+    'ProCricket SA',
+    'Sportsmans Warehouse',
+    'Total Sport',
+    'JR Turf',
+    'Kikuyu Growers Association',
+    'John Deere SA',
+    'Toro SA',
+    'Netpro (nets & fencing)',
+    'Local fabrication',
+    'Other / import',
+  ],
+  // Warranty periods for asset purchases.
+  warranty: ['3 months', '6 months', '1 year', '2 years', '3 years', '5 years', 'None'],
+  // Financial year targets for capex planning.
+  targetYear: ['2026/27', '2027/28', '2028/29', '2029/30', '2030/31'],
+  // Funders that can pay for capex items.
+  funder: [
+    'Lions capital grant',
+    'KZNCU capital grant',
+    'KZNCU pitch renewal programme',
+    'Lions development fund',
+    'Club reserves',
+    'Sponsorship-linked (naming rights)',
+    'Provincial capital grant',
+    'Municipal sports grant',
+    'Fundraising drive',
+    'Combined · Union + club',
+    'CSA facility fund',
+    'Other',
+  ],
+  // Capex lifecycle statuses.
+  capexStatus: ['draft', 'submitted', 'approved', 'funded', 'installed', 'declined'],
+  // Priority ladder for capex items.
+  priority: ['high', 'medium', 'low'],
+  // Asset categories for the capex "which asset does this pay for?" picker.
+  assetCategory: [
+    'Pitch square',
+    'Cover',
+    'Outdoor net',
+    'Indoor net',
+    'Bowling machine',
+    'Sightscreen',
+    'Boundary rope',
+    'Scoreboard',
+    'Sprinkler / irrigation',
+    'Roller / mower',
+    'Clubhouse / changerooms',
+    'Fencing / security',
+    'Other',
+  ],
+};
+
 /* ─── Facility ASSETS · linked back to CQI questions ───
    For every facility, we hold the club's CQI-declared counts + a richer
    condition + issues profile that the admin manages. cqiKey lets us
@@ -1525,6 +1636,7 @@ export {
   FACILITY_CAPEX,
   FACILITY_MAINTENANCE_SCHEDULE,
   FACILITY_SPEND,
+  FACILITY_OPTIONS,
   conditionWord,
   conditionTone,
   capexStatusTone,
