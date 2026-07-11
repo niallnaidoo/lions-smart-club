@@ -8980,7 +8980,177 @@
         color: var(--white);
       }
 
-      /* ─── Club financials view ─── */
+      /* ─── Player subs paid pill ─── */
+      .subs-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 12px;
+        border-radius: 999px;
+        cursor: pointer;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        transition: transform 0.08s;
+      }
+      .subs-pill.off {
+        background: transparent;
+        border: 1px dashed var(--paper3);
+        color: var(--muted);
+      }
+      .subs-pill.off:hover {
+        border-color: var(--green);
+        color: var(--green);
+      }
+      .subs-pill.on {
+        background: var(--green-pale);
+        border: 1px solid rgba(15, 77, 46, 0.3);
+        color: var(--green);
+      }
+      .subs-pill.on:hover {
+        transform: translateY(-1px);
+      }
+      .subs-tick {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 14px;
+        height: 14px;
+        border-radius: 999px;
+        background: var(--green);
+        color: var(--white);
+        font-size: 9px;
+      }
+
+      /* ─── Financials · direction flow strip (In / Out / Net) ─── */
+      .fin-flow-strip {
+        display: grid;
+        grid-template-columns: 1.4fr 1fr 1fr;
+        gap: 12px;
+        margin-top: 16px;
+      }
+      @media (max-width: 900px) {
+        .fin-flow-strip {
+          grid-template-columns: 1fr;
+        }
+      }
+      .fin-flow {
+        border-radius: 14px;
+        padding: 16px 18px;
+        border: 1px solid var(--line);
+        background: var(--white);
+      }
+      .fin-flow-l {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10.5px;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .fin-flow-n {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 30px;
+        font-weight: 900;
+        line-height: 1.05;
+        color: var(--ink);
+        margin-top: 6px;
+        font-variant-numeric: tabular-nums;
+      }
+      .fin-flow-sub {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--muted);
+        margin-top: 6px;
+      }
+      .fin-flow-net {
+        background: var(--ink);
+        border-color: var(--ink);
+      }
+      .fin-flow-net .fin-flow-l,
+      .fin-flow-net .fin-flow-sub {
+        color: rgba(255, 255, 255, 0.66);
+      }
+      .fin-flow-net .fin-flow-n {
+        color: var(--white);
+      }
+      .fin-flow-net[data-pos='y'] .fin-flow-n {
+        color: #7fd6a3;
+      }
+      .fin-flow-net[data-pos='n'] .fin-flow-n {
+        color: #ff8888;
+      }
+      .fin-flow-in {
+        background: linear-gradient(180deg, var(--green-pale), var(--white));
+      }
+      .fin-flow-in .fin-flow-n {
+        color: var(--green);
+      }
+      .fin-flow-out {
+        background: linear-gradient(180deg, rgba(220, 74, 74, 0.06), var(--white));
+      }
+      .fin-flow-out .fin-flow-n {
+        color: var(--coral);
+      }
+
+      /* Per-group breakdown row */
+      .fin-groups {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .fin-group {
+        background: var(--white);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 10px 12px;
+      }
+      .fin-group-in {
+        border-left: 3px solid var(--green);
+      }
+      .fin-group-out {
+        border-left: 3px solid var(--coral);
+      }
+      .fin-group-l {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 9.5px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .fin-group-n {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 15px;
+        font-weight: 800;
+        color: var(--ink);
+        margin-top: 3px;
+        font-variant-numeric: tabular-nums;
+      }
+
+      /* Direction tag on ledger rows */
+      .fin-dir-tag {
+        display: inline-block;
+        padding: 1px 6px;
+        border-radius: 4px;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 9px;
+        font-weight: 900;
+        letter-spacing: 0.14em;
+      }
+      .fin-dir-in {
+        background: var(--green-pale);
+        color: var(--green);
+      }
+      .fin-dir-out {
+        background: rgba(220, 74, 74, 0.12);
+        color: var(--coral);
+      }
+
+      /* ─── Club financials view · legacy kpi strip (kept for compatibility) ─── */
       .fin-kpi-strip {
         display: grid;
         grid-template-columns: 1.4fr repeat(4, 1fr);

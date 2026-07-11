@@ -1754,16 +1754,38 @@ const CLUB_COST_CATEGORIES = [
 
 const CLUB_COST_FREQUENCIES = ['One-off', 'Weekly', 'Monthly', 'Quarterly', 'Season', 'Annual'];
 
+const SUBSCRIPTION_DEFAULT_ZAR = 500;
+
+const CLUB_INCOME_CATEGORIES = [
+  { key: 'subscription', label: 'Player subscription', group: 'Members', tone: 'teal' },
+  { key: 'sponsorship', label: 'Sponsorship', group: 'Sponsors', tone: 'gold' },
+  { key: 'match_fees', label: 'Match fees / gate', group: 'Match day', tone: 'navy' },
+  { key: 'tuck_shop', label: 'Tuck shop / bar', group: 'Match day', tone: 'navy' },
+  { key: 'event_hosting', label: 'Event hosting', group: 'Events', tone: 'navy' },
+  { key: 'grant', label: 'Grant / union funding', group: 'Sponsors', tone: 'gold' },
+  { key: 'donation', label: 'Donation', group: 'Sponsors', tone: 'gold' },
+  { key: 'other_income', label: 'Other income', group: 'Other', tone: 'muted' },
+];
+
+const CLUB_INCOME_GROUPS = ['Members', 'Sponsors', 'Match day', 'Events', 'Other'];
+
 const CLUB_COST_SEED = [
-  { id: 'c-001', date: '2026-07-05', category: 'coach_salary', vendorId: 'v-009', payee: 'Sanele Cele Cricket Academy', desc: 'Head coach retainer · July', amount: 12000, frequency: 'Monthly', invoice: 'SCA-2607', paid: true },
-  { id: 'c-002', date: '2026-07-05', category: 'coach_adhoc', vendorId: 'v-010', payee: 'Mark Robertson · Bowling', desc: 'Sat clinic × 2 · pace group', amount: 3600, frequency: 'One-off', invoice: 'MR-041', paid: true },
-  { id: 'c-003', date: '2026-07-02', category: 'clinical_physio', vendorId: 'v-011', payee: 'Pillay Sports Physio', desc: 'Match-day cover + 3 sessions', amount: 4850, frequency: 'One-off', invoice: 'PSP-119', paid: false },
-  { id: 'c-004', date: '2026-06-25', category: 'facility_utility', vendorId: 'v-013', payee: 'eThekwini Municipality', desc: 'Electricity + water · June', amount: 6120, frequency: 'Monthly', invoice: 'ETH-6-26', paid: true },
-  { id: 'c-005', date: '2026-06-30', category: 'facility_jobcard', vendorId: 'v-001', payee: 'Green Turf Solutions', desc: 'Pre-season pitch renovation', amount: 18500, frequency: 'One-off', invoice: 'GTS-2201', paid: true },
-  { id: 'c-006', date: '2026-06-15', category: 'admin_union', vendorId: 'v-014', payee: 'KZN Cricket Union', desc: 'Season affiliation 2026/27', amount: 8500, frequency: 'Annual', invoice: 'KZNCU-A26', paid: true },
-  { id: 'c-007', date: '2026-06-10', category: 'admin_kit', vendorId: 'v-015', payee: 'Bulls Kit & Apparel', desc: 'Team playing kit x 15', amount: 22500, frequency: 'Season', invoice: 'BKA-3312', paid: false },
-  { id: 'c-008', date: '2026-05-30', category: 'admin_banking', vendorId: null, payee: 'FNB', desc: 'Monthly account fees', amount: 340, frequency: 'Monthly', invoice: '', paid: true },
-  { id: 'c-009', date: '2026-05-28', category: 'chairman_reimburse', vendorId: null, payee: 'Ashraf Ganie', desc: 'Fuel · match-day travel', amount: 890, frequency: 'One-off', invoice: 'CH-052', paid: true },
+  { id: 'c-001', direction: 'out', date: '2026-07-05', category: 'coach_salary', vendorId: 'v-009', payee: 'Sanele Cele Cricket Academy', desc: 'Head coach retainer · July', amount: 12000, frequency: 'Monthly', invoice: 'SCA-2607', paid: true },
+  { id: 'c-002', direction: 'out', date: '2026-07-05', category: 'coach_adhoc', vendorId: 'v-010', payee: 'Mark Robertson · Bowling', desc: 'Sat clinic × 2 · pace group', amount: 3600, frequency: 'One-off', invoice: 'MR-041', paid: true },
+  { id: 'c-003', direction: 'out', date: '2026-07-02', category: 'clinical_physio', vendorId: 'v-011', payee: 'Pillay Sports Physio', desc: 'Match-day cover + 3 sessions', amount: 4850, frequency: 'One-off', invoice: 'PSP-119', paid: false },
+  { id: 'c-004', direction: 'out', date: '2026-06-25', category: 'facility_utility', vendorId: 'v-013', payee: 'eThekwini Municipality', desc: 'Electricity + water · June', amount: 6120, frequency: 'Monthly', invoice: 'ETH-6-26', paid: true },
+  { id: 'c-005', direction: 'out', date: '2026-06-30', category: 'facility_jobcard', vendorId: 'v-001', payee: 'Green Turf Solutions', desc: 'Pre-season pitch renovation', amount: 18500, frequency: 'One-off', invoice: 'GTS-2201', paid: true },
+  { id: 'c-006', direction: 'out', date: '2026-06-15', category: 'admin_union', vendorId: 'v-014', payee: 'KZN Cricket Union', desc: 'Season affiliation 2026/27', amount: 8500, frequency: 'Annual', invoice: 'KZNCU-A26', paid: true },
+  { id: 'c-007', direction: 'out', date: '2026-06-10', category: 'admin_kit', vendorId: 'v-015', payee: 'Bulls Kit & Apparel', desc: 'Team playing kit x 15', amount: 22500, frequency: 'Season', invoice: 'BKA-3312', paid: false },
+  { id: 'c-008', direction: 'out', date: '2026-05-30', category: 'admin_banking', vendorId: null, payee: 'FNB', desc: 'Monthly account fees', amount: 340, frequency: 'Monthly', invoice: '', paid: true },
+  { id: 'c-009', direction: 'out', date: '2026-05-28', category: 'chairman_reimburse', vendorId: null, payee: 'Ashraf Ganie', desc: 'Fuel · match-day travel', amount: 890, frequency: 'One-off', invoice: 'CH-052', paid: true },
+];
+
+const CLUB_INCOME_SEED = [
+  { id: 'i-001', direction: 'in', date: '2026-07-01', category: 'sponsorship', sponsorTier: 'Gold', payee: 'Coastal Insurance Brokers', desc: 'Season shirt sponsor · 2026/27', amount: 45000, frequency: 'Season', invoice: 'CIB-SP-01', paid: true },
+  { id: 'i-002', direction: 'in', date: '2026-06-28', category: 'sponsorship', sponsorTier: 'Silver', payee: 'Umhlanga Auto Repairs', desc: 'Boundary board · half season', amount: 12000, frequency: 'One-off', invoice: 'UAR-2201', paid: true },
+  { id: 'i-003', direction: 'in', date: '2026-06-20', category: 'grant', payee: 'KZN Cricket Union', desc: 'Development grant · junior programme', amount: 15000, frequency: 'Annual', invoice: 'KZNCU-G26', paid: true },
+  { id: 'i-004', direction: 'in', date: '2026-06-14', category: 'match_fees', payee: 'Home match · vs Berea Rovers', desc: 'Gate + tea kitty', amount: 2100, frequency: 'One-off', invoice: '', paid: true },
 ];
 
 function vendorStatusTone(s) {
@@ -2298,4 +2320,8 @@ export {
   CLUB_COST_CATEGORIES,
   CLUB_COST_FREQUENCIES,
   CLUB_COST_SEED,
+  CLUB_INCOME_CATEGORIES,
+  CLUB_INCOME_GROUPS,
+  CLUB_INCOME_SEED,
+  SUBSCRIPTION_DEFAULT_ZAR,
 };

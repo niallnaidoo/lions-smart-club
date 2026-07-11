@@ -46,7 +46,9 @@ import {
   vendorStatusTone,
   CLUB_COST_CATEGORIES,
   CLUB_COST_FREQUENCIES,
-  CLUB_COST_SEED,
+  CLUB_INCOME_CATEGORIES,
+  CLUB_INCOME_GROUPS,
+  SUBSCRIPTION_DEFAULT_ZAR,
 } from './data.jsx';
 import { AssessmentEditor, AddAssetModal, AssetCard, ConditionStars } from './admin.jsx';
 
@@ -2864,6 +2866,8 @@ function ClubPlayersView({
   onOpenRegister,
   onRequestClearance,
   clubs,
+  subs = {},
+  onToggleSubs,
   toast,
 }) {
   const mine = players.filter((p) => p.clubId === club.id);
@@ -2877,6 +2881,8 @@ function ClubPlayersView({
   const allRounders = mine.filter((p) => p.isAllRounder).length;
   const wks = mine.filter((p) => p.isWk).length;
   const pendingClearance = mine.filter((p) => p.status === 'clearance-pending').length;
+  const subsPaidCount = mine.filter((p) => subs[p.id]?.paid).length;
+  const subsTotal = mine.reduce((acc, p) => acc + (subs[p.id]?.paid ? subs[p.id].amount : 0), 0);
 
   const clubBy = (id) => clubs.find((c) => c.id === id);
 
@@ -2926,6 +2932,17 @@ function ClubPlayersView({
             {pendingClearance}
           </div>
         </div>
+        <div className="players-stat">
+          <div className="players-stat-l">Subs paid</div>
+          <div className="players-stat-n" style={{ color: subsPaidCount === mine.length && mine.length ? 'var(--green)' : 'var(--ink)' }}>
+            {subsPaidCount}<span style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 700 }}> / {mine.length}</span>
+          </div>
+          {subsTotal > 0 && (
+            <div style={{ fontSize: 10.5, color: 'var(--muted)', marginTop: 2, fontFamily: "'Montserrat',sans-serif", fontWeight: 600 }}>
+              R {subsTotal.toLocaleString()} in
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="tbl-w" style={{ marginTop: 14 }}>
@@ -2939,6 +2956,7 @@ function ClubPlayersView({
               <th>Bowler type</th>
               <th>ID doc</th>
               <th>Status</th>
+              <th style={{ width: 130 }}>Subs</th>
               <th style={{ width: 140 }}></th>
             </tr>
           </thead>
@@ -3036,6 +3054,28 @@ function ClubPlayersView({
                       <Pill tone="muted">Inactive</Pill>
                     )}
                   </td>
+                  <td>
+                    {(() => {
+                      const s = subs[p.id];
+                      const paid = s?.paid;
+                      return (
+                        <button
+                          className={`subs-pill ${paid ? 'on' : 'off'}`}
+                          onClick={() => onToggleSubs?.(p, s?.amount || SUBSCRIPTION_DEFAULT_ZAR)}
+                          title={paid ? `Paid R ${s.amount.toLocaleString()} · ${s.date}` : 'Mark subs paid'}
+                        >
+                          {paid ? (
+                            <>
+                              <span className="subs-tick">✓</span>
+                              R {s.amount.toLocaleString()}
+                            </>
+                          ) : (
+                            <>Mark paid</>
+                          )}
+                        </button>
+                      );
+                    })()}
+                  </td>
                   <td style={{ textAlign: 'right', paddingRight: 14 }}>
                     {p.status === 'active' && !outbound && (
                       <button
@@ -3063,7 +3103,7 @@ function ClubPlayersView({
             {mine.length === 0 && (
               <tr>
                 <td
-                  colSpan="8"
+                  colSpan="9"
                   style={{
                     padding: '28px',
                     textAlign: 'center',
@@ -4764,62 +4804,80 @@ function AddClubVendorModal({ onSubmit, onCancel }) {
      · Filterable ledger table with paid/unpaid state
      · Add entry modal (link to a vendor or free-text payee)
      · Export CSV button to hand straight to the accountant */
-function ClubFinancialsView({ club, toast }) {
-  const [entries, setEntries] = useState(CLUB_COST_SEED);
+function ClubFinancialsView({ club, entries = [], onAddEntry, onUpdateEntry, onRemoveEntry, toast }) {
+  const [filterDir, setFilterDir] = useState('all');
   const [filterGroup, setFilterGroup] = useState('all');
   const [filterPaid, setFilterPaid] = useState('all');
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState(null); // null | 'expense' | 'income' | 'sponsorship'
 
   const catMap = useMemo(() => {
     const m = {};
-    CLUB_COST_CATEGORIES.forEach((c) => (m[c.key] = c));
+    CLUB_COST_CATEGORIES.forEach((c) => (m[c.key] = { ...c, direction: 'out' }));
+    CLUB_INCOME_CATEGORIES.forEach((c) => (m[c.key] = { ...c, direction: 'in' }));
     return m;
   }, []);
 
   function addEntry(e) {
-    setEntries((prev) => [{ ...e, id: 'c-' + Date.now() }, ...prev]);
-    setAdding(false);
-    toast?.(`R ${e.amount.toLocaleString()} · ${catMap[e.category]?.label || e.category} logged`);
+    onAddEntry?.(e);
+    setAdding(null);
+    const dirLabel = e.direction === 'in' ? 'in' : 'out';
+    toast?.(`R ${e.amount.toLocaleString()} ${dirLabel} · ${catMap[e.category]?.label || e.category}`);
   }
   function togglePaid(id) {
-    setEntries((prev) => prev.map((e) => e.id === id ? { ...e, paid: !e.paid } : e));
+    const entry = entries.find((e) => e.id === id);
+    if (!entry) return;
+    onUpdateEntry?.(id, { paid: !entry.paid });
   }
   function removeEntry(id) {
-    setEntries((prev) => prev.filter((e) => e.id !== id));
+    onRemoveEntry?.(id);
     toast?.('Entry removed');
   }
 
   const filtered = entries
+    .filter((e) => filterDir === 'all' ? true : (e.direction || 'out') === filterDir)
     .filter((e) => filterGroup === 'all' ? true : (catMap[e.category]?.group === filterGroup))
     .filter((e) => filterPaid === 'all' ? true : (filterPaid === 'paid' ? e.paid : !e.paid))
     .sort((a, b) => (a.date < b.date ? 1 : -1));
 
   const totals = entries.reduce((acc, e) => {
+    const dir = e.direction || 'out';
     const g = catMap[e.category]?.group || 'Other';
-    acc[g] = (acc[g] || 0) + e.amount;
-    acc._total = (acc._total || 0) + e.amount;
-    acc._paid = (acc._paid || 0) + (e.paid ? e.amount : 0);
-    acc._unpaid = (acc._unpaid || 0) + (e.paid ? 0 : e.amount);
+    const bucket = dir === 'in' ? '_in' : '_out';
+    acc[bucket] = (acc[bucket] || 0) + e.amount;
+    acc[`${dir}:${g}`] = (acc[`${dir}:${g}`] || 0) + e.amount;
+    acc[`${dir}:_paid`] = (acc[`${dir}:_paid`] || 0) + (e.paid ? e.amount : 0);
+    acc[`${dir}:_unpaid`] = (acc[`${dir}:_unpaid`] || 0) + (e.paid ? 0 : e.amount);
     return acc;
   }, {});
+  totals._net = (totals._in || 0) - (totals._out || 0);
 
-  const groups = ['Coaching', 'Player welfare', 'Facility', 'Administration'];
+  const outGroups = ['Coaching', 'Player welfare', 'Facility', 'Administration'];
+  const inGroups = CLUB_INCOME_GROUPS;
+  const activeGroupList = filterDir === 'in' ? inGroups : filterDir === 'out' ? outGroups : [...inGroups, ...outGroups];
 
   function exportCSV() {
-    const headers = ['Date', 'Category', 'Group', 'Payee', 'Description', 'Amount (ZAR)', 'Frequency', 'Invoice', 'Paid'];
-    const rows = filtered.map((e) => [
-      e.date,
-      catMap[e.category]?.label || e.category,
-      catMap[e.category]?.group || '',
-      e.payee || '',
-      (e.desc || '').replace(/\n/g, ' '),
-      e.amount,
-      e.frequency || '',
-      e.invoice || '',
-      e.paid ? 'Paid' : 'Unpaid',
-    ]);
-    const totalRow = ['', '', '', '', 'TOTAL', totals._total || 0, '', '', ''];
-    const csv = [headers, ...rows, totalRow]
+    const headers = ['Date', 'Direction', 'Category', 'Group', 'Payee', 'Description', 'Amount (ZAR)', 'Frequency', 'Invoice', 'Paid'];
+    const rows = filtered.map((e) => {
+      const dir = (e.direction || 'out') === 'in' ? 'IN' : 'OUT';
+      return [
+        e.date,
+        dir,
+        catMap[e.category]?.label || e.category,
+        catMap[e.category]?.group || '',
+        e.payee || '',
+        (e.desc || '').replace(/\n/g, ' '),
+        e.amount,
+        e.frequency || '',
+        e.invoice || '',
+        e.paid ? 'Paid' : 'Unpaid',
+      ];
+    });
+    const summary = [
+      ['', '', '', '', '', 'TOTAL IN', totals._in || 0, '', '', ''],
+      ['', '', '', '', '', 'TOTAL OUT', totals._out || 0, '', '', ''],
+      ['', '', '', '', '', 'NET', totals._net || 0, '', '', ''],
+    ];
+    const csv = [headers, ...rows, ...summary]
       .map((r) => r.map((c) => {
         const s = String(c ?? '');
         return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -4853,36 +4911,82 @@ function ClubFinancialsView({ club, toast }) {
           <Btn tone="outline" size="sm" icon={Icon.Download} onClick={exportCSV}>
             Export statement
           </Btn>
-          <Btn tone="teal" size="sm" icon={Icon.Plus} onClick={() => setAdding(true)}>
+          <Btn tone="outline" size="sm" icon={Icon.Plus} onClick={() => setAdding('sponsorship')}>
+            Log sponsorship
+          </Btn>
+          <Btn tone="outline" size="sm" icon={Icon.Plus} onClick={() => setAdding('income')}>
+            Log income
+          </Btn>
+          <Btn tone="teal" size="sm" icon={Icon.Plus} onClick={() => setAdding('expense')}>
             Log a cost
           </Btn>
         </div>
       </div>
 
-      {/* Group KPI strip */}
-      <div className="fin-kpi-strip">
-        <div className="fin-kpi fin-kpi-total">
-          <div className="fin-kpi-l">Total spend</div>
-          <div className="fin-kpi-n">R {(totals._total || 0).toLocaleString()}</div>
-          <div className="fin-kpi-sub">
-            <span style={{ color: 'var(--green)' }}>R {(totals._paid || 0).toLocaleString()} paid</span> ·{' '}
-            <span style={{ color: 'var(--coral)' }}>R {(totals._unpaid || 0).toLocaleString()} outstanding</span>
+      {/* Direction KPI strip — IN / OUT / NET */}
+      <div className="fin-flow-strip">
+        <div className="fin-flow fin-flow-net" data-pos={totals._net >= 0 ? 'y' : 'n'}>
+          <div className="fin-flow-l">Net position</div>
+          <div className="fin-flow-n">
+            {totals._net >= 0 ? '+' : '−'} R {Math.abs(totals._net).toLocaleString()}
+          </div>
+          <div className="fin-flow-sub">
+            {totals._net >= 0
+              ? 'Club is in surplus this season'
+              : 'Club is running a deficit'}
           </div>
         </div>
-        {groups.map((g) => (
-          <div key={g} className="fin-kpi">
-            <div className="fin-kpi-l">{g}</div>
-            <div className="fin-kpi-n">R {(totals[g] || 0).toLocaleString()}</div>
-            <div className="fin-kpi-sub">
-              {entries.filter((e) => catMap[e.category]?.group === g).length} entries
-            </div>
+        <div className="fin-flow fin-flow-in">
+          <div className="fin-flow-l">↓ Money in</div>
+          <div className="fin-flow-n">R {(totals._in || 0).toLocaleString()}</div>
+          <div className="fin-flow-sub">
+            {entries.filter((e) => (e.direction || 'out') === 'in').length} entries ·{' '}
+            R {(totals['in:_paid'] || 0).toLocaleString()} received
+          </div>
+        </div>
+        <div className="fin-flow fin-flow-out">
+          <div className="fin-flow-l">↑ Money out</div>
+          <div className="fin-flow-n">R {(totals._out || 0).toLocaleString()}</div>
+          <div className="fin-flow-sub">
+            {entries.filter((e) => (e.direction || 'out') === 'out').length} entries ·{' '}
+            R {(totals['out:_unpaid'] || 0).toLocaleString()} outstanding
+          </div>
+        </div>
+      </div>
+
+      {/* Per-group breakdown row */}
+      <div className="fin-groups">
+        {inGroups.map((g) => (
+          <div key={'in-' + g} className="fin-group fin-group-in">
+            <div className="fin-group-l">{g}</div>
+            <div className="fin-group-n">R {(totals[`in:${g}`] || 0).toLocaleString()}</div>
+          </div>
+        ))}
+        {outGroups.map((g) => (
+          <div key={'out-' + g} className="fin-group fin-group-out">
+            <div className="fin-group-l">{g}</div>
+            <div className="fin-group-n">R {(totals[`out:${g}`] || 0).toLocaleString()}</div>
           </div>
         ))}
       </div>
 
       {/* Filter row */}
       <div className="filter-row" style={{ marginTop: 16 }}>
-        {['all', ...groups].map((g) => (
+        {[
+          { k: 'all', l: 'All flows' },
+          { k: 'in', l: '↓ In only' },
+          { k: 'out', l: '↑ Out only' },
+        ].map((b) => (
+          <button
+            key={b.k}
+            className={`filter-pill ${filterDir === b.k ? 'active' : ''}`}
+            onClick={() => { setFilterDir(b.k); setFilterGroup('all'); }}
+          >
+            {b.l}
+          </button>
+        ))}
+        <span style={{ width: 1, height: 22, background: 'var(--line)', margin: '0 8px' }} />
+        {['all', ...activeGroupList].map((g) => (
           <button
             key={g}
             className={`filter-pill ${filterGroup === g ? 'active' : ''}`}
@@ -4894,7 +4998,7 @@ function ClubFinancialsView({ club, toast }) {
         <span style={{ marginLeft: 12, display: 'inline-flex', gap: 6 }}>
           {[
             { k: 'all', l: 'Any' },
-            { k: 'paid', l: 'Paid' },
+            { k: 'paid', l: 'Cleared' },
             { k: 'unpaid', l: 'Outstanding' },
           ].map((b) => (
             <button
@@ -4925,13 +5029,17 @@ function ClubFinancialsView({ club, toast }) {
           <tbody>
             {filtered.map((e) => {
               const c = catMap[e.category] || { label: e.category, group: 'Other', tone: 'muted' };
+              const dir = e.direction || 'out';
               return (
                 <tr key={e.id}>
                   <td style={{ fontSize: 12, color: 'var(--muted)', fontFamily: "'Montserrat',sans-serif" }}>
                     {new Date(e.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
                   </td>
                   <td>
-                    <Pill tone={c.tone}>{c.label}</Pill>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <span className={`fin-dir-tag fin-dir-${dir}`}>{dir === 'in' ? 'IN' : 'OUT'}</span>
+                      <Pill tone={c.tone}>{c.label}</Pill>
+                    </div>
                     <div style={{ fontSize: 10.5, color: 'var(--muted)', marginTop: 3 }}>{c.group}</div>
                   </td>
                   <td>
@@ -4943,8 +5051,14 @@ function ClubFinancialsView({ club, toast }) {
                     )}
                   </td>
                   <td style={{ fontSize: 12, color: 'var(--ink)', maxWidth: 280 }}>{e.desc}</td>
-                  <td style={{ textAlign: 'right', fontFamily: "'Montserrat',sans-serif", fontWeight: 800, fontSize: 14 }}>
-                    R {e.amount.toLocaleString()}
+                  <td style={{
+                    textAlign: 'right',
+                    fontFamily: "'Montserrat',sans-serif",
+                    fontWeight: 800,
+                    fontSize: 14,
+                    color: dir === 'in' ? 'var(--green)' : 'var(--ink)',
+                  }}>
+                    {dir === 'in' ? '+' : '−'} R {e.amount.toLocaleString()}
                     <div style={{ fontSize: 10.5, color: 'var(--muted)', fontWeight: 500 }}>
                       {e.frequency}
                     </div>
@@ -4954,7 +5068,7 @@ function ClubFinancialsView({ club, toast }) {
                       className={`fin-paid-toggle ${e.paid ? 'paid' : 'unpaid'}`}
                       onClick={() => togglePaid(e.id)}
                     >
-                      {e.paid ? 'Paid' : 'Outstanding'}
+                      {e.paid ? (dir === 'in' ? 'Received' : 'Paid') : 'Outstanding'}
                     </button>
                   </td>
                   <td style={{ textAlign: 'right', paddingRight: 10 }}>
@@ -4976,11 +5090,29 @@ function ClubFinancialsView({ club, toast }) {
         </table>
       </div>
 
-      {adding && ReactDOM.createPortal(
-        <AddCostEntryModal
+      {adding === 'expense' && ReactDOM.createPortal(
+        <AddLedgerEntryModal
+          direction="out"
           club={club}
           onSubmit={addEntry}
-          onCancel={() => setAdding(false)}
+          onCancel={() => setAdding(null)}
+        />,
+        document.body
+      )}
+      {adding === 'income' && ReactDOM.createPortal(
+        <AddLedgerEntryModal
+          direction="in"
+          club={club}
+          onSubmit={addEntry}
+          onCancel={() => setAdding(null)}
+        />,
+        document.body
+      )}
+      {adding === 'sponsorship' && ReactDOM.createPortal(
+        <AddSponsorshipModal
+          club={club}
+          onSubmit={addEntry}
+          onCancel={() => setAdding(null)}
         />,
         document.body
       )}
@@ -4988,10 +5120,13 @@ function ClubFinancialsView({ club, toast }) {
   );
 }
 
-function AddCostEntryModal({ club, onSubmit, onCancel }) {
+function AddLedgerEntryModal({ direction = 'out', club, onSubmit, onCancel }) {
+  const isIn = direction === 'in';
+  const CATS = isIn ? CLUB_INCOME_CATEGORIES : CLUB_COST_CATEGORIES;
+  const GROUPS = isIn ? CLUB_INCOME_GROUPS : ['Coaching', 'Player welfare', 'Facility', 'Administration'];
   const today = new Date().toISOString().slice(0, 10);
   const [date, setDate] = useState(today);
-  const [category, setCategory] = useState(CLUB_COST_CATEGORIES[0].key);
+  const [category, setCategory] = useState(CATS[0].key);
   const [vendorId, setVendorId] = useState('');
   const [payee, setPayee] = useState('');
   const [desc, setDesc] = useState('');
@@ -5005,7 +5140,7 @@ function AddCostEntryModal({ club, onSubmit, onCancel }) {
     []
   );
 
-  const cat = CLUB_COST_CATEGORIES.find((c) => c.key === category);
+  const cat = CATS.find((c) => c.key === category);
   const parsedAmount = Number(String(amount).replace(/[^\d.]/g, '')) || 0;
   const canSubmit = payee.trim() && parsedAmount > 0 && category;
 
@@ -5018,6 +5153,7 @@ function AddCostEntryModal({ club, onSubmit, onCancel }) {
   function submit() {
     if (!canSubmit) return;
     onSubmit({
+      direction,
       date,
       category,
       vendorId: vendorId || null,
@@ -5030,13 +5166,25 @@ function AddCostEntryModal({ club, onSubmit, onCancel }) {
     });
   }
 
+  const eyebrow = isIn ? 'Log income' : 'Log a cost';
+  const title = isIn ? 'New income entry' : 'New cost entry';
+  const whoLabel = isIn ? 'Who paid the club?' : 'Who was paid?';
+  const submitLabel = isIn ? 'Log income' : 'Log cost';
+  const paidLabel = isIn ? 'Already received' : 'Already paid';
+  const payeePlaceholder = isIn
+    ? 'e.g. Coastal Insurance Brokers'
+    : 'e.g. Sanele Cele Cricket Academy';
+  const descPlaceholder = isIn
+    ? 'e.g. Half-season boundary board · vs Berea Rovers gate'
+    : 'e.g. Head coach retainer · July · pace-clinic Sat';
+
   return (
     <div className="fix-confirm" onClick={(e) => e.target === e.currentTarget && onCancel()}>
       <div className="fix-confirm-box jobmodal-box" style={{ maxWidth: 640 }}>
         <div className="fac-jobmodal-head">
           <div>
-            <div className="fac-detail-eyebrow">Log a cost</div>
-            <div className="fac-jobmodal-title">New ledger entry</div>
+            <div className="fac-detail-eyebrow">{eyebrow}</div>
+            <div className="fac-jobmodal-title">{title}</div>
           </div>
           <button className="fac-detail-close" onClick={onCancel}>
             <Icon.X />
@@ -5054,9 +5202,9 @@ function AddCostEntryModal({ club, onSubmit, onCancel }) {
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                 >
-                  {['Coaching', 'Player welfare', 'Facility', 'Administration'].map((g) => (
+                  {GROUPS.map((g) => (
                     <optgroup key={g} label={g}>
-                      {CLUB_COST_CATEGORIES.filter((c) => c.group === g).map((c) => (
+                      {CATS.filter((c) => c.group === g).map((c) => (
                         <option key={c.key} value={c.key}>{c.label}</option>
                       ))}
                     </optgroup>
@@ -5081,29 +5229,31 @@ function AddCostEntryModal({ club, onSubmit, onCancel }) {
           </div>
 
           <div className="jobmodal-step">
-            <div className="jobmodal-step-eyebrow">Who was paid?</div>
-            <div>
-              <label className="field-label">Link to a vendor (optional)</label>
-              <select
-                className="field-select"
-                value={vendorId}
-                onChange={(e) => pickVendor(e.target.value)}
-              >
-                <option value="">— No vendor / free-text payee —</option>
-                {VENDOR_CATEGORIES.filter((c) => vendorOptions.some((v) => v.category === c)).map((c) => (
-                  <optgroup key={c} label={c}>
-                    {vendorOptions.filter((v) => v.category === c).map((v) => (
-                      <option key={v.id} value={v.id}>{v.name}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-            </div>
-            <div style={{ marginTop: 12 }}>
-              <label className="field-label">Payee <span className="req">*</span></label>
+            <div className="jobmodal-step-eyebrow">{whoLabel}</div>
+            {!isIn && (
+              <div>
+                <label className="field-label">Link to a vendor (optional)</label>
+                <select
+                  className="field-select"
+                  value={vendorId}
+                  onChange={(e) => pickVendor(e.target.value)}
+                >
+                  <option value="">— No vendor / free-text payee —</option>
+                  {VENDOR_CATEGORIES.filter((c) => vendorOptions.some((v) => v.category === c)).map((c) => (
+                    <optgroup key={c} label={c}>
+                      {vendorOptions.filter((v) => v.category === c).map((v) => (
+                        <option key={v.id} value={v.id}>{v.name}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div style={{ marginTop: isIn ? 0 : 12 }}>
+              <label className="field-label">{isIn ? 'Source / payer' : 'Payee'} <span className="req">*</span></label>
               <input
                 className="field-input"
-                placeholder="e.g. Sanele Cele Cricket Academy"
+                placeholder={payeePlaceholder}
                 value={payee}
                 onChange={(e) => setPayee(e.target.value)}
               />
@@ -5138,14 +5288,14 @@ function AddCostEntryModal({ club, onSubmit, onCancel }) {
               <label className="field-label">Description / reference</label>
               <input
                 className="field-input"
-                placeholder="e.g. Head coach retainer · July · pace-clinic Sat"
+                placeholder={descPlaceholder}
                 value={desc}
                 onChange={(e) => setDesc(e.target.value)}
               />
             </div>
             <div className="field-grid-2" style={{ marginTop: 12 }}>
               <div>
-                <label className="field-label">Invoice #</label>
+                <label className="field-label">Invoice / reference #</label>
                 <input
                   className="field-input"
                   placeholder="INV-000"
@@ -5160,7 +5310,7 @@ function AddCostEntryModal({ club, onSubmit, onCancel }) {
                     checked={paid}
                     onChange={(e) => setPaid(e.target.checked)}
                   />
-                  <span>Already paid</span>
+                  <span>{paidLabel}</span>
                 </label>
               </div>
             </div>
@@ -5169,13 +5319,185 @@ function AddCostEntryModal({ club, onSubmit, onCancel }) {
 
         <div className="jobmodal-footer">
           <div className="jobmodal-footer-summary">
-            <strong>R {parsedAmount.toLocaleString()}</strong> · {cat?.label || category} ·{' '}
-            <strong>{payee || 'unnamed payee'}</strong>
+            <strong>{isIn ? '+' : '−'} R {parsedAmount.toLocaleString()}</strong> · {cat?.label || category} ·{' '}
+            <strong>{payee || (isIn ? 'unnamed source' : 'unnamed payee')}</strong>
           </div>
           <div className="jobmodal-footer-actions">
             <Btn tone="outline" onClick={onCancel}>Cancel</Btn>
             <Btn tone="teal" icon={Icon.Check} onClick={submit} disabled={!canSubmit}>
-              Log cost
+              {submitLabel}
+            </Btn>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── AddSponsorshipModal · dedicated sponsorship logger ───
+   Sponsorship has extra fields the chair cares about — tier (Gold/Silver/
+   Bronze/Boundary board/In-kind), period covered, sponsor asset (kit,
+   scoreboard, tour, junior programme). Emits a standard 'in' ledger entry
+   with category=sponsorship. */
+function AddSponsorshipModal({ club, onSubmit, onCancel }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [date, setDate] = useState(today);
+  const [sponsor, setSponsor] = useState('');
+  const [tier, setTier] = useState('Gold');
+  const [asset, setAsset] = useState('Shirt sponsor');
+  const [period, setPeriod] = useState('Season');
+  const [amount, setAmount] = useState('');
+  const [invoice, setInvoice] = useState('');
+  const [notes, setNotes] = useState('');
+  const [received, setReceived] = useState(true);
+
+  const parsedAmount = Number(String(amount).replace(/[^\d.]/g, '')) || 0;
+  const canSubmit = sponsor.trim() && parsedAmount > 0;
+
+  const TIERS = ['Gold', 'Silver', 'Bronze', 'Boundary board', 'In-kind / product', 'Junior programme', 'Other'];
+  const ASSETS = [
+    'Shirt sponsor',
+    'Cap / helmet',
+    'Boundary board',
+    'Scoreboard',
+    'Match ball',
+    'Tour / event',
+    'Junior programme',
+    'Kit / apparel',
+    'Naming rights',
+    'Other',
+  ];
+
+  function submit() {
+    if (!canSubmit) return;
+    onSubmit({
+      direction: 'in',
+      date,
+      category: 'sponsorship',
+      sponsorTier: tier,
+      sponsorAsset: asset,
+      payee: sponsor.trim(),
+      desc: [asset, period, notes.trim()].filter(Boolean).join(' · '),
+      amount: parsedAmount,
+      frequency: period,
+      invoice: invoice.trim(),
+      paid: received,
+    });
+  }
+
+  return (
+    <div className="fix-confirm" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div className="fix-confirm-box jobmodal-box" style={{ maxWidth: 620 }}>
+        <div className="fac-jobmodal-head">
+          <div>
+            <div className="fac-detail-eyebrow">Sponsorship</div>
+            <div className="fac-jobmodal-title">Log a sponsorship</div>
+          </div>
+          <button className="fac-detail-close" onClick={onCancel}>
+            <Icon.X />
+          </button>
+        </div>
+
+        <div className="fac-jobmodal-body">
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">Sponsor</div>
+            <div>
+              <label className="field-label">Sponsor name <span className="req">*</span></label>
+              <input
+                className="field-input"
+                placeholder="e.g. Coastal Insurance Brokers"
+                value={sponsor}
+                onChange={(e) => setSponsor(e.target.value)}
+              />
+            </div>
+            <div className="field-grid-2" style={{ marginTop: 12 }}>
+              <div>
+                <label className="field-label">Tier</label>
+                <select className="field-select" value={tier} onChange={(e) => setTier(e.target.value)}>
+                  {TIERS.map((t) => (<option key={t}>{t}</option>))}
+                </select>
+              </div>
+              <div>
+                <label className="field-label">Asset sponsored</label>
+                <select className="field-select" value={asset} onChange={(e) => setAsset(e.target.value)}>
+                  {ASSETS.map((a) => (<option key={a}>{a}</option>))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">Value</div>
+            <div className="field-grid-2">
+              <div>
+                <label className="field-label">Amount (ZAR) <span className="req">*</span></label>
+                <input
+                  className="field-input"
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="field-label">Period</label>
+                <select className="field-select" value={period} onChange={(e) => setPeriod(e.target.value)}>
+                  {CLUB_COST_FREQUENCIES.map((f) => (<option key={f}>{f}</option>))}
+                </select>
+              </div>
+            </div>
+            <div className="field-grid-2" style={{ marginTop: 12 }}>
+              <div>
+                <label className="field-label">Date signed</label>
+                <input
+                  className="field-input"
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="field-label">Invoice / reference #</label>
+                <input
+                  className="field-input"
+                  placeholder="SP-2027-01"
+                  value={invoice}
+                  onChange={(e) => setInvoice(e.target.value)}
+                />
+              </div>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <label className="field-label">Notes</label>
+              <textarea
+                className="field-textarea"
+                rows={2}
+                placeholder="Deliverables, contact person, deliverable dates…"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <label className="fin-paid-check">
+                <input
+                  type="checkbox"
+                  checked={received}
+                  onChange={(e) => setReceived(e.target.checked)}
+                />
+                <span>Funds already received</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div className="jobmodal-footer">
+          <div className="jobmodal-footer-summary">
+            <strong>+ R {parsedAmount.toLocaleString()}</strong> · {tier} · {asset} ·{' '}
+            <strong>{sponsor || 'unnamed sponsor'}</strong>
+          </div>
+          <div className="jobmodal-footer-actions">
+            <Btn tone="outline" onClick={onCancel}>Cancel</Btn>
+            <Btn tone="teal" icon={Icon.Check} onClick={submit} disabled={!canSubmit}>
+              Log sponsorship
             </Btn>
           </div>
         </div>

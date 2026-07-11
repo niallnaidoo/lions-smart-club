@@ -178,6 +178,9 @@ import {
   cohortStats,
   docCompletion,
   isClearanceOverdue,
+  CLUB_COST_SEED,
+  CLUB_INCOME_SEED,
+  SUBSCRIPTION_DEFAULT_ZAR,
 } from './data.jsx';
 import {
   ClubHome,
@@ -262,6 +265,72 @@ function Shell({ initialProfile, onSwitchProfile }) {
   const [clearanceRequests, setClearanceRequests] = useState(SAMPLE_CLEARANCE_REQUESTS);
   const [showRegisterPlayer, setShowRegisterPlayer] = useState(false);
   const [toastShow, toastNode] = useToast();
+
+  // Financial ledger — union of income + expense entries. Keyed by clubId so each
+  // club sees only its own numbers; ukzn gets pre-seeded so the demo has content.
+  const [ledgerByClub, setLedgerByClub] = useState(() => ({
+    ukzn: [...CLUB_COST_SEED, ...CLUB_INCOME_SEED],
+  }));
+  // Subs paid state: { [clubId]: { [playerId]: { paid, amount, date, entryId } } }
+  const [playerSubs, setPlayerSubs] = useState({});
+
+  function ledgerFor(cid) {
+    return ledgerByClub[cid] || [];
+  }
+  function addLedgerEntry(cid, entry) {
+    const withId = { ...entry, id: (entry.direction === 'in' ? 'i-' : 'c-') + Date.now() };
+    setLedgerByClub((prev) => ({
+      ...prev,
+      [cid]: [withId, ...(prev[cid] || [])],
+    }));
+    return withId.id;
+  }
+  function updateLedgerEntry(cid, entryId, patch) {
+    setLedgerByClub((prev) => ({
+      ...prev,
+      [cid]: (prev[cid] || []).map((e) => (e.id === entryId ? { ...e, ...patch } : e)),
+    }));
+  }
+  function removeLedgerEntry(cid, entryId) {
+    setLedgerByClub((prev) => ({
+      ...prev,
+      [cid]: (prev[cid] || []).filter((e) => e.id !== entryId),
+    }));
+  }
+  function togglePlayerSubs(cid, player, amount = SUBSCRIPTION_DEFAULT_ZAR) {
+    const prev = playerSubs[cid]?.[player.id];
+    if (prev?.paid) {
+      // Undo — unmark + remove the ledger entry it created
+      if (prev.entryId) removeLedgerEntry(cid, prev.entryId);
+      setPlayerSubs((s) => ({
+        ...s,
+        [cid]: { ...(s[cid] || {}), [player.id]: undefined },
+      }));
+      toastShow(`${player.firstNames} ${player.surname} · subs unmarked`);
+    } else {
+      const today = new Date().toISOString().slice(0, 10);
+      const entryId = addLedgerEntry(cid, {
+        direction: 'in',
+        date: today,
+        category: 'subscription',
+        payee: `${player.firstNames} ${player.surname}`,
+        playerId: player.id,
+        desc: `Player subs · ${player.team || 'roster'}`,
+        amount,
+        frequency: 'Season',
+        invoice: '',
+        paid: true,
+      });
+      setPlayerSubs((s) => ({
+        ...s,
+        [cid]: {
+          ...(s[cid] || {}),
+          [player.id]: { paid: true, amount, date: today, entryId },
+        },
+      }));
+      toastShow(`Subs paid · ${player.firstNames} ${player.surname} · R ${amount.toLocaleString()}`);
+    }
+  }
 
   const activeClub = useMemo(() => clubs.find((c) => c.id === clubId), [clubs, clubId]);
 
@@ -636,6 +705,8 @@ function Shell({ initialProfile, onSwitchProfile }) {
             clubs={clubs}
             onOpenRegister={() => setShowRegisterPlayer(true)}
             onRequestClearance={(pid) => requestClearance(pid)}
+            subs={playerSubs[clubId] || {}}
+            onToggleSubs={(player, amount) => togglePlayerSubs(clubId, player, amount)}
             toast={toastShow}
           />
         );
@@ -667,7 +738,16 @@ function Shell({ initialProfile, onSwitchProfile }) {
         return <ClubVendorsView club={activeClub} toast={toastShow} />;
       }
       if (view === 'financials') {
-        return <ClubFinancialsView club={activeClub} toast={toastShow} />;
+        return (
+          <ClubFinancialsView
+            club={activeClub}
+            entries={ledgerFor(clubId)}
+            onAddEntry={(entry) => addLedgerEntry(clubId, entry)}
+            onUpdateEntry={(id, patch) => updateLedgerEntry(clubId, id, patch)}
+            onRemoveEntry={(id) => removeLedgerEntry(clubId, id)}
+            toast={toastShow}
+          />
+        );
       }
     }
     return null;
