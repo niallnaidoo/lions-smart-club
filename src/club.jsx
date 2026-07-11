@@ -38,6 +38,15 @@ import {
   conditionWord,
   conditionTone,
   severityTone,
+  VENDORS,
+  VENDOR_CATEGORIES,
+  VENDOR_CATEGORY_GROUPS,
+  VENDOR_SERVICES,
+  BEE_LEVELS,
+  vendorStatusTone,
+  CLUB_COST_CATEGORIES,
+  CLUB_COST_FREQUENCIES,
+  CLUB_COST_SEED,
 } from './data.jsx';
 import { AssessmentEditor, AddAssetModal, AssetCard, ConditionStars } from './admin.jsx';
 
@@ -3779,6 +3788,8 @@ export {
   RegisterPlayerForm,
   ClubClearancesView,
   ClubFacilitiesView,
+  ClubVendorsView,
+  ClubFinancialsView,
 };
 
 /* ─── Club-side Facilities · manage venue from the chair's seat ─── */
@@ -4321,6 +4332,854 @@ function ClubFacilitiesView({ club, toast }) {
         />,
         document.body
       )}
+    </div>
+  );
+}
+
+/* ─── ClubVendorsView · Catalog + My Vendors ───
+   Chairman sees every admin-published vendor (read-only "Catalog") and can
+   also add + manage his own club-private vendors ("My vendors"). Anything
+   flagged here can then be referenced against a cost entry on the Financials
+   tab. */
+function ClubVendorsView({ club, toast }) {
+  const [tab, setTab] = useState('catalog');
+  const [catFilter, setCatFilter] = useState('all');
+  const [query, setQuery] = useState('');
+  const [addingVendor, setAddingVendor] = useState(false);
+  const [myVendors, setMyVendors] = useState([]);
+
+  const publishedCatalog = useMemo(
+    () => VENDORS.filter((v) => v.status === 'onboarded' || v.status === 'verified'),
+    []
+  );
+
+  function addVendor(v) {
+    setMyVendors((prev) => [
+      ...prev,
+      {
+        ...v,
+        id: 'cv-' + Date.now(),
+        clubId: club.id,
+        status: 'onboarded',
+        rating: 0,
+        jobsCompleted: 0,
+        onboardedAt: new Date().toISOString().slice(0, 10),
+      },
+    ]);
+    setAddingVendor(false);
+    toast?.(`${v.name} added to your vendor list`);
+  }
+
+  function removeVendor(id) {
+    setMyVendors((prev) => prev.filter((v) => v.id !== id));
+    toast?.('Vendor removed');
+  }
+
+  const activeList = tab === 'catalog' ? publishedCatalog : myVendors;
+
+  const catCounts = activeList.reduce((acc, v) => {
+    acc[v.category] = (acc[v.category] || 0) + 1;
+    return acc;
+  }, {});
+
+  const filtered = activeList
+    .filter((v) => (catFilter === 'all' ? true : v.category === catFilter))
+    .filter((v) =>
+      !query.trim()
+        ? true
+        : (v.name + ' ' + v.category + ' ' + v.contactPerson + ' ' + (v.services || []).join(' '))
+            .toLowerCase()
+            .includes(query.toLowerCase())
+    );
+
+  const catalogueGrouped = useMemo(() => {
+    const groups = Object.entries(VENDOR_CATEGORY_GROUPS).map(([group, cats]) => ({
+      group,
+      cats,
+      vendors: cats.reduce((acc, c) => {
+        acc[c] = publishedCatalog.filter((v) => v.category === c);
+        return acc;
+      }, {}),
+    }));
+    return groups.filter((g) =>
+      g.cats.some((c) => (g.vendors[c] || []).length > 0)
+    );
+  }, [publishedCatalog]);
+
+  return (
+    <div>
+      <div className="page-head">
+        <div className="ph-left">
+          <div className="ph-crumb">Club Portal · {club.name} / Vendors</div>
+          <h1 className="ph-title">
+            Your <em>Vendors</em>
+          </h1>
+          <p className="ph-desc">
+            Browse the Lions-approved vendor catalog and keep your own private list of the coaches,
+            physios, and suppliers you already work with. Anything on either list can be linked to
+            a cost on your Financials tab.
+          </p>
+        </div>
+        <div className="ph-actions">
+          <Btn tone="teal" size="sm" icon={Icon.Plus} onClick={() => setAddingVendor(true)}>
+            Add my vendor
+          </Btn>
+        </div>
+      </div>
+
+      {/* Tab toggle */}
+      <div className="cv-tabs">
+        <button
+          className={`cv-tab ${tab === 'catalog' ? 'on' : ''}`}
+          onClick={() => { setTab('catalog'); setCatFilter('all'); }}
+        >
+          <span className="cv-tab-l">Lions catalog</span>
+          <span className="cv-tab-n">{publishedCatalog.length}</span>
+        </button>
+        <button
+          className={`cv-tab ${tab === 'mine' ? 'on' : ''}`}
+          onClick={() => { setTab('mine'); setCatFilter('all'); }}
+        >
+          <span className="cv-tab-l">My vendors</span>
+          <span className="cv-tab-n">{myVendors.length}</span>
+        </button>
+      </div>
+
+      {/* Filter row */}
+      <div className="filter-row vendor-cat-row" style={{ marginTop: 14 }}>
+        <span className="vendor-cat-label">Category</span>
+        <button
+          className={`filter-pill ${catFilter === 'all' ? 'active' : ''}`}
+          onClick={() => setCatFilter('all')}
+        >
+          All <span style={{ opacity: 0.7, marginLeft: 4 }}>{activeList.length}</span>
+        </button>
+        {VENDOR_CATEGORIES.filter((c) => catCounts[c]).map((c) => (
+          <button
+            key={c}
+            className={`filter-pill ${catFilter === c ? 'active' : ''}`}
+            onClick={() => setCatFilter(c)}
+          >
+            {c} <span style={{ opacity: 0.7, marginLeft: 4 }}>{catCounts[c]}</span>
+          </button>
+        ))}
+        <input
+          className="field-input"
+          style={{ maxWidth: 240, marginLeft: 'auto', height: 34 }}
+          placeholder="Search…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      </div>
+
+      {/* Catalog view: grouped by service area */}
+      {tab === 'catalog' && catFilter === 'all' && !query.trim() && (
+        <div className="cv-catalog">
+          {catalogueGrouped.map((g) => (
+            <div key={g.group} className="cv-group">
+              <div className="cv-group-head">
+                <span className="cv-group-title">{g.group}</span>
+                <span className="cv-group-count">
+                  {g.cats.reduce((n, c) => n + (g.vendors[c] || []).length, 0)} vendors
+                </span>
+              </div>
+              <div className="cv-group-grid">
+                {g.cats.map((c) => (g.vendors[c] || []).map((v) => (
+                  <ClubVendorCard key={v.id} v={v} />
+                )))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Filtered / My vendors view: single grid */}
+      {(tab === 'mine' || catFilter !== 'all' || query.trim()) && (
+        <div className="cv-single-grid">
+          {filtered.length === 0 && (
+            <div className="cv-empty">
+              {tab === 'mine'
+                ? 'You haven\'t added any vendors yet. Add coaches, physios, or suppliers you already work with.'
+                : 'No vendors match this filter.'}
+            </div>
+          )}
+          {filtered.map((v) => (
+            <ClubVendorCard
+              key={v.id}
+              v={v}
+              own={tab === 'mine'}
+              onRemove={tab === 'mine' ? () => removeVendor(v.id) : undefined}
+            />
+          ))}
+        </div>
+      )}
+
+      {addingVendor && ReactDOM.createPortal(
+        <AddClubVendorModal
+          onSubmit={addVendor}
+          onCancel={() => setAddingVendor(false)}
+        />,
+        document.body
+      )}
+    </div>
+  );
+}
+
+function ClubVendorCard({ v, own, onRemove }) {
+  return (
+    <div className="cv-card">
+      <div className="cv-card-head">
+        <div>
+          <div className="cv-card-name">{v.name}</div>
+          <div className="cv-card-cat">{v.category}</div>
+        </div>
+        {v.rating > 0 && (
+          <div className="cv-card-rating">
+            ⭐ {v.rating.toFixed(1)}
+            <div className="cv-card-jobs">{v.jobsCompleted} jobs</div>
+          </div>
+        )}
+      </div>
+
+      <div className="cv-card-contact">
+        <div className="cv-card-person">{v.contactPerson}</div>
+        <div className="cv-card-phone">{v.phone} · {v.email}</div>
+      </div>
+
+      {(v.services || []).length > 0 && (
+        <div className="cv-card-services">
+          {v.services.slice(0, 5).map((s) => (
+            <span key={s} className="cv-card-service">{s}</span>
+          ))}
+          {v.services.length > 5 && (
+            <span className="cv-card-service more">+{v.services.length - 5}</span>
+          )}
+        </div>
+      )}
+
+      {v.notes && (
+        <div className="cv-card-notes">{v.notes}</div>
+      )}
+
+      {own && (
+        <div className="cv-card-foot">
+          <button className="cv-card-remove" onClick={onRemove}>
+            Remove
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── AddClubVendorModal · lightweight club-side vendor add ─── */
+function AddClubVendorModal({ onSubmit, onCancel }) {
+  const [name, setName] = useState('');
+  const [category, setCategory] = useState(VENDOR_CATEGORIES[0]);
+  const [categoryOther, setCategoryOther] = useState('');
+  const [contactPerson, setContactPerson] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [services, setServices] = useState([]);
+  const [customService, setCustomService] = useState('');
+  const [notes, setNotes] = useState('');
+
+  const effectiveCategory = category === 'Other' ? (categoryOther.trim() || 'Other') : category;
+  const canSubmit = name.trim() && contactPerson.trim() && phone.trim();
+
+  function toggleService(s) {
+    setServices((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]);
+  }
+  function addCustomService() {
+    const s = customService.trim();
+    if (!s) return;
+    if (!services.includes(s)) setServices((prev) => [...prev, s]);
+    setCustomService('');
+  }
+
+  function submit() {
+    if (!canSubmit) return;
+    onSubmit({
+      name: name.trim(),
+      category: effectiveCategory,
+      contactPerson: contactPerson.trim(),
+      phone: phone.trim(),
+      email: email.trim(),
+      services,
+      notes: notes.trim(),
+    });
+  }
+
+  return (
+    <div className="fix-confirm" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div className="fix-confirm-box jobmodal-box">
+        <div className="fac-jobmodal-head">
+          <div>
+            <div className="fac-detail-eyebrow">Add my vendor</div>
+            <div className="fac-jobmodal-title">Vendor details</div>
+          </div>
+          <button className="fac-detail-close" onClick={onCancel}>
+            <Icon.X />
+          </button>
+        </div>
+
+        <div className="fac-jobmodal-body">
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">Who</div>
+            <div className="field-grid-2">
+              <div>
+                <label className="field-label">Business / person <span className="req">*</span></label>
+                <input
+                  className="field-input"
+                  placeholder="e.g. Sanele Cele Cricket Academy"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="field-label">Category <span className="req">*</span></label>
+                <select
+                  className="field-select"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                >
+                  {VENDOR_CATEGORIES.map((c) => (<option key={c}>{c}</option>))}
+                </select>
+                {category === 'Other' && (
+                  <input
+                    className="field-input"
+                    style={{ marginTop: 8 }}
+                    placeholder="Specify category…"
+                    value={categoryOther}
+                    onChange={(e) => setCategoryOther(e.target.value)}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">Contact</div>
+            <div className="field-grid-2">
+              <div>
+                <label className="field-label">Contact person <span className="req">*</span></label>
+                <input
+                  className="field-input"
+                  placeholder="Name"
+                  value={contactPerson}
+                  onChange={(e) => setContactPerson(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="field-label">Phone <span className="req">*</span></label>
+                <input
+                  className="field-input"
+                  placeholder="083 000 0000"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                />
+              </div>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <label className="field-label">Email</label>
+              <input
+                className="field-input"
+                type="email"
+                placeholder="them@vendor.co.za"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">Services offered</div>
+            <div className="vendor-services-grid">
+              {VENDOR_SERVICES.map((s) => (
+                <label key={s} className={`vendor-service ${services.includes(s) ? 'on' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={services.includes(s)}
+                    onChange={() => toggleService(s)}
+                  />
+                  <span>{s}</span>
+                </label>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <input
+                className="field-input"
+                style={{ flex: 1 }}
+                placeholder="Add another service (e.g. Junior fielding clinics)…"
+                value={customService}
+                onChange={(e) => setCustomService(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomService())}
+              />
+              <Btn tone="outline" size="sm" onClick={addCustomService}>
+                Add
+              </Btn>
+            </div>
+            {services.filter((s) => !VENDOR_SERVICES.includes(s)).length > 0 && (
+              <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {services.filter((s) => !VENDOR_SERVICES.includes(s)).map((s) => (
+                  <span key={s} className="cv-card-service">{s}</span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">Notes</div>
+            <textarea
+              className="field-textarea"
+              rows={3}
+              placeholder="Rates, availability, who introduced them, anything worth remembering…"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="jobmodal-footer">
+          <div className="jobmodal-footer-summary">
+            <strong>{name || 'Unnamed vendor'}</strong> · {effectiveCategory} ·{' '}
+            <strong>{services.length}</strong> service{services.length === 1 ? '' : 's'}
+          </div>
+          <div className="jobmodal-footer-actions">
+            <Btn tone="outline" onClick={onCancel}>Cancel</Btn>
+            <Btn tone="teal" icon={Icon.Check} onClick={submit} disabled={!canSubmit}>
+              Save vendor
+            </Btn>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── ClubFinancialsView · ledger + running totals + export ───
+   Every rand the club spends — coach payroll, clinical bills, facility jobs,
+   utilities, admin — is captured here. The chairman gets:
+     · Running totals by group (Coaching / Player welfare / Facility / Admin)
+     · Filterable ledger table with paid/unpaid state
+     · Add entry modal (link to a vendor or free-text payee)
+     · Export CSV button to hand straight to the accountant */
+function ClubFinancialsView({ club, toast }) {
+  const [entries, setEntries] = useState(CLUB_COST_SEED);
+  const [filterGroup, setFilterGroup] = useState('all');
+  const [filterPaid, setFilterPaid] = useState('all');
+  const [adding, setAdding] = useState(false);
+
+  const catMap = useMemo(() => {
+    const m = {};
+    CLUB_COST_CATEGORIES.forEach((c) => (m[c.key] = c));
+    return m;
+  }, []);
+
+  function addEntry(e) {
+    setEntries((prev) => [{ ...e, id: 'c-' + Date.now() }, ...prev]);
+    setAdding(false);
+    toast?.(`R ${e.amount.toLocaleString()} · ${catMap[e.category]?.label || e.category} logged`);
+  }
+  function togglePaid(id) {
+    setEntries((prev) => prev.map((e) => e.id === id ? { ...e, paid: !e.paid } : e));
+  }
+  function removeEntry(id) {
+    setEntries((prev) => prev.filter((e) => e.id !== id));
+    toast?.('Entry removed');
+  }
+
+  const filtered = entries
+    .filter((e) => filterGroup === 'all' ? true : (catMap[e.category]?.group === filterGroup))
+    .filter((e) => filterPaid === 'all' ? true : (filterPaid === 'paid' ? e.paid : !e.paid))
+    .sort((a, b) => (a.date < b.date ? 1 : -1));
+
+  const totals = entries.reduce((acc, e) => {
+    const g = catMap[e.category]?.group || 'Other';
+    acc[g] = (acc[g] || 0) + e.amount;
+    acc._total = (acc._total || 0) + e.amount;
+    acc._paid = (acc._paid || 0) + (e.paid ? e.amount : 0);
+    acc._unpaid = (acc._unpaid || 0) + (e.paid ? 0 : e.amount);
+    return acc;
+  }, {});
+
+  const groups = ['Coaching', 'Player welfare', 'Facility', 'Administration'];
+
+  function exportCSV() {
+    const headers = ['Date', 'Category', 'Group', 'Payee', 'Description', 'Amount (ZAR)', 'Frequency', 'Invoice', 'Paid'];
+    const rows = filtered.map((e) => [
+      e.date,
+      catMap[e.category]?.label || e.category,
+      catMap[e.category]?.group || '',
+      e.payee || '',
+      (e.desc || '').replace(/\n/g, ' '),
+      e.amount,
+      e.frequency || '',
+      e.invoice || '',
+      e.paid ? 'Paid' : 'Unpaid',
+    ]);
+    const totalRow = ['', '', '', '', 'TOTAL', totals._total || 0, '', '', ''];
+    const csv = [headers, ...rows, totalRow]
+      .map((r) => r.map((c) => {
+        const s = String(c ?? '');
+        return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      }).join(','))
+      .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${club.name.replace(/\s+/g, '_')}_financials_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast?.('Financial statement exported');
+  }
+
+  return (
+    <div>
+      <div className="page-head">
+        <div className="ph-left">
+          <div className="ph-crumb">Club Portal · {club.name} / Financials</div>
+          <h1 className="ph-title">
+            Financial <em>Ledger</em>
+          </h1>
+          <p className="ph-desc">
+            Every rand the club spends — coach payroll, clinical bills, facility costs, admin —
+            captured against a vendor or a free-text payee. Export as a CSV statement to hand
+            straight to your accountant.
+          </p>
+        </div>
+        <div className="ph-actions">
+          <Btn tone="outline" size="sm" icon={Icon.Download} onClick={exportCSV}>
+            Export statement
+          </Btn>
+          <Btn tone="teal" size="sm" icon={Icon.Plus} onClick={() => setAdding(true)}>
+            Log a cost
+          </Btn>
+        </div>
+      </div>
+
+      {/* Group KPI strip */}
+      <div className="fin-kpi-strip">
+        <div className="fin-kpi fin-kpi-total">
+          <div className="fin-kpi-l">Total spend</div>
+          <div className="fin-kpi-n">R {(totals._total || 0).toLocaleString()}</div>
+          <div className="fin-kpi-sub">
+            <span style={{ color: 'var(--green)' }}>R {(totals._paid || 0).toLocaleString()} paid</span> ·{' '}
+            <span style={{ color: 'var(--coral)' }}>R {(totals._unpaid || 0).toLocaleString()} outstanding</span>
+          </div>
+        </div>
+        {groups.map((g) => (
+          <div key={g} className="fin-kpi">
+            <div className="fin-kpi-l">{g}</div>
+            <div className="fin-kpi-n">R {(totals[g] || 0).toLocaleString()}</div>
+            <div className="fin-kpi-sub">
+              {entries.filter((e) => catMap[e.category]?.group === g).length} entries
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Filter row */}
+      <div className="filter-row" style={{ marginTop: 16 }}>
+        {['all', ...groups].map((g) => (
+          <button
+            key={g}
+            className={`filter-pill ${filterGroup === g ? 'active' : ''}`}
+            onClick={() => setFilterGroup(g)}
+          >
+            {g === 'all' ? 'All groups' : g}
+          </button>
+        ))}
+        <span style={{ marginLeft: 12, display: 'inline-flex', gap: 6 }}>
+          {[
+            { k: 'all', l: 'Any' },
+            { k: 'paid', l: 'Paid' },
+            { k: 'unpaid', l: 'Outstanding' },
+          ].map((b) => (
+            <button
+              key={b.k}
+              className={`filter-pill ${filterPaid === b.k ? 'active' : ''}`}
+              onClick={() => setFilterPaid(b.k)}
+            >
+              {b.l}
+            </button>
+          ))}
+        </span>
+      </div>
+
+      {/* Ledger table */}
+      <div className="tbl-w" style={{ marginTop: 14 }}>
+        <table className="tbl fin-tbl">
+          <thead>
+            <tr>
+              <th style={{ width: 100 }}>Date</th>
+              <th>Category</th>
+              <th>Payee</th>
+              <th>Description</th>
+              <th style={{ textAlign: 'right' }}>Amount</th>
+              <th style={{ width: 110 }}>Status</th>
+              <th style={{ width: 60 }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((e) => {
+              const c = catMap[e.category] || { label: e.category, group: 'Other', tone: 'muted' };
+              return (
+                <tr key={e.id}>
+                  <td style={{ fontSize: 12, color: 'var(--muted)', fontFamily: "'Montserrat',sans-serif" }}>
+                    {new Date(e.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                  </td>
+                  <td>
+                    <Pill tone={c.tone}>{c.label}</Pill>
+                    <div style={{ fontSize: 10.5, color: 'var(--muted)', marginTop: 3 }}>{c.group}</div>
+                  </td>
+                  <td>
+                    <div style={{ fontSize: 12.5, fontFamily: "'Montserrat',sans-serif", fontWeight: 600 }}>
+                      {e.payee}
+                    </div>
+                    {e.invoice && (
+                      <div style={{ fontSize: 10.5, color: 'var(--muted)' }}>{e.invoice}</div>
+                    )}
+                  </td>
+                  <td style={{ fontSize: 12, color: 'var(--ink)', maxWidth: 280 }}>{e.desc}</td>
+                  <td style={{ textAlign: 'right', fontFamily: "'Montserrat',sans-serif", fontWeight: 800, fontSize: 14 }}>
+                    R {e.amount.toLocaleString()}
+                    <div style={{ fontSize: 10.5, color: 'var(--muted)', fontWeight: 500 }}>
+                      {e.frequency}
+                    </div>
+                  </td>
+                  <td>
+                    <button
+                      className={`fin-paid-toggle ${e.paid ? 'paid' : 'unpaid'}`}
+                      onClick={() => togglePaid(e.id)}
+                    >
+                      {e.paid ? 'Paid' : 'Outstanding'}
+                    </button>
+                  </td>
+                  <td style={{ textAlign: 'right', paddingRight: 10 }}>
+                    <button className="fin-row-remove" onClick={() => removeEntry(e.id)} title="Remove">
+                      ×
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+            {filtered.length === 0 && (
+              <tr>
+                <td colSpan="7" style={{ padding: 28, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+                  No cost entries match this filter.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {adding && ReactDOM.createPortal(
+        <AddCostEntryModal
+          club={club}
+          onSubmit={addEntry}
+          onCancel={() => setAdding(false)}
+        />,
+        document.body
+      )}
+    </div>
+  );
+}
+
+function AddCostEntryModal({ club, onSubmit, onCancel }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [date, setDate] = useState(today);
+  const [category, setCategory] = useState(CLUB_COST_CATEGORIES[0].key);
+  const [vendorId, setVendorId] = useState('');
+  const [payee, setPayee] = useState('');
+  const [desc, setDesc] = useState('');
+  const [amount, setAmount] = useState('');
+  const [frequency, setFrequency] = useState('One-off');
+  const [invoice, setInvoice] = useState('');
+  const [paid, setPaid] = useState(false);
+
+  const vendorOptions = useMemo(
+    () => VENDORS.filter((v) => v.status === 'onboarded' || v.status === 'verified'),
+    []
+  );
+
+  const cat = CLUB_COST_CATEGORIES.find((c) => c.key === category);
+  const parsedAmount = Number(String(amount).replace(/[^\d.]/g, '')) || 0;
+  const canSubmit = payee.trim() && parsedAmount > 0 && category;
+
+  function pickVendor(id) {
+    setVendorId(id);
+    const v = VENDORS.find((x) => x.id === id);
+    if (v) setPayee(v.name);
+  }
+
+  function submit() {
+    if (!canSubmit) return;
+    onSubmit({
+      date,
+      category,
+      vendorId: vendorId || null,
+      payee: payee.trim(),
+      desc: desc.trim(),
+      amount: parsedAmount,
+      frequency,
+      invoice: invoice.trim(),
+      paid,
+    });
+  }
+
+  return (
+    <div className="fix-confirm" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div className="fix-confirm-box jobmodal-box" style={{ maxWidth: 640 }}>
+        <div className="fac-jobmodal-head">
+          <div>
+            <div className="fac-detail-eyebrow">Log a cost</div>
+            <div className="fac-jobmodal-title">New ledger entry</div>
+          </div>
+          <button className="fac-detail-close" onClick={onCancel}>
+            <Icon.X />
+          </button>
+        </div>
+
+        <div className="fac-jobmodal-body">
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">What was this?</div>
+            <div className="field-grid-2">
+              <div>
+                <label className="field-label">Category <span className="req">*</span></label>
+                <select
+                  className="field-select"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                >
+                  {['Coaching', 'Player welfare', 'Facility', 'Administration'].map((g) => (
+                    <optgroup key={g} label={g}>
+                      {CLUB_COST_CATEGORIES.filter((c) => c.group === g).map((c) => (
+                        <option key={c.key} value={c.key}>{c.label}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+                {cat && (
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                    Group: <strong>{cat.group}</strong>
+                  </div>
+                )}
+              </div>
+              <div>
+                <label className="field-label">Date</label>
+                <input
+                  className="field-input"
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">Who was paid?</div>
+            <div>
+              <label className="field-label">Link to a vendor (optional)</label>
+              <select
+                className="field-select"
+                value={vendorId}
+                onChange={(e) => pickVendor(e.target.value)}
+              >
+                <option value="">— No vendor / free-text payee —</option>
+                {VENDOR_CATEGORIES.filter((c) => vendorOptions.some((v) => v.category === c)).map((c) => (
+                  <optgroup key={c} label={c}>
+                    {vendorOptions.filter((v) => v.category === c).map((v) => (
+                      <option key={v.id} value={v.id}>{v.name}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <label className="field-label">Payee <span className="req">*</span></label>
+              <input
+                className="field-input"
+                placeholder="e.g. Sanele Cele Cricket Academy"
+                value={payee}
+                onChange={(e) => setPayee(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">Amount</div>
+            <div className="field-grid-2">
+              <div>
+                <label className="field-label">Amount (ZAR) <span className="req">*</span></label>
+                <input
+                  className="field-input"
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="field-label">Frequency</label>
+                <select
+                  className="field-select"
+                  value={frequency}
+                  onChange={(e) => setFrequency(e.target.value)}
+                >
+                  {CLUB_COST_FREQUENCIES.map((f) => (<option key={f}>{f}</option>))}
+                </select>
+              </div>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <label className="field-label">Description / reference</label>
+              <input
+                className="field-input"
+                placeholder="e.g. Head coach retainer · July · pace-clinic Sat"
+                value={desc}
+                onChange={(e) => setDesc(e.target.value)}
+              />
+            </div>
+            <div className="field-grid-2" style={{ marginTop: 12 }}>
+              <div>
+                <label className="field-label">Invoice #</label>
+                <input
+                  className="field-input"
+                  placeholder="INV-000"
+                  value={invoice}
+                  onChange={(e) => setInvoice(e.target.value)}
+                />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                <label className="fin-paid-check">
+                  <input
+                    type="checkbox"
+                    checked={paid}
+                    onChange={(e) => setPaid(e.target.checked)}
+                  />
+                  <span>Already paid</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="jobmodal-footer">
+          <div className="jobmodal-footer-summary">
+            <strong>R {parsedAmount.toLocaleString()}</strong> · {cat?.label || category} ·{' '}
+            <strong>{payee || 'unnamed payee'}</strong>
+          </div>
+          <div className="jobmodal-footer-actions">
+            <Btn tone="outline" onClick={onCancel}>Cancel</Btn>
+            <Btn tone="teal" icon={Icon.Check} onClick={submit} disabled={!canSubmit}>
+              Log cost
+            </Btn>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

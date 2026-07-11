@@ -189,6 +189,8 @@ import {
   RegisterPlayerForm,
   ClubClearancesView,
   ClubFacilitiesView,
+  ClubVendorsView,
+  ClubFinancialsView,
 } from './club.jsx';
 import {
   AdminDashboard,
@@ -530,6 +532,8 @@ function Shell({ initialProfile, onSwitchProfile }) {
       num: hasReleased ? 'NEW' : undefined,
     },
     { v: 'facilities', label: 'Facilities', icon: Icon.Eye, dot: activeClub.paid ? 'teal' : 'muted' },
+    { v: 'vendors', label: 'Vendors', icon: Icon.Doc, dot: activeClub.paid ? 'teal' : 'muted' },
+    { v: 'financials', label: 'Financials', icon: Icon.Star, dot: activeClub.paid ? 'teal' : 'muted' },
   ];
 
   const nav = role === 'admin' ? adminNav : clubNav;
@@ -658,6 +662,16 @@ function Shell({ initialProfile, onSwitchProfile }) {
         if (!activeClub.paid)
           return <ComingSoon title="Facility Reporting" phase="03" unlocked={false} eta="Aug 2026" />;
         return <ClubFacilitiesView club={activeClub} toast={toastShow} />;
+      }
+      if (view === 'vendors') {
+        if (!activeClub.paid)
+          return <ComingSoon title="Vendors" phase="03" unlocked={false} eta="Aug 2026" />;
+        return <ClubVendorsView club={activeClub} toast={toastShow} />;
+      }
+      if (view === 'financials') {
+        if (!activeClub.paid)
+          return <ComingSoon title="Financial Ledger" phase="03" unlocked={false} eta="Aug 2026" />;
+        return <ClubFinancialsView club={activeClub} toast={toastShow} />;
       }
     }
     return null;

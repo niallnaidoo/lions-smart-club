@@ -6298,6 +6298,7 @@ function FacilityInvestmentTab({ facility, capex: capexProp, onCreateJob, onAddC
 function AdminVendors({ toast }) {
   const [vendors, setVendors] = useState(VENDORS);
   const [filter, setFilter] = useState('all');
+  const [catFilter, setCatFilter] = useState('all');
   const [query, setQuery] = useState('');
   const [onboarding, setOnboarding] = useState(false);
   const [detailId, setDetailId] = useState(null);
@@ -6321,6 +6322,7 @@ function AdminVendors({ toast }) {
 
   const filtered = vendors
     .filter((v) => (filter === 'all' ? true : v.status === filter))
+    .filter((v) => (catFilter === 'all' ? true : v.category === catFilter))
     .filter((v) =>
       !query.trim()
         ? true
@@ -6328,6 +6330,11 @@ function AdminVendors({ toast }) {
             .toLowerCase()
             .includes(query.toLowerCase())
     );
+
+  const catCounts = vendors.reduce((acc, v) => {
+    acc[v.category] = (acc[v.category] || 0) + 1;
+    return acc;
+  }, {});
 
   const detailVendor = detailId ? vendors.find((v) => v.id === detailId) : null;
 
@@ -6405,6 +6412,26 @@ function AdminVendors({ toast }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
+      </div>
+
+      {/* Category filter row */}
+      <div className="filter-row vendor-cat-row" style={{ marginTop: 8 }}>
+        <span className="vendor-cat-label">Category</span>
+        <button
+          className={`filter-pill ${catFilter === 'all' ? 'active' : ''}`}
+          onClick={() => setCatFilter('all')}
+        >
+          All <span style={{ opacity: 0.7, marginLeft: 4 }}>{vendors.length}</span>
+        </button>
+        {VENDOR_CATEGORIES.filter((c) => catCounts[c]).map((c) => (
+          <button
+            key={c}
+            className={`filter-pill ${catFilter === c ? 'active' : ''}`}
+            onClick={() => setCatFilter(c)}
+          >
+            {c} <span style={{ opacity: 0.7, marginLeft: 4 }}>{catCounts[c]}</span>
+          </button>
+        ))}
       </div>
 
       {/* Vendors table */}
