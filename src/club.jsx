@@ -48,6 +48,7 @@ import {
   CLUB_COST_FREQUENCIES,
   CLUB_INCOME_CATEGORIES,
   CLUB_INCOME_GROUPS,
+  CLUB_PRIMARY_INCOME_GROUPS,
   SUBSCRIPTION_DEFAULT_ZAR,
 } from './data.jsx';
 import { AssessmentEditor, AddAssetModal, AssetCard, ConditionStars } from './admin.jsx';
@@ -4914,6 +4915,9 @@ function ClubFinancialsView({ club, entries = [], onAddEntry, onUpdateEntry, onR
           <Btn tone="outline" size="sm" icon={Icon.Plus} onClick={() => setAdding('sponsorship')}>
             Log sponsorship
           </Btn>
+          <Btn tone="outline" size="sm" icon={Icon.Plus} onClick={() => setAdding('donation')}>
+            Log donation
+          </Btn>
           <Btn tone="outline" size="sm" icon={Icon.Plus} onClick={() => setAdding('income')}>
             Log income
           </Btn>
@@ -4951,6 +4955,36 @@ function ClubFinancialsView({ club, entries = [], onAddEntry, onUpdateEntry, onR
             {entries.filter((e) => (e.direction || 'out') === 'out').length} entries ·{' '}
             R {(totals['out:_unpaid'] || 0).toLocaleString()} outstanding
           </div>
+        </div>
+      </div>
+
+      {/* Primary income streams — subs / sponsorships / donations */}
+      <div className="fin-streams">
+        <div className="fin-streams-head">
+          <span className="fin-streams-title">Income streams</span>
+          <span className="fin-streams-sub">
+            R {((totals['in:Subscriptions'] || 0) + (totals['in:Sponsorships'] || 0) + (totals['in:Donations'] || 0)).toLocaleString()} across the three primary streams
+          </span>
+        </div>
+        <div className="fin-streams-grid">
+          {CLUB_PRIMARY_INCOME_GROUPS.map((g) => {
+            const total = totals[`in:${g}`] || 0;
+            const count = entries.filter((e) => (e.direction || 'out') === 'in' && catMap[e.category]?.group === g).length;
+            const share = (totals._in || 0) > 0 ? (total / totals._in) * 100 : 0;
+            return (
+              <div key={g} className={`fin-stream fin-stream-${g.toLowerCase()}`}>
+                <div className="fin-stream-l">{g}</div>
+                <div className="fin-stream-n">R {total.toLocaleString()}</div>
+                <div className="fin-stream-sub">
+                  {count} entr{count === 1 ? 'y' : 'ies'}
+                  {share > 0 && ` · ${share.toFixed(0)}% of income`}
+                </div>
+                <div className="fin-stream-bar">
+                  <div className="fin-stream-bar-fill" style={{ width: `${Math.min(100, share)}%` }} />
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -5108,6 +5142,22 @@ function ClubFinancialsView({ club, entries = [], onAddEntry, onUpdateEntry, onR
         />,
         document.body
       )}
+      {adding === 'donation' && ReactDOM.createPortal(
+        <AddLedgerEntryModal
+          direction="in"
+          presetCategory="donation"
+          eyebrowOverride="Donation"
+          titleOverride="Log a donation"
+          submitLabelOverride="Log donation"
+          payeeLabelOverride="Donor"
+          payeePlaceholderOverride="e.g. Local business, alumnus, community member"
+          descPlaceholderOverride="e.g. Junior kit fund · Old Boys Trust"
+          club={club}
+          onSubmit={addEntry}
+          onCancel={() => setAdding(null)}
+        />,
+        document.body
+      )}
       {adding === 'sponsorship' && ReactDOM.createPortal(
         <AddSponsorshipModal
           club={club}
@@ -5120,13 +5170,25 @@ function ClubFinancialsView({ club, entries = [], onAddEntry, onUpdateEntry, onR
   );
 }
 
-function AddLedgerEntryModal({ direction = 'out', club, onSubmit, onCancel }) {
+function AddLedgerEntryModal({
+  direction = 'out',
+  club,
+  onSubmit,
+  onCancel,
+  presetCategory,
+  eyebrowOverride,
+  titleOverride,
+  submitLabelOverride,
+  payeeLabelOverride,
+  payeePlaceholderOverride,
+  descPlaceholderOverride,
+}) {
   const isIn = direction === 'in';
   const CATS = isIn ? CLUB_INCOME_CATEGORIES : CLUB_COST_CATEGORIES;
   const GROUPS = isIn ? CLUB_INCOME_GROUPS : ['Coaching', 'Player welfare', 'Facility', 'Administration'];
   const today = new Date().toISOString().slice(0, 10);
   const [date, setDate] = useState(today);
-  const [category, setCategory] = useState(CATS[0].key);
+  const [category, setCategory] = useState(presetCategory || CATS[0].key);
   const [vendorId, setVendorId] = useState('');
   const [payee, setPayee] = useState('');
   const [desc, setDesc] = useState('');
@@ -5166,17 +5228,18 @@ function AddLedgerEntryModal({ direction = 'out', club, onSubmit, onCancel }) {
     });
   }
 
-  const eyebrow = isIn ? 'Log income' : 'Log a cost';
-  const title = isIn ? 'New income entry' : 'New cost entry';
+  const eyebrow = eyebrowOverride || (isIn ? 'Log income' : 'Log a cost');
+  const title = titleOverride || (isIn ? 'New income entry' : 'New cost entry');
   const whoLabel = isIn ? 'Who paid the club?' : 'Who was paid?';
-  const submitLabel = isIn ? 'Log income' : 'Log cost';
+  const submitLabel = submitLabelOverride || (isIn ? 'Log income' : 'Log cost');
   const paidLabel = isIn ? 'Already received' : 'Already paid';
-  const payeePlaceholder = isIn
+  const payeePlaceholder = payeePlaceholderOverride || (isIn
     ? 'e.g. Coastal Insurance Brokers'
-    : 'e.g. Sanele Cele Cricket Academy';
-  const descPlaceholder = isIn
+    : 'e.g. Sanele Cele Cricket Academy');
+  const descPlaceholder = descPlaceholderOverride || (isIn
     ? 'e.g. Half-season boundary board · vs Berea Rovers gate'
-    : 'e.g. Head coach retainer · July · pace-clinic Sat';
+    : 'e.g. Head coach retainer · July · pace-clinic Sat');
+  const payeeLabel = payeeLabelOverride || (isIn ? 'Source / payer' : 'Payee');
 
   return (
     <div className="fix-confirm" onClick={(e) => e.target === e.currentTarget && onCancel()}>
@@ -5250,7 +5313,7 @@ function AddLedgerEntryModal({ direction = 'out', club, onSubmit, onCancel }) {
               </div>
             )}
             <div style={{ marginTop: isIn ? 0 : 12 }}>
-              <label className="field-label">{isIn ? 'Source / payer' : 'Payee'} <span className="req">*</span></label>
+              <label className="field-label">{payeeLabel} <span className="req">*</span></label>
               <input
                 className="field-input"
                 placeholder={payeePlaceholder}

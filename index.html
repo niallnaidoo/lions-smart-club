@@ -9095,6 +9095,106 @@
         color: var(--coral);
       }
 
+      /* ─── Financials · Primary income streams panel ─── */
+      .fin-streams {
+        margin-top: 16px;
+        background: var(--white);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 16px 18px;
+      }
+      .fin-streams-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+      .fin-streams-title {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--ink);
+      }
+      .fin-streams-sub {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--muted);
+      }
+      .fin-streams-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+      }
+      @media (max-width: 720px) {
+        .fin-streams-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+      .fin-stream {
+        padding: 14px 14px 12px;
+        border-radius: 10px;
+        background: var(--paper);
+        border: 1px solid var(--line);
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .fin-stream-l {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10.5px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .fin-stream-n {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 22px;
+        font-weight: 900;
+        color: var(--ink);
+        font-variant-numeric: tabular-nums;
+        line-height: 1.1;
+      }
+      .fin-stream-sub {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10.5px;
+        font-weight: 600;
+        color: var(--muted);
+      }
+      .fin-stream-bar {
+        margin-top: 6px;
+        height: 4px;
+        background: var(--paper2);
+        border-radius: 999px;
+        overflow: hidden;
+      }
+      .fin-stream-bar-fill {
+        height: 100%;
+        border-radius: 999px;
+      }
+      .fin-stream-subscriptions .fin-stream-n {
+        color: var(--green);
+      }
+      .fin-stream-subscriptions .fin-stream-bar-fill {
+        background: var(--green);
+      }
+      .fin-stream-sponsorships .fin-stream-n {
+        color: #b58500;
+      }
+      .fin-stream-sponsorships .fin-stream-bar-fill {
+        background: #b58500;
+      }
+      .fin-stream-donations .fin-stream-n {
+        color: var(--coral);
+      }
+      .fin-stream-donations .fin-stream-bar-fill {
+        background: var(--coral);
+      }
+
       /* Per-group breakdown row */
       .fin-groups {
         display: grid;

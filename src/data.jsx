@@ -1757,17 +1757,19 @@ const CLUB_COST_FREQUENCIES = ['One-off', 'Weekly', 'Monthly', 'Quarterly', 'Sea
 const SUBSCRIPTION_DEFAULT_ZAR = 500;
 
 const CLUB_INCOME_CATEGORIES = [
-  { key: 'subscription', label: 'Player subscription', group: 'Members', tone: 'teal' },
-  { key: 'sponsorship', label: 'Sponsorship', group: 'Sponsors', tone: 'gold' },
+  { key: 'subscription', label: 'Player subscription', group: 'Subscriptions', tone: 'teal' },
+  { key: 'sponsorship', label: 'Sponsorship', group: 'Sponsorships', tone: 'gold' },
+  { key: 'grant', label: 'Grant / union funding', group: 'Sponsorships', tone: 'gold' },
+  { key: 'donation', label: 'Donation', group: 'Donations', tone: 'coral' },
   { key: 'match_fees', label: 'Match fees / gate', group: 'Match day', tone: 'navy' },
   { key: 'tuck_shop', label: 'Tuck shop / bar', group: 'Match day', tone: 'navy' },
   { key: 'event_hosting', label: 'Event hosting', group: 'Events', tone: 'navy' },
-  { key: 'grant', label: 'Grant / union funding', group: 'Sponsors', tone: 'gold' },
-  { key: 'donation', label: 'Donation', group: 'Sponsors', tone: 'gold' },
   { key: 'other_income', label: 'Other income', group: 'Other', tone: 'muted' },
 ];
 
-const CLUB_INCOME_GROUPS = ['Members', 'Sponsors', 'Match day', 'Events', 'Other'];
+const CLUB_INCOME_GROUPS = ['Subscriptions', 'Sponsorships', 'Donations', 'Match day', 'Events', 'Other'];
+
+const CLUB_PRIMARY_INCOME_GROUPS = ['Subscriptions', 'Sponsorships', 'Donations'];
 
 const CLUB_COST_SEED = [
   { id: 'c-001', direction: 'out', date: '2026-07-05', category: 'coach_salary', vendorId: 'v-009', payee: 'Sanele Cele Cricket Academy', desc: 'Head coach retainer · July', amount: 12000, frequency: 'Monthly', invoice: 'SCA-2607', paid: true },
@@ -1786,6 +1788,8 @@ const CLUB_INCOME_SEED = [
   { id: 'i-002', direction: 'in', date: '2026-06-28', category: 'sponsorship', sponsorTier: 'Silver', payee: 'Umhlanga Auto Repairs', desc: 'Boundary board · half season', amount: 12000, frequency: 'One-off', invoice: 'UAR-2201', paid: true },
   { id: 'i-003', direction: 'in', date: '2026-06-20', category: 'grant', payee: 'KZN Cricket Union', desc: 'Development grant · junior programme', amount: 15000, frequency: 'Annual', invoice: 'KZNCU-G26', paid: true },
   { id: 'i-004', direction: 'in', date: '2026-06-14', category: 'match_fees', payee: 'Home match · vs Berea Rovers', desc: 'Gate + tea kitty', amount: 2100, frequency: 'One-off', invoice: '', paid: true },
+  { id: 'i-005', direction: 'in', date: '2026-06-05', category: 'donation', payee: 'UKZN Old Boys Trust', desc: 'Junior kit fund · 2026/27', amount: 5000, frequency: 'One-off', invoice: 'OBT-2026', paid: true },
+  { id: 'i-006', direction: 'in', date: '2026-05-22', category: 'donation', payee: 'Anonymous alumnus', desc: 'Bowling machine · service fund', amount: 1500, frequency: 'One-off', invoice: '', paid: true },
 ];
 
 function vendorStatusTone(s) {
@@ -2322,6 +2326,7 @@ export {
   CLUB_COST_SEED,
   CLUB_INCOME_CATEGORIES,
   CLUB_INCOME_GROUPS,
+  CLUB_PRIMARY_INCOME_GROUPS,
   CLUB_INCOME_SEED,
   SUBSCRIPTION_DEFAULT_ZAR,
 };
