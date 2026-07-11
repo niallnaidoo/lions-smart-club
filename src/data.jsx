@@ -1148,6 +1148,33 @@ const FACILITY_JOBS = (() => {
   return jobs;
 })();
 
+/* ─── Full asset catalog · playing surfaces + practice + BUILDINGS ─── */
+
+const ASSET_CATEGORIES = [
+  // Playing surfaces
+  { key: 'Pitch square',   icon: '◇', quantityL: 'Number of pitches', group: 'Playing' },
+  { key: 'Cover',          icon: '☂', quantityL: 'Number of covers', group: 'Playing' },
+  { key: 'Sightscreen',    icon: '▤', quantityL: 'Number of screens', group: 'Playing' },
+  { key: 'Boundary rope',  icon: '○', quantityL: 'Number of rope sets', group: 'Playing' },
+  { key: 'Scoreboard',     icon: '▤', quantityL: 'Number of scoreboards', group: 'Playing' },
+  // Practice
+  { key: 'Outdoor net',    icon: '⌗', quantityL: 'Number of net lanes', group: 'Practice' },
+  { key: 'Indoor net',     icon: '⌗', quantityL: 'Number of net lanes', group: 'Practice' },
+  { key: 'Bowling machine', icon: '◉', quantityL: 'Number of machines', group: 'Practice' },
+  // Grounds care
+  { key: 'Sprinkler / irrigation', icon: '⇩', quantityL: 'Number of zones', group: 'Grounds care' },
+  { key: 'Roller / mower', icon: '◉', quantityL: 'Number of units', group: 'Grounds care' },
+  // Buildings
+  { key: 'Clubhouse',      icon: '🏛', quantityL: 'Number of clubhouses', group: 'Buildings' },
+  { key: 'Change rooms',   icon: '🚻', quantityL: 'Number of change rooms', group: 'Buildings' },
+  { key: 'Toilets',        icon: '🚽', quantityL: 'Number of toilet blocks', group: 'Buildings' },
+  { key: 'Storage / Kit room', icon: '📦', quantityL: 'Number of storerooms', group: 'Buildings' },
+  { key: 'Kitchen / Bar',  icon: '🍽', quantityL: 'Number of kitchens/bars', group: 'Buildings' },
+  { key: 'Parking',        icon: '🅿', quantityL: 'Number of parking areas', group: 'Buildings' },
+  { key: 'Fencing / security', icon: '🚧', quantityL: 'Number of fence sections', group: 'Buildings' },
+  { key: 'Other',          icon: '⌂', quantityL: 'Quantity', group: 'Other' },
+];
+
 /* ─── ISSUE catalog for physical inspections ───
    Structured issues let the management team log what they see with a
    click instead of typing prose. Categories are keyed off the asset
@@ -1236,11 +1263,46 @@ const ISSUE_CATEGORIES = {
     { key: 'compliance',    label: 'Compliance issue',       icon: '📋' },
     { key: 'other',         label: 'Other',                  icon: '⚠' },
   ],
+  // Building-related — shared across Clubhouse / Change rooms / Toilets / Storage / Kitchen / Parking / Fencing
+  building: [
+    { key: 'roof-leak',     label: 'Roof leak',              icon: '💧' },
+    { key: 'plumbing',      label: 'Plumbing · leaks / blocks', icon: '🚰' },
+    { key: 'electrical',    label: 'Electrical fault',       icon: '⚡' },
+    { key: 'damage',        label: 'Structural damage',      icon: '🧱' },
+    { key: 'break-in',      label: 'Break-in / vandalism',   icon: '🚨' },
+    { key: 'cleanliness',   label: 'Cleanliness / hygiene',  icon: '🧽' },
+    { key: 'accessibility', label: 'Accessibility issue',    icon: '♿' },
+    { key: 'lighting',      label: 'Lighting failure',       icon: '💡' },
+    { key: 'ventilation',   label: 'Ventilation / mould',    icon: '🍄' },
+    { key: 'pest',          label: 'Pest infestation',       icon: '🐜' },
+    { key: 'paint-finish',  label: 'Paint / finish worn',    icon: '🎨' },
+    { key: 'compliance',    label: 'Compliance / permit',    icon: '📋' },
+    { key: 'other',         label: 'Other',                  icon: '⚠' },
+  ],
 };
+
+// Building keys share a single issue catalog because roof leaks and
+// plumbing problems apply the same way whether it's the clubhouse or
+// the toilets.
+const BUILDING_KEYS = new Set([
+  'Clubhouse',
+  'Change rooms',
+  'Toilets',
+  'Storage / Kit room',
+  'Kitchen / Bar',
+  'Parking',
+  'Fencing / security',
+]);
 
 function issueCategoriesFor(assetKey) {
   if (!assetKey) return ISSUE_CATEGORIES.custom;
-  if (assetKey.startsWith('custom.')) return ISSUE_CATEGORIES.custom;
+  if (assetKey.startsWith('custom.')) {
+    // Custom-added assets whose category matches a building key get the
+    // building catalog; everything else falls through to the generic set.
+    const categoryHint = assetKey.split(':')[1] || '';
+    if (BUILDING_KEYS.has(categoryHint)) return ISSUE_CATEGORIES.building;
+    return ISSUE_CATEGORIES.custom;
+  }
   return ISSUE_CATEGORIES[assetKey] || ISSUE_CATEGORIES.custom;
 }
 function issueLocationsFor(assetKey) {
@@ -1531,6 +1593,13 @@ const FACILITY_OPTIONS = {
       'Cylinder mower',
       'Rotary mower',
     ],
+    Clubhouse: ['Brick + tile', 'Brick + IBR roof', 'Prefab', 'Tent / marquee', 'Portable container', 'Historic listed'],
+    'Change rooms': ['Home only', 'Home + away', 'Home + away + officials', 'Unisex', 'Junior + senior split'],
+    Toilets: ['Flush · sewer', 'Flush · septic', 'Chemical', 'Composting', 'Disabled access'],
+    'Storage / Kit room': ['Lockable · concrete', 'Lockable · steel container', 'Wire cage', 'Under-pavilion'],
+    'Kitchen / Bar': ['Full kitchen · gas', 'Full kitchen · electric', 'Braai area', 'Bar service only', 'Vending'],
+    Parking: ['Paved', 'Gravel', 'Grass verge', 'Shared with venue', 'Off-street only'],
+    'Fencing / security': ['Palisade', 'Diamond mesh', 'Electric fence', 'Wall + razor', 'CCTV monitored', 'Guard on site'],
     Other: [],
   },
   // Curated suppliers (SA cricket + turf-care market).
@@ -1985,4 +2054,6 @@ export {
   issueCategoriesFor,
   issueLocationsFor,
   severityTone,
+  ASSET_CATEGORIES,
+  BUILDING_KEYS,
 };

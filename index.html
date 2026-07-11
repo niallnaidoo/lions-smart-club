@@ -8161,6 +8161,199 @@
         background: rgba(15, 77, 46, 0.05);
       }
 
+      /* ─── Club-side facilities view ─── */
+      .cf-manage-row {
+        display: grid;
+        grid-template-columns: 1fr 340px;
+        gap: 20px;
+      }
+      .cf-manage-toggle {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .cf-manage-btn {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 14px 16px;
+        background: var(--white);
+        border: 1.5px solid var(--line);
+        border-radius: 12px;
+        cursor: pointer;
+        text-align: left;
+        transition:
+          border-color 0.15s ease,
+          background 0.15s ease;
+      }
+      .cf-manage-btn:hover {
+        border-color: var(--ink3);
+      }
+      .cf-manage-btn.on {
+        border-color: var(--green);
+        background: var(--green-pale);
+      }
+      .cf-manage-icon {
+        font-size: 22px;
+        line-height: 1;
+        margin-top: 2px;
+      }
+      .cf-manage-title {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 13px;
+        font-weight: 800;
+        color: var(--ink);
+        letter-spacing: -0.01em;
+      }
+      .cf-manage-sub {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11.5px;
+        color: var(--muted);
+        margin-top: 3px;
+      }
+      .cf-owner-field {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+      @media (max-width: 900px) {
+        .cf-manage-row {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      /* Empty state used across the club view */
+      .cf-empty {
+        padding: 22px;
+        background: var(--paper);
+        border: 1px dashed var(--line);
+        border-radius: 10px;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 12.5px;
+        color: var(--muted);
+        text-align: center;
+        line-height: 1.55;
+      }
+      .cf-empty strong {
+        color: var(--ink);
+      }
+
+      /* Staff grid */
+      .cf-staff-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 10px;
+      }
+      .cf-staff-card {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        padding: 12px 14px;
+        background: var(--white);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        position: relative;
+      }
+      .cf-staff-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .cf-staff-remove {
+        background: transparent;
+        border: 0;
+        color: var(--muted);
+        cursor: pointer;
+        padding: 4px;
+      }
+      .cf-staff-remove:hover {
+        color: #C33;
+      }
+      .cf-staff-remove svg {
+        width: 12px;
+        height: 12px;
+      }
+
+      /* Asset summary tiles */
+      .cf-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 8px;
+        margin-top: 14px;
+      }
+      .cf-summary-tile {
+        padding: 12px;
+        background: var(--white);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        text-align: center;
+      }
+      .cf-summary-l {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 9.5px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted-2);
+        margin-bottom: 6px;
+      }
+      .cf-summary-n {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 24px;
+        font-weight: 800;
+        color: var(--ink);
+        letter-spacing: -0.02em;
+        line-height: 1;
+      }
+
+      .cf-custom-assets {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .cf-custom-asset {
+        background: var(--white);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 12px 14px;
+      }
+      .cf-custom-asset-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+      .cf-custom-asset-title {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 13px;
+        font-weight: 800;
+        color: var(--ink);
+      }
+      .cf-custom-asset-meta {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11px;
+        color: var(--muted);
+        margin-top: 2px;
+      }
+
+      /* Reports list */
+      .cf-reports-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .cf-report-meta {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 4px;
+      }
+      .cf-report-date {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10.5px;
+        color: var(--muted);
+      }
+
       /* ─── Structured issue logger inside the AssessmentEditor ─── */
       .assess-issues-head {
         display: flex;
@@ -8409,6 +8602,11 @@
       .fac-issue-notes {
         color: var(--muted);
         font-weight: 500;
+      }
+      .fac-issue-reported {
+        color: var(--green);
+        font-weight: 700;
+        font-size: 10.5px;
       }
 
       /* ─── Assessment mini-dashboard ─── */

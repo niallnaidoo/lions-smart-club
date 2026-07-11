@@ -57,6 +57,7 @@ import {
   issueCategoriesFor,
   issueLocationsFor,
   severityTone,
+  ASSET_CATEGORIES,
   conditionWord,
   conditionTone,
   capexStatusTone,
@@ -4800,6 +4801,9 @@ function FacilityAssetsTab({
                     <strong>{i.category}</strong>
                     {i.location && <span className="fac-issue-loc"> · 📍 {i.location}</span>}
                     {i.notes && <span className="fac-issue-notes"> · {i.notes}</span>}
+                    {i.reportedByClub && (
+                      <span className="fac-issue-reported"> · 🎽 Reported by {i.reportedByClub.chair || i.reportedByClub.clubName}</span>
+                    )}
                   </>
                 )}
               </div>
@@ -4854,6 +4858,9 @@ function FacilityAssetsTab({
                     <strong>{i.category}</strong>
                     {i.location && <span className="fac-issue-loc"> · 📍 {i.location}</span>}
                     {i.notes && <span className="fac-issue-notes"> · {i.notes}</span>}
+                    {i.reportedByClub && (
+                      <span className="fac-issue-reported"> · 🎽 Reported by {i.reportedByClub.chair || i.reportedByClub.clubName}</span>
+                    )}
                   </>
                 )}
               </div>
@@ -4935,6 +4942,9 @@ function FacilityAssetsTab({
                     <strong>{i.category}</strong>
                     {i.location && <span className="fac-issue-loc"> · 📍 {i.location}</span>}
                     {i.notes && <span className="fac-issue-notes"> · {i.notes}</span>}
+                    {i.reportedByClub && (
+                      <span className="fac-issue-reported"> · 🎽 Reported by {i.reportedByClub.chair || i.reportedByClub.clubName}</span>
+                    )}
                   </>
                 )}
               </div>
@@ -5008,6 +5018,9 @@ function FacilityAssetsTab({
                     <strong>{i.category}</strong>
                     {i.location && <span className="fac-issue-loc"> · 📍 {i.location}</span>}
                     {i.notes && <span className="fac-issue-notes"> · {i.notes}</span>}
+                    {i.reportedByClub && (
+                      <span className="fac-issue-reported"> · 🎽 Reported by {i.reportedByClub.chair || i.reportedByClub.clubName}</span>
+                    )}
                   </>
                 )}
               </div>
@@ -5155,20 +5168,6 @@ function FacilityAssetsTab({
 }
 
 /* ─── AddAssetModal · admin adds a new asset to the facility inventory ─── */
-
-const ASSET_CATEGORIES = [
-  { key: 'Pitch square',   icon: '◇', quantityL: 'Number of pitches' },
-  { key: 'Cover',          icon: '☂', quantityL: 'Number of covers' },
-  { key: 'Outdoor net',    icon: '⌗', quantityL: 'Number of net lanes' },
-  { key: 'Indoor net',     icon: '⌗', quantityL: 'Number of net lanes' },
-  { key: 'Bowling machine', icon: '◉', quantityL: 'Number of machines' },
-  { key: 'Sightscreen',    icon: '▤', quantityL: 'Number of screens' },
-  { key: 'Boundary rope',  icon: '○', quantityL: 'Number of rope sets' },
-  { key: 'Scoreboard',     icon: '▤', quantityL: 'Number of scoreboards' },
-  { key: 'Sprinkler / irrigation', icon: '⇩', quantityL: 'Number of zones' },
-  { key: 'Roller / mower', icon: '◉', quantityL: 'Number of units' },
-  { key: 'Other',          icon: '⌂', quantityL: 'Quantity' },
-];
 
 function AddAssetModal({ facility, onSubmit, onCancel }) {
   const [category, setCategory] = useState(ASSET_CATEGORIES[0].key);
@@ -6946,4 +6945,9 @@ export {
   AdminClearances,
   AdminFacilities,
   AdminVendors,
+  // Shared with the club-side facilities view:
+  AssessmentEditor,
+  AddAssetModal,
+  AssetCard,
+  ConditionStars,
 };

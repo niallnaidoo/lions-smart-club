@@ -1,6 +1,7 @@
 /* ─── Club-side views ─── */
 
 import { useState, useMemo, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
@@ -31,7 +32,14 @@ import {
   fixtureCost,
   isClearanceOverdue,
   clearanceDaysRemaining,
+  FACILITY_ASSETS,
+  FACILITY_OWNERSHIP,
+  ASSET_CATEGORIES,
+  conditionWord,
+  conditionTone,
+  severityTone,
 } from './data.jsx';
+import { AssessmentEditor, AddAssetModal, AssetCard, ConditionStars } from './admin.jsx';
 
 /* ─── Ground map (Leaflet + OpenStreetMap + Nominatim geocoding) ─── */
 function GroundMap({ query, onResolved }) {
@@ -3770,4 +3778,549 @@ export {
   ClubPlayersView,
   RegisterPlayerForm,
   ClubClearancesView,
+  ClubFacilitiesView,
 };
+
+/* ─── Club-side Facilities · manage venue from the chair's seat ─── */
+
+// Small helper: turn a raw asset object into a card-friendly summary.
+function ClubAssetSummary({ assets }) {
+  const rows = [
+    { l: 'Pitch square', k: 'pitch' },
+    { l: 'Covers', k: 'covers' },
+    { l: 'Outdoor nets', k: 'nets.outdoor' },
+    { l: 'Indoor nets', k: 'nets.indoor' },
+    { l: 'Bowling machines', k: 'nets.bowlingMachines' },
+  ];
+  function getAt(path) {
+    return path.split('.').reduce((r, p) => r?.[p], assets) || {};
+  }
+  return (
+    <div className="cf-summary-grid">
+      {rows.map((r) => {
+        const a = getAt(r.k);
+        return (
+          <div key={r.k} className="cf-summary-tile">
+            <div className="cf-summary-l">{r.l}</div>
+            <div className="cf-summary-n">
+              {r.k === 'covers' ? (a.has ? a.count : '0') : a.count ?? '—'}
+            </div>
+            {a.condition > 0 && (
+              <ConditionStars score={a.condition} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function AddStaffModal({ club, onSubmit, onCancel }) {
+  const [name, setName] = useState('');
+  const [role, setRole] = useState('Assistant');
+  const [phone, setPhone] = useState('');
+  const [years, setYears] = useState(1);
+
+  const canSubmit = name.trim() && phone.trim();
+
+  function submit() {
+    if (!canSubmit) return;
+    onSubmit({
+      id: 'gs-c-' + Date.now(),
+      name: name.trim(),
+      role,
+      phone: phone.trim(),
+      years: Number(years) || 0,
+    });
+  }
+
+  return (
+    <div className="fix-confirm" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div className="fix-confirm-box jobmodal-box">
+        <div className="fac-jobmodal-head">
+          <div>
+            <div className="fac-detail-eyebrow">Groundstaff · {club.name}</div>
+            <div className="fac-jobmodal-title">Add a person to your maintenance team</div>
+          </div>
+          <button className="fac-detail-close" onClick={onCancel}>
+            <Icon.X />
+          </button>
+        </div>
+        <div className="fac-jobmodal-body">
+          <div className="field-grid-2">
+            <div>
+              <label className="field-label">Name <span className="req">*</span></label>
+              <input
+                className="field-input"
+                placeholder="e.g. Sipho Dlamini"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="field-label">Role</label>
+              <select className="field-select" value={role} onChange={(e) => setRole(e.target.value)}>
+                <option>Head Groundsman</option>
+                <option>Assistant</option>
+                <option>Curator</option>
+                <option>Volunteer</option>
+                <option>External contractor</option>
+              </select>
+            </div>
+          </div>
+          <div className="field-grid-2" style={{ marginTop: 12 }}>
+            <div>
+              <label className="field-label">Phone <span className="req">*</span></label>
+              <input
+                className="field-input"
+                type="tel"
+                placeholder="083 000 0000"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="field-label">Years on this ground</label>
+              <input
+                className="field-input"
+                type="number"
+                min="0"
+                max="60"
+                value={years}
+                onChange={(e) => setYears(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+        <div className="jobmodal-footer">
+          <div className="jobmodal-footer-summary">
+            <strong>{name || 'Unnamed'}</strong> · {role} · {years} yrs
+          </div>
+          <div className="jobmodal-footer-actions">
+            <Btn tone="outline" onClick={onCancel}>Cancel</Btn>
+            <Btn tone="teal" icon={Icon.Check} onClick={submit} disabled={!canSubmit}>
+              Add to team
+            </Btn>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ClubFacilitiesView({ club, toast }) {
+  // Baseline data from the Lions admin cohort — the club sees the same
+  // seed record for their ground and can add / assess on top of it.
+  const baseline = FACILITY_ASSETS[club.id] || null;
+  const baseOwnership = FACILITY_OWNERSHIP[club.id] || null;
+
+  // Local editable state for what the CLUB owns end-to-end.
+  const [managed, setManaged] = useState(baseOwnership?.ownership === 'club' || baseOwnership?.ownership === 'university');
+  const [ownerLabel, setOwnerLabel] = useState(baseOwnership?.ownerLabel || `${club.name} Executive`);
+  const [staff, setStaff] = useState(() =>
+    baseOwnership
+      ? [baseOwnership.head, ...baseOwnership.assistants].map((s) => ({ ...s }))
+      : []
+  );
+  const [addingStaff, setAddingStaff] = useState(false);
+
+  // Assessment state — kept locally on the club side; issues carry a
+  // reportedBy stamp so admins can see who logged what.
+  const [assessments, setAssessments] = useState(baseline || {});
+  const [assessing, setAssessing] = useState(null);
+  const [customAssets, setCustomAssets] = useState([]);
+  const [addingAsset, setAddingAsset] = useState(false);
+
+  // Reported issues log — flatten everything the club has logged so it
+  // can be shown as a "recent reports" list at the bottom.
+  const allIssues = useMemo(() => {
+    const list = [];
+    function walk(obj, path, sourceLabel) {
+      if (!obj || typeof obj !== 'object') return;
+      if (Array.isArray(obj.issues)) {
+        obj.issues.forEach((iss) => {
+          if (typeof iss !== 'string' && iss?.reportedByClub) {
+            list.push({ ...iss, sourceLabel: sourceLabel || path });
+          }
+        });
+      }
+      if (obj.pitch) walk(obj.pitch, 'pitch', 'Pitch square');
+      if (obj.covers) walk(obj.covers, 'covers', 'Covers');
+      if (obj.nets) {
+        if (obj.nets.outdoor) walk(obj.nets.outdoor, 'nets.outdoor', 'Outdoor nets');
+        if (obj.nets.indoor) walk(obj.nets.indoor, 'nets.indoor', 'Indoor nets');
+        if (obj.nets.bowlingMachines) walk(obj.nets.bowlingMachines, 'nets.bowlingMachines', 'Bowling machine');
+      }
+    }
+    walk(assessments, '', '');
+    customAssets.forEach((ca) => {
+      (ca.issues || []).forEach((iss) => {
+        if (typeof iss !== 'string' && iss?.reportedByClub) {
+          list.push({ ...iss, sourceLabel: `${ca.category}${ca.description ? ' · ' + ca.description : ''}` });
+        }
+      });
+    });
+    return list.sort((a, b) => (b.reportedAt || '').localeCompare(a.reportedAt || ''));
+  }, [assessments, customAssets]);
+
+  // Save an assessment — CRITICAL bit: every issue gets the reportedByClub stamp
+  // so admins can see who logged what.
+  function saveAssessment(key, next) {
+    const stampedIssues = (next.issues || []).map((iss) =>
+      typeof iss === 'string'
+        ? iss
+        : {
+            ...iss,
+            reportedByClub: iss.reportedByClub || {
+              clubId: club.id,
+              clubName: club.name,
+              chair: club.chair,
+              at: new Date().toISOString().slice(0, 10),
+            },
+            reportedAt: iss.reportedAt || new Date().toISOString().slice(0, 10),
+          }
+    );
+    if (key.startsWith('custom.')) {
+      const id = key.slice(7);
+      setCustomAssets((prev) =>
+        prev.map((ca) => (ca.id === id ? { ...ca, ...next, issues: stampedIssues } : ca))
+      );
+    } else {
+      setAssessments((prev) => {
+        const parts = key.split('.');
+        const parent = { ...prev };
+        let ref = parent;
+        for (let i = 0; i < parts.length - 1; i++) {
+          ref[parts[i]] = { ...ref[parts[i]] };
+          ref = ref[parts[i]];
+        }
+        ref[parts[parts.length - 1]] = { ...ref[parts[parts.length - 1]], ...next, issues: stampedIssues };
+        return parent;
+      });
+    }
+    setAssessing(null);
+    toast?.('Report submitted to the Lions office');
+  }
+
+  function addStaff(s) {
+    setStaff((prev) => [...prev, s]);
+    setAddingStaff(false);
+    toast?.(`${s.name} added to team`);
+  }
+  function removeStaff(id) {
+    setStaff((prev) => prev.filter((s) => s.id !== id));
+  }
+
+  function addCustomAsset(asset) {
+    setCustomAssets((prev) => [...prev, { ...asset, id: 'cca-' + Date.now() }]);
+    setAddingAsset(false);
+    toast?.(`${asset.category} added to inventory · Lions office notified`);
+  }
+
+  // For the assessment mini-dashboard
+  const today = new Date('2026-07-11');
+  const inventoryKeys = [
+    { key: 'pitch', label: 'Pitch', obj: assessments.pitch },
+    { key: 'covers', label: 'Covers', obj: assessments.covers },
+    { key: 'nets.outdoor', label: 'Outdoor nets', obj: assessments.nets?.outdoor },
+    { key: 'nets.indoor', label: 'Indoor nets', obj: assessments.nets?.indoor },
+    { key: 'nets.bowlingMachines', label: 'Bowling machines', obj: assessments.nets?.bowlingMachines },
+    ...customAssets.map((ca) => ({
+      key: `custom.${ca.id}`,
+      label: `${ca.category}${ca.description ? ' · ' + ca.description : ''}`,
+      obj: ca,
+    })),
+  ].filter((i) => i.obj);
+
+  function statusFor(a) {
+    if (!a?.lastAssessed) return { label: '⚠ Never assessed', tone: 'coral' };
+    const d = Math.round((today - new Date(a.lastAssessed)) / 86400000);
+    if (d > 30) return { label: `${d}d ago · overdue`, tone: 'coral' };
+    if (d > 14) return { label: `${d}d ago`, tone: 'gold' };
+    return { label: `${d}d ago`, tone: 'teal' };
+  }
+  const inventory = inventoryKeys.map((i) => ({ ...i, status: statusFor(i.obj) }));
+  const overdue = inventory.filter((i) => i.status.tone === 'coral').length;
+  const dueSoon = inventory.filter((i) => i.status.tone === 'gold').length;
+  const current = inventory.filter((i) => i.status.tone === 'teal').length;
+  const pct = inventory.length ? Math.round((current / inventory.length) * 100) : 0;
+
+  return (
+    <div>
+      <div className="page-head">
+        <div className="ph-left">
+          <div className="ph-crumb">Club Portal · {club.name} / Facilities</div>
+          <h1 className="ph-title">
+            Facility <em>Reporting</em>
+          </h1>
+          <p className="ph-desc">
+            Log the state of your ground for the Lions office, add the people who look after it,
+            and record any issues you find. What you report here lands directly on the Lions admin
+            facility dashboard.
+          </p>
+        </div>
+        <div className="ph-actions">
+          <Btn tone="outline" size="sm" onClick={() => setAddingStaff(true)} icon={Icon.Plus}>
+            Add team member
+          </Btn>
+          <Btn tone="teal" size="sm" onClick={() => setAddingAsset(true)} icon={Icon.Plus}>
+            Add asset
+          </Btn>
+        </div>
+      </div>
+
+      {/* SECTION 1 — VENUE MANAGEMENT DECLARATION */}
+      <Card
+        title={<>Do you manage this venue?</>}
+        sub="Tell the Lions office whether your club runs the ground directly or shares it with another party."
+      >
+        <div className="cf-manage-row">
+          <div className="cf-manage-toggle">
+            <button
+              className={`cf-manage-btn ${managed ? 'on' : ''}`}
+              onClick={() => setManaged(true)}
+            >
+              <span className="cf-manage-icon">✅</span>
+              <div>
+                <div className="cf-manage-title">Yes — we manage the venue</div>
+                <div className="cf-manage-sub">Our club is responsible for the ground and everything on it</div>
+              </div>
+            </button>
+            <button
+              className={`cf-manage-btn ${!managed ? 'on' : ''}`}
+              onClick={() => setManaged(false)}
+            >
+              <span className="cf-manage-icon">🤝</span>
+              <div>
+                <div className="cf-manage-title">No — managed by another party</div>
+                <div className="cf-manage-sub">Municipality, university, or shared arrangement</div>
+              </div>
+            </button>
+          </div>
+          <div className="cf-owner-field">
+            <label className="field-label">
+              {managed ? 'Which club body owns it?' : 'Who manages the venue?'}
+            </label>
+            <input
+              className="field-input"
+              value={ownerLabel}
+              onChange={(e) => setOwnerLabel(e.target.value)}
+              placeholder={managed ? 'e.g. Phoenix CC Executive' : 'e.g. eThekwini Metro · Parks & Rec'}
+            />
+          </div>
+        </div>
+      </Card>
+
+      {/* SECTION 2 — GROUNDSTAFF */}
+      <Card
+        title={<>People running maintenance · {staff.length}</>}
+        sub="Everyone on your ground team — the Lions office dispatches job cards to these people."
+        actions={
+          <Btn tone="outline" size="sm" icon={Icon.Plus} onClick={() => setAddingStaff(true)}>
+            Add person
+          </Btn>
+        }
+      >
+        {staff.length === 0 ? (
+          <div className="cf-empty">
+            No one added yet — tap <strong>Add person</strong> to declare who's looking after the ground.
+          </div>
+        ) : (
+          <div className="cf-staff-grid">
+            {staff.map((s) => (
+              <div key={s.id} className="cf-staff-card">
+                <div className="fac-staff-avatar">
+                  {s.name.split(' ').map((w) => w[0]).slice(0, 2).join('')}
+                </div>
+                <div className="cf-staff-info">
+                  <div className="fac-staff-name">{s.name}</div>
+                  <div className="fac-staff-role">{s.role} · {s.years} yrs</div>
+                  <div className="fac-staff-contact">{s.phone}</div>
+                </div>
+                <button className="cf-staff-remove" onClick={() => removeStaff(s.id)} title="Remove">
+                  <Icon.X />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* SECTION 3 — ASSET INVENTORY + INSPECTION */}
+      <Card
+        title={<>Asset inventory · {inventory.length}</>}
+        sub="What's on the ground and the last time each item was inspected. Tap an asset to log an issue."
+        actions={
+          <Btn tone="outline" size="sm" icon={Icon.Plus} onClick={() => setAddingAsset(true)}>
+            Add asset
+          </Btn>
+        }
+      >
+        {/* Assessment status tiles */}
+        <div className="fac-assess-dash">
+          <div className={`fac-assess-tile ${overdue > 0 ? 'coral' : ''}`}>
+            <div className="fac-assess-tile-l">Overdue</div>
+            <div className="fac-assess-tile-n">{overdue}</div>
+            <div className="fac-assess-tile-meta">
+              {overdue > 0 ? 'Never assessed or >30 days' : 'None outstanding'}
+            </div>
+          </div>
+          <div className={`fac-assess-tile ${dueSoon > 0 ? 'gold' : ''}`}>
+            <div className="fac-assess-tile-l">Due soon</div>
+            <div className="fac-assess-tile-n">{dueSoon}</div>
+            <div className="fac-assess-tile-meta">Assessed 14–30 days ago</div>
+          </div>
+          <div className={`fac-assess-tile ${current > 0 ? 'teal' : ''}`}>
+            <div className="fac-assess-tile-l">Current</div>
+            <div className="fac-assess-tile-n">{current}</div>
+            <div className="fac-assess-tile-meta">Assessed in the last 14 days</div>
+          </div>
+          <div className="fac-assess-tile progress">
+            <div className="fac-assess-tile-l">Coverage</div>
+            <div className="fac-assess-tile-n">
+              {pct}
+              <span>%</span>
+            </div>
+            <div className="fac-assess-tile-bar">
+              <div className="fac-assess-tile-bar-fill" style={{ width: `${pct}%` }} />
+            </div>
+            <div className="fac-assess-tile-meta">
+              {current} of {inventory.length}
+            </div>
+          </div>
+        </div>
+
+        {/* Inventory picker + summary tiles */}
+        <div className="fac-assets-toolbar" style={{ marginTop: 14 }}>
+          <div className="fac-assets-picker">
+            <label className="fac-assets-picker-l">
+              Pick an asset to report on · {inventory.length}
+              {overdue > 0 && (
+                <span className="fac-assets-picker-warn"> · {overdue} need attention</span>
+              )}
+            </label>
+            <select
+              className="field-select fac-assets-picker-select"
+              value=""
+              onChange={(e) => e.target.value && setAssessing(e.target.value)}
+            >
+              <option value="">— Report on an asset —</option>
+              {inventory.map((i) => (
+                <option key={i.key} value={i.key}>
+                  {i.status.tone === 'coral' ? '⚠ ' : i.status.tone === 'gold' ? '⏳ ' : '✓ '}
+                  {i.label} · {i.status.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {baseline && <ClubAssetSummary assets={assessments} />}
+
+        {/* Custom assets the club has added */}
+        {customAssets.length > 0 && (
+          <div style={{ marginTop: 16 }}>
+            <div className="fac-section-title">Assets you've added</div>
+            <div className="cf-custom-assets">
+              {customAssets.map((ca) => (
+                <div key={ca.id} className="cf-custom-asset">
+                  <div className="cf-custom-asset-head">
+                    <div>
+                      <div className="cf-custom-asset-title">
+                        {ca.quantity} × {ca.subType || ca.category}
+                        {ca.description ? ' · ' + ca.description : ''}
+                      </div>
+                      <div className="cf-custom-asset-meta">
+                        {ca.condition ? `Condition ${ca.condition.toFixed(1)}/5` : 'Not yet assessed'}
+                      </div>
+                    </div>
+                    <button
+                      className="fac-asset-assess-btn"
+                      onClick={() => setAssessing(`custom.${ca.id}`)}
+                    >
+                      Report ›
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Card>
+
+      {/* SECTION 4 — REPORTED ISSUES LOG */}
+      <Card
+        title={<>Reports you've submitted · {allIssues.length}</>}
+        sub="Everything you've flagged to the Lions office · newest first."
+      >
+        {allIssues.length === 0 ? (
+          <div className="cf-empty">
+            You haven't reported any issues yet. Use the picker above to log wear, damage, or safety
+            concerns.
+          </div>
+        ) : (
+          <div className="cf-reports-list">
+            {allIssues.map((iss, i) => (
+              <div key={i} className={`assess-issue-card tone-${severityTone(iss.severity)}`}>
+                <div className="assess-issue-top">
+                  <div className="assess-issue-cat">
+                    <span className="assess-issue-cat-icon">{iss.icon || '⚠'}</span>
+                    <div>
+                      <div className="assess-issue-cat-l">
+                        {iss.category} · <span style={{ fontWeight: 500 }}>{iss.sourceLabel}</span>
+                      </div>
+                      {iss.location && <div className="assess-issue-loc">📍 {iss.location}</div>}
+                      {iss.notes && <div className="assess-issue-loc" style={{ marginTop: 2 }}>{iss.notes}</div>}
+                    </div>
+                  </div>
+                  <div className="cf-report-meta">
+                    <Pill tone={severityTone(iss.severity)} dot>
+                      {(iss.severity || 'moderate')[0].toUpperCase() + (iss.severity || 'moderate').slice(1)}
+                    </Pill>
+                    <div className="cf-report-date">
+                      {iss.reportedAt
+                        ? new Date(iss.reportedAt).toLocaleDateString('en-GB', {
+                            day: 'numeric',
+                            month: 'short',
+                          })
+                        : ''}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Modals — reuse the admin components verbatim */}
+      {assessing && ReactDOM.createPortal(
+        <AssessmentEditor
+          facility={{ clubId: club.id, venue: club.ground?.venue || club.name }}
+          assetKey={assessing}
+          assets={assessments}
+          customAssets={customAssets}
+          onSave={(next) => saveAssessment(assessing, next)}
+          onCancel={() => setAssessing(null)}
+        />,
+        document.body
+      )}
+      {addingAsset && ReactDOM.createPortal(
+        <AddAssetModal
+          facility={{ clubId: club.id, venue: club.ground?.venue || club.name }}
+          onSubmit={addCustomAsset}
+          onCancel={() => setAddingAsset(false)}
+        />,
+        document.body
+      )}
+      {addingStaff && ReactDOM.createPortal(
+        <AddStaffModal
+          club={club}
+          onSubmit={addStaff}
+          onCancel={() => setAddingStaff(false)}
+        />,
+        document.body
+      )}
+    </div>
+  );
+}
