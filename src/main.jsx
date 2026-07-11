@@ -197,6 +197,7 @@ import {
   CreateSeriesForm,
   AdminClearances,
   AdminFacilities,
+  AdminVendors,
 } from './admin.jsx';
 import { Onboarding } from './onboarding.jsx';
 
@@ -468,6 +469,7 @@ function Shell({ initialProfile, onSwitchProfile }) {
     },
     { v: 'fixtures', label: 'Fixtures & Venues', icon: Icon.Field, dot: 'teal' },
     { v: 'facilities', label: 'Facilities', icon: Icon.Eye, dot: 'teal' },
+    { v: 'vendors', label: 'Vendors', icon: Icon.Doc, dot: 'teal' },
     {
       v: 'clearances',
       label: 'Clearances',
@@ -574,6 +576,7 @@ function Shell({ initialProfile, onSwitchProfile }) {
           />
         );
       if (view === 'facilities') return <AdminFacilities toast={toastShow} />;
+      if (view === 'vendors') return <AdminVendors toast={toastShow} />;
     } else {
       const goto = (v) => setView(v);
       // Affiliation + Documents render in modals layered on top of Home (handled below).

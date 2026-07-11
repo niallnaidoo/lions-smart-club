@@ -1148,6 +1148,232 @@ const FACILITY_JOBS = (() => {
   return jobs;
 })();
 
+/* ─── VENDORS · roster + onboarding lifecycle ───
+   Vendors are the external suppliers/service providers the Lions office
+   maintains an approved list of. Each vendor goes through an onboarding
+   workflow (draft → submitted → verified → onboarded) so admins can
+   dispatch job cards to vetted third parties without repeating due
+   diligence for every job. */
+
+const VENDOR_CATEGORIES = [
+  'Turf care',
+  'Equipment supply',
+  'Nets & fencing',
+  'Machine service',
+  'Fabrication / Metalwork',
+  'Painting / Coatings',
+  'Consulting',
+  'Cleaning',
+  'Landscaping',
+  'Electrical',
+  'Plumbing',
+  'Security',
+  'Transport / Logistics',
+  'Other',
+];
+
+const VENDOR_STATUSES = ['draft', 'submitted', 'verified', 'onboarded', 'suspended'];
+
+const VENDOR_SERVICES = [
+  'Pitch preparation',
+  'Grass cutting',
+  'Top soil / re-turfing',
+  'Rolling / consolidation',
+  'Boundary rope / gullies',
+  'Nets · installation',
+  'Nets · maintenance',
+  'Sightscreen fabrication',
+  'Sightscreen · painting',
+  'Drainage / covers · service',
+  'Bowling machine · service',
+  'Scoreboard · installation',
+  'Scoreboard · maintenance',
+  'Sprinkler / irrigation · install',
+  'Sprinkler / irrigation · service',
+  'Roller · service',
+  'Mower · service',
+  'Equipment supply',
+  'General inspection / audit',
+  'Cleaning',
+];
+
+const BEE_LEVELS = ['Level 1', 'Level 2', 'Level 3', 'Level 4', 'Level 5', 'Level 6', 'Level 7', 'Level 8', 'Non-compliant', 'Exempt Micro Enterprise'];
+
+const VENDORS = [
+  {
+    id: 'v-001',
+    name: 'Green Turf Solutions',
+    category: 'Turf care',
+    contactPerson: 'Rajen Naidoo',
+    phone: '083 421 6688',
+    email: 'rajen@greenturfsolutions.co.za',
+    address: '14 Industrial Rd, Pinetown, Durban',
+    vatNumber: '4520149822',
+    beeLevel: 'Level 2',
+    insuranceExpiry: '2027-03-15',
+    bankName: 'Standard Bank',
+    bankAccount: '···· 4482',
+    services: ['Pitch preparation', 'Grass cutting', 'Top soil / re-turfing', 'Rolling / consolidation'],
+    rating: 4.6,
+    jobsCompleted: 24,
+    status: 'onboarded',
+    onboardedAt: '2025-08-14',
+    notes: 'Preferred vendor for pitch renewals across EMCU. Fast response times.',
+  },
+  {
+    id: 'v-002',
+    name: 'BOLA Manufacturing SA',
+    category: 'Equipment supply',
+    contactPerson: 'Kagiso Mokwena',
+    phone: '011 493 0021',
+    email: 'sales@bola.co.za',
+    address: '7 Ashley St, Johannesburg',
+    vatNumber: '4110215548',
+    beeLevel: 'Level 4',
+    insuranceExpiry: '2027-11-30',
+    bankName: 'FNB',
+    bankAccount: '···· 9902',
+    services: ['Equipment supply', 'Bowling machine · service'],
+    rating: 4.8,
+    jobsCompleted: 11,
+    status: 'onboarded',
+    onboardedAt: '2025-05-02',
+    notes: 'OEM for BOLA machines. 6-week lead time on new units, 5-day on service.',
+  },
+  {
+    id: 'v-003',
+    name: 'Netpro Fencing',
+    category: 'Nets & fencing',
+    contactPerson: 'Devlin Pillay',
+    phone: '072 118 9014',
+    email: 'devlin@netpro.co.za',
+    address: '55 Bluff Rd, Durban',
+    vatNumber: '4320185561',
+    beeLevel: 'Level 1',
+    insuranceExpiry: '2026-10-08',
+    bankName: 'Nedbank',
+    bankAccount: '···· 1130',
+    services: ['Nets · installation', 'Nets · maintenance'],
+    rating: 4.2,
+    jobsCompleted: 7,
+    status: 'onboarded',
+    onboardedAt: '2025-09-19',
+    notes: '',
+  },
+  {
+    id: 'v-004',
+    name: 'JR Turf Consulting',
+    category: 'Consulting',
+    contactPerson: 'John Roberts',
+    phone: '082 990 4477',
+    email: 'john@jrturf.co.za',
+    address: 'Umhlanga, Durban',
+    vatNumber: '4610248832',
+    beeLevel: 'Non-compliant',
+    insuranceExpiry: '2027-04-22',
+    bankName: 'Standard Bank',
+    bankAccount: '···· 7799',
+    services: ['General inspection / audit', 'Pitch preparation'],
+    rating: 4.9,
+    jobsCompleted: 5,
+    status: 'onboarded',
+    onboardedAt: '2025-11-11',
+    notes: 'Independent turf consultant. Retained per-day for pitch audits.',
+  },
+  {
+    id: 'v-005',
+    name: 'Coastal Coatings',
+    category: 'Painting / Coatings',
+    contactPerson: 'Ashwin Chetty',
+    phone: '084 442 1103',
+    email: 'ashwin@coastalcoatings.co.za',
+    address: 'Chatsworth, Durban',
+    vatNumber: '',
+    beeLevel: 'Level 4',
+    insuranceExpiry: '',
+    bankName: 'Absa',
+    bankAccount: '···· 5540',
+    services: ['Sightscreen · painting'],
+    rating: 3.8,
+    jobsCompleted: 0,
+    status: 'submitted',
+    onboardedAt: null,
+    notes: 'Awaiting insurance certificate. Referred by Chatsworth Sporting CC.',
+  },
+  {
+    id: 'v-006',
+    name: 'Sipho Machine Services',
+    category: 'Machine service',
+    contactPerson: 'Sipho Zulu',
+    phone: '076 810 2245',
+    email: 'sipho.zulu@example.co.za',
+    address: 'Amanzimtoti, Durban',
+    vatNumber: '',
+    beeLevel: 'Level 1',
+    insuranceExpiry: '2026-08-30',
+    bankName: 'Capitec',
+    bankAccount: '···· 3320',
+    services: ['Roller · service', 'Mower · service'],
+    rating: 4.1,
+    jobsCompleted: 3,
+    status: 'verified',
+    onboardedAt: null,
+    notes: 'Verified — needs one more compliance check before onboarding.',
+  },
+  {
+    id: 'v-007',
+    name: 'Southern Cricket Supplies',
+    category: 'Equipment supply',
+    contactPerson: 'Marius van der Merwe',
+    phone: '083 200 1109',
+    email: 'marius@southerncricket.co.za',
+    address: 'Umbilo, Durban',
+    vatNumber: '4520332211',
+    beeLevel: 'Level 4',
+    insuranceExpiry: '2027-06-14',
+    bankName: 'Standard Bank',
+    bankAccount: '···· 0044',
+    services: ['Equipment supply'],
+    rating: 0,
+    jobsCompleted: 0,
+    status: 'draft',
+    onboardedAt: null,
+    notes: '',
+  },
+  {
+    id: 'v-008',
+    name: 'Reliable Roller Rentals',
+    category: 'Equipment supply',
+    contactPerson: 'Trevor Green',
+    phone: '083 004 9911',
+    email: 'trevor@reliableroller.co.za',
+    address: 'Verulam, Durban',
+    vatNumber: '4110114488',
+    beeLevel: 'Level 3',
+    insuranceExpiry: '2024-12-01',
+    bankName: 'Nedbank',
+    bankAccount: '···· 2210',
+    services: ['Equipment supply', 'Roller · service'],
+    rating: 3.4,
+    jobsCompleted: 8,
+    status: 'suspended',
+    onboardedAt: '2024-03-10',
+    notes: 'Insurance lapsed. Suspended until renewed cert supplied.',
+  },
+];
+
+function vendorStatusTone(s) {
+  return s === 'onboarded'
+    ? 'teal'
+    : s === 'verified'
+      ? 'gold'
+      : s === 'submitted'
+        ? 'gold'
+        : s === 'suspended'
+          ? 'coral'
+          : 'muted';
+}
+
 /* ─── FACILITY_OPTIONS · curated dropdown catalogs ───
    One place for every dropdown value used across the Asset assessment
    + Facility costing modals. Extend this to grow the picker set. */
@@ -1643,4 +1869,10 @@ export {
   capexPriorityTone,
   annualisedMaintCost,
   capexTotal,
+  VENDORS,
+  VENDOR_CATEGORIES,
+  VENDOR_STATUSES,
+  VENDOR_SERVICES,
+  BEE_LEVELS,
+  vendorStatusTone,
 };

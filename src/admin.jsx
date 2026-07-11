@@ -47,6 +47,12 @@ import {
   FACILITY_MAINTENANCE_SCHEDULE,
   FACILITY_SPEND,
   FACILITY_OPTIONS,
+  VENDORS,
+  VENDOR_CATEGORIES,
+  VENDOR_STATUSES,
+  VENDOR_SERVICES,
+  BEE_LEVELS,
+  vendorStatusTone,
   conditionWord,
   conditionTone,
   capexStatusTone,
@@ -2620,6 +2626,8 @@ function AdminFacilities({ toast }) {
   const [addingCapex, setAddingCapex] = useState(null); // clubId — Add capex modal open
   // Editable job-type recipes. Admin can tweak the master checklist per type.
   const [jobTypes, setJobTypes] = useState(JOB_TYPES);
+  // Vendors for the "External vendor" option on Create job card.
+  const [vendors] = useState(VENDORS);
 
   function addJob(job) {
     setJobs((prev) => [...prev, job]);
@@ -2756,6 +2764,7 @@ function AdminFacilities({ toast }) {
               facility={facility}
               initialType={jobCardType}
               jobTypes={jobTypes}
+              vendors={vendors}
               onUpdateJobType={updateJobType}
               onResetJobType={resetJobType}
               onSubmit={addJob}
@@ -3573,6 +3582,7 @@ function AdminFacilityDetail({
                           <div className="fac-job-title">{j.title}</div>
                           <div className="fac-job-meta">
                             <span>
+                              {j.isVendor && <span className="fac-vendor-badge">🏢 Vendor</span>}
                               <strong>{j.assigneeName}</strong>
                             </span>
                             <span className={overdue ? 'fac-due-overdue' : ''}>
@@ -4030,11 +4040,14 @@ function CreateJobCard({
   onCancel,
   initialType,
   jobTypes: jobTypesProp,
+  vendors = [],
   onUpdateJobType,
   onResetJobType,
 }) {
   const ownership = FACILITY_OWNERSHIP[facility.clubId];
   const staff = [ownership.head, ...ownership.assistants];
+  // Only onboarded vendors are dispatchable.
+  const dispatchableVendors = vendors.filter((v) => v.status === 'onboarded');
 
   const activeJobTypes = jobTypesProp || JOB_TYPES;
 
@@ -4075,7 +4088,9 @@ function CreateJobCard({
   const [title, setTitle] = useState(suggestTitle(safeInitialType));
   const [titleTouched, setTitleTouched] = useState(false);
 
+  const [assigneeKind, setAssigneeKind] = useState('internal'); // internal | vendor
   const [assigneeId, setAssigneeId] = useState(ownership.head.id);
+  const [vendorId, setVendorId] = useState(dispatchableVendors[0]?.id || '');
   const [priority, setPriority] = useState('medium');
   const [dueDate, setDueDate] = useState(() => {
     const d = new Date('2026-06-05');
@@ -4100,11 +4115,17 @@ function CreateJobCard({
     ...checklistCustom.filter(Boolean),
   ];
 
-  const canSubmit = title.trim().length > 0 && assigneeId && dueDate;
+  const canSubmit =
+    title.trim().length > 0 &&
+    dueDate &&
+    (assigneeKind === 'internal' ? !!assigneeId : !!vendorId);
 
   function submit() {
     if (!canSubmit) return;
-    const assignee = staff.find((s) => s.id === assigneeId) || GROUNDSTAFF.find((s) => s.id === assigneeId);
+    const vendor = dispatchableVendors.find((v) => v.id === vendorId);
+    const staffer =
+      staff.find((s) => s.id === assigneeId) || GROUNDSTAFF.find((s) => s.id === assigneeId);
+    const isVendor = assigneeKind === 'vendor';
     const job = {
       id: 'job-' + Date.now(),
       facilityId: facility.clubId,
@@ -4113,8 +4134,13 @@ function CreateJobCard({
       title: title.trim(),
       status: 'open',
       priority,
-      assigneeId,
-      assigneeName: assignee?.name || 'Unassigned',
+      // Backwards-compatible fields: existing UI reads assigneeName. Under
+      // the hood, isVendor + vendorId flag external dispatches.
+      assigneeId: isVendor ? null : assigneeId,
+      assigneeName: isVendor ? vendor?.name : staffer?.name || 'Unassigned',
+      vendorId: isVendor ? vendorId : null,
+      vendorContact: isVendor ? vendor?.contactPerson : null,
+      isVendor,
       dueDate,
       createdAt: new Date().toISOString().slice(0, 10),
       checklist: effectiveChecklist.map((text) => ({ done: false, text })),
@@ -4287,22 +4313,102 @@ function CreateJobCard({
               />
             </div>
 
+            {/* Who's doing the work — internal groundstaff OR external vendor */}
+            <div style={{ marginTop: 12 }}>
+              <label className="field-label">
+                Who's doing the work? <span className="req">*</span>
+              </label>
+              <div className="seg">
+                <button
+                  type="button"
+                  className={`seg-btn ${assigneeKind === 'internal' ? 'on' : ''}`}
+                  onClick={() => setAssigneeKind('internal')}
+                >
+                  🧑‍🌾 Internal · groundstaff
+                </button>
+                <button
+                  type="button"
+                  className={`seg-btn ${assigneeKind === 'vendor' ? 'on' : ''}`}
+                  onClick={() => setAssigneeKind('vendor')}
+                  disabled={dispatchableVendors.length === 0}
+                  title={
+                    dispatchableVendors.length === 0
+                      ? 'No onboarded vendors yet — head to the Vendors tab'
+                      : ''
+                  }
+                >
+                  🏢 External · vendor
+                </button>
+              </div>
+            </div>
+
             <div className="field-grid-2" style={{ marginTop: 12 }}>
               <div>
-                <label className="field-label">
-                  Assign to <span className="req">*</span>
-                </label>
-                <select
-                  className="field-select"
-                  value={assigneeId}
-                  onChange={(e) => setAssigneeId(e.target.value)}
-                >
-                  {staff.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} · {s.role}
-                    </option>
-                  ))}
-                </select>
+                {assigneeKind === 'internal' ? (
+                  <>
+                    <label className="field-label">
+                      Staff member <span className="req">*</span>
+                    </label>
+                    <select
+                      className="field-select"
+                      value={assigneeId}
+                      onChange={(e) => setAssigneeId(e.target.value)}
+                    >
+                      {staff.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} · {s.role}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                ) : (
+                  <>
+                    <label className="field-label">
+                      Vendor <span className="req">*</span>
+                      <span
+                        style={{
+                          marginLeft: 8,
+                          fontSize: 10,
+                          fontWeight: 700,
+                          color: 'var(--green)',
+                        }}
+                      >
+                        · {dispatchableVendors.length} onboarded
+                      </span>
+                    </label>
+                    <select
+                      className="field-select"
+                      value={vendorId}
+                      onChange={(e) => setVendorId(e.target.value)}
+                    >
+                      {dispatchableVendors.length === 0 && (
+                        <option value="">No onboarded vendors — visit Vendors tab</option>
+                      )}
+                      {dispatchableVendors.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.name} · {v.category}
+                          {v.rating > 0 ? ` · ⭐ ${v.rating.toFixed(1)}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {vendorId && (
+                      <div className="jobmodal-vendor-hint">
+                        {(() => {
+                          const v = dispatchableVendors.find((x) => x.id === vendorId);
+                          if (!v) return null;
+                          return (
+                            <>
+                              📞 {v.contactPerson} · {v.phone}
+                              {v.services?.length > 0 && (
+                                <span style={{ color: 'var(--muted-2)' }}> · {v.services.slice(0, 2).join(', ')}</span>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
               <div>
                 <label className="field-label">
@@ -4554,6 +4660,48 @@ function FacilityAssetsTab({
           tabs.
         </div>
       </div>
+
+      {/* Assessment status dashboard — 3 tiles at a glance */}
+      {(() => {
+        const overdue = inventory.filter((i) => i.status.tone === 'coral').length;
+        const dueSoon = inventory.filter((i) => i.status.tone === 'gold').length;
+        const current = inventory.filter((i) => i.status.tone === 'teal').length;
+        const pct = inventory.length ? Math.round((current / inventory.length) * 100) : 0;
+        return (
+          <div className="fac-assess-dash">
+            <div className={`fac-assess-tile ${overdue > 0 ? 'coral' : ''}`}>
+              <div className="fac-assess-tile-l">Overdue</div>
+              <div className="fac-assess-tile-n">{overdue}</div>
+              <div className="fac-assess-tile-meta">
+                {overdue > 0 ? 'Never assessed or >30 days' : 'None outstanding'}
+              </div>
+            </div>
+            <div className={`fac-assess-tile ${dueSoon > 0 ? 'gold' : ''}`}>
+              <div className="fac-assess-tile-l">Due soon</div>
+              <div className="fac-assess-tile-n">{dueSoon}</div>
+              <div className="fac-assess-tile-meta">Assessed 14–30 days ago</div>
+            </div>
+            <div className={`fac-assess-tile ${current > 0 ? 'teal' : ''}`}>
+              <div className="fac-assess-tile-l">Current</div>
+              <div className="fac-assess-tile-n">{current}</div>
+              <div className="fac-assess-tile-meta">Assessed in the last 14 days</div>
+            </div>
+            <div className="fac-assess-tile progress">
+              <div className="fac-assess-tile-l">Assessment coverage</div>
+              <div className="fac-assess-tile-n">
+                {pct}
+                <span>%</span>
+              </div>
+              <div className="fac-assess-tile-bar">
+                <div className="fac-assess-tile-bar-fill" style={{ width: `${pct}%` }} />
+              </div>
+              <div className="fac-assess-tile-meta">
+                {current} of {inventory.length} assets current
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Top-of-tab: pick an asset to assess + add asset */}
       <div className="fac-assets-toolbar">
@@ -4984,37 +5132,51 @@ const ASSET_CATEGORIES = [
 
 function AddAssetModal({ facility, onSubmit, onCancel }) {
   const [category, setCategory] = useState(ASSET_CATEGORIES[0].key);
+  const [categoryOther, setCategoryOther] = useState('');
   const [subType, setSubType] = useState('');
+  const [subTypeOther, setSubTypeOther] = useState('');
   const [description, setDescription] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [condition, setCondition] = useState(4);
   const [purchaseCost, setPurchaseCost] = useState('');
   const [purchaseDate, setPurchaseDate] = useState('');
   const [supplier, setSupplier] = useState('');
+  const [supplierOther, setSupplierOther] = useState('');
   const [warranty, setWarranty] = useState('');
   const [notes, setNotes] = useState('');
 
   const catObj = ASSET_CATEGORIES.find((c) => c.key === category) || ASSET_CATEGORIES[0];
   const subTypeOptions = FACILITY_OPTIONS.assetSubType[category] || [];
-  const canSubmit = category && quantity > 0;
+  // Effective values honour "Other" free-text overrides.
+  const effectiveCategory = category === 'Other' ? categoryOther.trim() || 'Other' : category;
+  const effectiveSubType = subType === 'Other' ? subTypeOther.trim() : subType;
+  const effectiveSupplier = supplier?.startsWith('Other')
+    ? supplierOther.trim() || supplier
+    : supplier;
+  const canSubmit =
+    category &&
+    quantity > 0 &&
+    (category !== 'Other' || categoryOther.trim().length > 0);
 
   // Reset subType when category changes so we don't hold a stale value.
   function changeCategory(k) {
     setCategory(k);
     setSubType('');
+    setSubTypeOther('');
+    if (k !== 'Other') setCategoryOther('');
   }
 
   function submit() {
     if (!canSubmit) return;
     onSubmit({
-      category,
-      subType: subType || null,
+      category: effectiveCategory,
+      subType: effectiveSubType || null,
       description: description.trim(),
       quantity: Number(quantity),
       condition: Number(condition),
       purchaseCost: purchaseCost ? Number(purchaseCost) : 0,
       purchaseDate: purchaseDate || null,
-      supplier: supplier || null,
+      supplier: effectiveSupplier || null,
       warranty: warranty || null,
       notes: notes.trim(),
       lastAssessed: null,
@@ -5052,6 +5214,19 @@ function AddAssetModal({ facility, onSubmit, onCancel }) {
                 </button>
               ))}
             </div>
+            {category === 'Other' && (
+              <div style={{ marginTop: 10 }}>
+                <label className="field-label">
+                  Specify asset type <span className="req">*</span>
+                </label>
+                <input
+                  className="field-input"
+                  placeholder="e.g. Weather station · Vehicle · Storage container"
+                  value={categoryOther}
+                  onChange={(e) => setCategoryOther(e.target.value)}
+                />
+              </div>
+            )}
           </div>
 
           {/* STEP 2 — details */}
@@ -5072,7 +5247,17 @@ function AddAssetModal({ facility, onSubmit, onCancel }) {
                       {o}
                     </option>
                   ))}
+                  <option value="Other">Other…</option>
                 </select>
+                {subType === 'Other' && (
+                  <input
+                    className="field-input"
+                    style={{ marginTop: 8 }}
+                    placeholder="Specify sub-type…"
+                    value={subTypeOther}
+                    onChange={(e) => setSubTypeOther(e.target.value)}
+                  />
+                )}
               </div>
             )}
 
@@ -5113,6 +5298,15 @@ function AddAssetModal({ facility, onSubmit, onCancel }) {
                     </option>
                   ))}
                 </select>
+                {supplier?.startsWith('Other') && (
+                  <input
+                    className="field-input"
+                    style={{ marginTop: 8 }}
+                    placeholder="Specify supplier…"
+                    value={supplierOther}
+                    onChange={(e) => setSupplierOther(e.target.value)}
+                  />
+                )}
               </div>
               <div>
                 <label className="field-label">Warranty</label>
@@ -5230,26 +5424,37 @@ function getAssetAt(assets, path) {
 /* ─── AddCapexModal · propose a capex item for the financial year ─── */
 function AddCapexModal({ facility, onSubmit, onCancel }) {
   const [asset, setAsset] = useState(FACILITY_OPTIONS.assetCategory[0]);
+  const [assetOther, setAssetOther] = useState('');
   const [title, setTitle] = useState('');
   const [justify, setJustify] = useState('');
   const [cost, setCost] = useState('');
   const [priority, setPriority] = useState('medium');
   const [targetYear, setTargetYear] = useState(FACILITY_OPTIONS.targetYear[0]);
   const [funder, setFunder] = useState(FACILITY_OPTIONS.funder[0]);
+  const [funderOther, setFunderOther] = useState('');
   const [status, setStatus] = useState('draft');
 
-  const canSubmit = title.trim() && justify.trim() && Number(cost) > 0;
+  // Free-text "Other" overrides for asset + funder.
+  const effectiveAsset = asset === 'Other' ? assetOther.trim() || 'Other' : asset;
+  const effectiveFunder = funder === 'Other' ? funderOther.trim() || 'Other' : funder;
+
+  const canSubmit =
+    title.trim() &&
+    justify.trim() &&
+    Number(cost) > 0 &&
+    (asset !== 'Other' || assetOther.trim().length > 0) &&
+    (funder !== 'Other' || funderOther.trim().length > 0);
 
   function submit() {
     if (!canSubmit) return;
     onSubmit({
-      asset,
+      asset: effectiveAsset,
       title: title.trim(),
       justify: justify.trim(),
       cost: Number(cost),
       priority,
       targetYear,
-      funder,
+      funder: effectiveFunder,
       status,
     });
   }
@@ -5278,6 +5483,15 @@ function AddCapexModal({ facility, onSubmit, onCancel }) {
                   <option key={o} value={o}>{o}</option>
                 ))}
               </select>
+              {asset === 'Other' && (
+                <input
+                  className="field-input"
+                  style={{ marginTop: 8 }}
+                  placeholder="Specify asset category…"
+                  value={assetOther}
+                  onChange={(e) => setAssetOther(e.target.value)}
+                />
+              )}
             </div>
           </div>
 
@@ -5372,13 +5586,22 @@ function AddCapexModal({ facility, onSubmit, onCancel }) {
                   <option key={o} value={o}>{o}</option>
                 ))}
               </select>
+              {funder === 'Other' && (
+                <input
+                  className="field-input"
+                  style={{ marginTop: 8 }}
+                  placeholder="Specify funder…"
+                  value={funderOther}
+                  onChange={(e) => setFunderOther(e.target.value)}
+                />
+              )}
             </div>
           </div>
         </div>
 
         <div className="jobmodal-footer">
           <div className="jobmodal-footer-summary">
-            <strong>{asset}</strong> · target{' '}
+            <strong>{effectiveAsset}</strong> · target{' '}
             <strong>{targetYear}</strong> · <strong>R {(Number(cost) || 0).toLocaleString()}</strong>
           </div>
           <div className="jobmodal-footer-actions">
@@ -5821,6 +6044,648 @@ function FacilityInvestmentTab({ facility, capex: capexProp, onCreateJob, onAddC
   );
 }
 
+/* ─── AdminVendors · roster + onboarding lifecycle ─── */
+function AdminVendors({ toast }) {
+  const [vendors, setVendors] = useState(VENDORS);
+  const [filter, setFilter] = useState('all');
+  const [query, setQuery] = useState('');
+  const [onboarding, setOnboarding] = useState(false);
+  const [detailId, setDetailId] = useState(null);
+
+  function addVendor(v) {
+    setVendors((prev) => [...prev, { ...v, id: 'v-' + Date.now() }]);
+    setOnboarding(false);
+    toast?.(`${v.name} onboarded · status: ${v.status}`);
+  }
+  function updateStatus(id, next) {
+    setVendors((prev) =>
+      prev.map((v) => (v.id === id ? { ...v, status: next, onboardedAt: next === 'onboarded' ? new Date().toISOString().slice(0, 10) : v.onboardedAt } : v))
+    );
+    toast?.(`Vendor moved to ${next}`);
+  }
+
+  const onboarded = vendors.filter((v) => v.status === 'onboarded').length;
+  const pending = vendors.filter((v) => v.status === 'submitted' || v.status === 'verified').length;
+  const suspended = vendors.filter((v) => v.status === 'suspended').length;
+  const draft = vendors.filter((v) => v.status === 'draft').length;
+
+  const filtered = vendors
+    .filter((v) => (filter === 'all' ? true : v.status === filter))
+    .filter((v) =>
+      !query.trim()
+        ? true
+        : (v.name + ' ' + v.category + ' ' + v.contactPerson + ' ' + (v.services || []).join(' '))
+            .toLowerCase()
+            .includes(query.toLowerCase())
+    );
+
+  const detailVendor = detailId ? vendors.find((v) => v.id === detailId) : null;
+
+  return (
+    <div>
+      <div className="page-head">
+        <div className="ph-left">
+          <div className="ph-crumb">Lions · Admin Console / Vendors</div>
+          <h1 className="ph-title">
+            Vendors &amp; <em>Suppliers</em>
+          </h1>
+          <p className="ph-desc">
+            Approved external contractors and equipment suppliers. Onboard a vendor once (company
+            details, compliance, banking) and dispatch job cards to them from any facility.
+          </p>
+        </div>
+        <div className="ph-actions">
+          <Btn tone="outline" size="sm" icon={Icon.Download}>
+            Export
+          </Btn>
+          <Btn tone="teal" size="sm" icon={Icon.Plus} onClick={() => setOnboarding(true)}>
+            Onboard vendor
+          </Btn>
+        </div>
+      </div>
+
+      {/* KPI strip */}
+      <div className="players-stats">
+        <div className="players-stat">
+          <div className="players-stat-l">Total vendors</div>
+          <div className="players-stat-n">{vendors.length}</div>
+        </div>
+        <div className="players-stat">
+          <div className="players-stat-l">Onboarded</div>
+          <div className="players-stat-n" style={{ color: 'var(--green)' }}>
+            {onboarded}
+          </div>
+        </div>
+        <div className="players-stat">
+          <div className="players-stat-l">Pending review</div>
+          <div className="players-stat-n" style={{ color: onboarded ? 'var(--gold)' : 'var(--ink)' }}>
+            {pending + draft}
+          </div>
+        </div>
+        <div className="players-stat">
+          <div className="players-stat-l">Suspended</div>
+          <div className="players-stat-n" style={{ color: suspended ? 'var(--coral)' : 'var(--ink)' }}>
+            {suspended}
+          </div>
+        </div>
+      </div>
+
+      {/* Filter + search row */}
+      <div className="filter-row" style={{ marginTop: 14 }}>
+        {[
+          { k: 'all', l: 'All', n: vendors.length },
+          { k: 'onboarded', l: 'Onboarded', n: onboarded },
+          { k: 'verified', l: 'Verified', n: vendors.filter((v) => v.status === 'verified').length },
+          { k: 'submitted', l: 'Submitted', n: vendors.filter((v) => v.status === 'submitted').length },
+          { k: 'draft', l: 'Draft', n: draft },
+          { k: 'suspended', l: 'Suspended', n: suspended },
+        ].map((b) => (
+          <button
+            key={b.k}
+            className={`filter-pill ${filter === b.k ? 'active' : ''}`}
+            onClick={() => setFilter(b.k)}
+          >
+            {b.l} <span style={{ opacity: 0.7, marginLeft: 4 }}>{b.n}</span>
+          </button>
+        ))}
+        <input
+          className="field-input"
+          style={{ maxWidth: 260, marginLeft: 'auto', height: 36 }}
+          placeholder="Search vendor · service · contact…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      </div>
+
+      {/* Vendors table */}
+      <div className="tbl-w" style={{ marginTop: 14 }}>
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th>Vendor</th>
+              <th>Category</th>
+              <th>Contact</th>
+              <th>Services</th>
+              <th style={{ textAlign: 'right' }}>Rating · Jobs</th>
+              <th>Status</th>
+              <th style={{ width: 100 }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((v) => (
+              <tr key={v.id} className="clickable" onClick={() => setDetailId(v.id)}>
+                <td>
+                  <div
+                    style={{
+                      fontFamily: "'Montserrat',sans-serif",
+                      fontWeight: 800,
+                      fontSize: 13,
+                      color: 'var(--ink)',
+                    }}
+                  >
+                    {v.name}
+                  </div>
+                  <div style={{ fontSize: 10.5, color: 'var(--muted)' }}>{v.address}</div>
+                </td>
+                <td>
+                  <Pill tone="navy">{v.category}</Pill>
+                </td>
+                <td>
+                  <div style={{ fontSize: 12.5, fontFamily: "'Montserrat',sans-serif", fontWeight: 600 }}>
+                    {v.contactPerson}
+                  </div>
+                  <div style={{ fontSize: 10.5, color: 'var(--muted)', fontFamily: "'Montserrat',sans-serif" }}>
+                    {v.phone}
+                  </div>
+                </td>
+                <td>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: 'var(--muted)',
+                      fontFamily: "'Montserrat',sans-serif",
+                      lineHeight: 1.45,
+                      maxWidth: 240,
+                    }}
+                  >
+                    {(v.services || []).slice(0, 3).join(' · ') || '—'}
+                    {(v.services || []).length > 3 && ` +${v.services.length - 3}`}
+                  </div>
+                </td>
+                <td style={{ textAlign: 'right' }}>
+                  <div
+                    style={{
+                      fontFamily: "'Montserrat',sans-serif",
+                      fontWeight: 800,
+                      fontSize: 14,
+                      color: v.rating >= 4 ? 'var(--green)' : v.rating > 0 ? 'var(--ink)' : 'var(--muted-2)',
+                    }}
+                  >
+                    {v.rating > 0 ? v.rating.toFixed(1) : '—'}
+                    <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 6 }}>
+                      / 5
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 10.5, color: 'var(--muted)' }}>
+                    {v.jobsCompleted || 0} jobs
+                  </div>
+                </td>
+                <td>
+                  <Pill tone={vendorStatusTone(v.status)} dot>
+                    {v.status[0].toUpperCase() + v.status.slice(1)}
+                  </Pill>
+                </td>
+                <td style={{ textAlign: 'right', paddingRight: 14 }}>
+                  <Icon.Arrow />
+                </td>
+              </tr>
+            ))}
+            {filtered.length === 0 && (
+              <tr>
+                <td colSpan="7" style={{ padding: 28, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+                  No vendors match this filter.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Onboarding modal */}
+      {onboarding &&
+        ReactDOM.createPortal(
+          <VendorOnboardModal onSubmit={addVendor} onCancel={() => setOnboarding(false)} />,
+          document.body
+        )}
+
+      {/* Vendor detail drawer */}
+      {detailVendor &&
+        ReactDOM.createPortal(
+          <VendorDetailDrawer
+            vendor={detailVendor}
+            onClose={() => setDetailId(null)}
+            onUpdateStatus={updateStatus}
+          />,
+          document.body
+        )}
+    </div>
+  );
+}
+
+function VendorOnboardModal({ onSubmit, onCancel }) {
+  const [name, setName] = useState('');
+  const [category, setCategory] = useState(VENDOR_CATEGORIES[0]);
+  const [categoryOther, setCategoryOther] = useState('');
+  const [contactPerson, setContactPerson] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [address, setAddress] = useState('');
+  const [vatNumber, setVatNumber] = useState('');
+  const [beeLevel, setBeeLevel] = useState('');
+  const [insuranceExpiry, setInsuranceExpiry] = useState('');
+  const [bankName, setBankName] = useState('');
+  const [bankAccount, setBankAccount] = useState('');
+  const [services, setServices] = useState([]);
+  const [notes, setNotes] = useState('');
+  const [status, setStatus] = useState('submitted');
+
+  const effectiveCategory = category === 'Other' ? categoryOther.trim() || 'Other' : category;
+  const canSubmit =
+    name.trim() &&
+    contactPerson.trim() &&
+    phone.trim() &&
+    email.trim() &&
+    (category !== 'Other' || categoryOther.trim().length > 0);
+
+  function toggleService(s) {
+    setServices((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
+  }
+
+  function submit() {
+    if (!canSubmit) return;
+    onSubmit({
+      name: name.trim(),
+      category: effectiveCategory,
+      contactPerson: contactPerson.trim(),
+      phone: phone.trim(),
+      email: email.trim(),
+      address: address.trim(),
+      vatNumber: vatNumber.trim(),
+      beeLevel,
+      insuranceExpiry: insuranceExpiry || null,
+      bankName,
+      bankAccount: bankAccount.trim(),
+      services,
+      notes: notes.trim(),
+      rating: 0,
+      jobsCompleted: 0,
+      status,
+      onboardedAt: status === 'onboarded' ? new Date().toISOString().slice(0, 10) : null,
+    });
+  }
+
+  return (
+    <div className="fix-confirm" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div className="fix-confirm-box jobmodal-box">
+        <div className="fac-jobmodal-head">
+          <div>
+            <div className="fac-detail-eyebrow">Vendor onboarding</div>
+            <div className="fac-jobmodal-title">Onboard a new vendor</div>
+          </div>
+          <button className="fac-detail-close" onClick={onCancel}>
+            <Icon.X />
+          </button>
+        </div>
+
+        <div className="fac-jobmodal-body">
+          {/* Step 1: Company */}
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">Step 1 · Company details</div>
+            <div className="field-grid-2">
+              <div>
+                <label className="field-label">Vendor name <span className="req">*</span></label>
+                <input
+                  className="field-input"
+                  placeholder="e.g. Green Turf Solutions"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="field-label">Category <span className="req">*</span></label>
+                <select
+                  className="field-select"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                >
+                  {VENDOR_CATEGORIES.map((c) => (
+                    <option key={c}>{c}</option>
+                  ))}
+                </select>
+                {category === 'Other' && (
+                  <input
+                    className="field-input"
+                    style={{ marginTop: 8 }}
+                    placeholder="Specify category…"
+                    value={categoryOther}
+                    onChange={(e) => setCategoryOther(e.target.value)}
+                  />
+                )}
+              </div>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <label className="field-label">Business address</label>
+              <input
+                className="field-input"
+                placeholder="Street · Suburb · City"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Step 2: Contact */}
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">Step 2 · Primary contact</div>
+            <div className="field-grid-2">
+              <div>
+                <label className="field-label">Contact person <span className="req">*</span></label>
+                <input
+                  className="field-input"
+                  placeholder="Name"
+                  value={contactPerson}
+                  onChange={(e) => setContactPerson(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="field-label">Phone <span className="req">*</span></label>
+                <input
+                  className="field-input"
+                  placeholder="083 000 0000"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                />
+              </div>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <label className="field-label">Email <span className="req">*</span></label>
+              <input
+                className="field-input"
+                type="email"
+                placeholder="you@vendor.co.za"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Step 3: Compliance */}
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">Step 3 · Compliance</div>
+            <div className="field-grid-2">
+              <div>
+                <label className="field-label">VAT number</label>
+                <input
+                  className="field-input"
+                  placeholder="0000000000"
+                  value={vatNumber}
+                  onChange={(e) => setVatNumber(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="field-label">B-BBEE level</label>
+                <select
+                  className="field-select"
+                  value={beeLevel}
+                  onChange={(e) => setBeeLevel(e.target.value)}
+                >
+                  <option value="">Select level…</option>
+                  {BEE_LEVELS.map((l) => (
+                    <option key={l}>{l}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <label className="field-label">Public-liability insurance expiry</label>
+              <input
+                type="date"
+                className="field-input"
+                value={insuranceExpiry}
+                onChange={(e) => setInsuranceExpiry(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Step 4: Banking */}
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">Step 4 · Banking</div>
+            <div className="field-grid-2">
+              <div>
+                <label className="field-label">Bank</label>
+                <select
+                  className="field-select"
+                  value={bankName}
+                  onChange={(e) => setBankName(e.target.value)}
+                >
+                  <option value="">Select bank…</option>
+                  {['Standard Bank', 'FNB', 'Absa', 'Nedbank', 'Capitec', 'Investec', 'African Bank', 'Discovery Bank', 'Other'].map((b) => (
+                    <option key={b}>{b}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="field-label">Account (last 4 digits)</label>
+                <input
+                  className="field-input"
+                  placeholder="1234"
+                  maxLength={4}
+                  value={bankAccount}
+                  onChange={(e) => setBankAccount(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Step 5: Services */}
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">Step 5 · Services offered</div>
+            <div className="vendor-services-grid">
+              {VENDOR_SERVICES.map((s) => (
+                <label key={s} className={`vendor-service ${services.includes(s) ? 'on' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={services.includes(s)}
+                    onChange={() => toggleService(s)}
+                  />
+                  <span>{s}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Step 6: Notes + status */}
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">Step 6 · Onboarding status</div>
+            <div>
+              <label className="field-label">Notes / references</label>
+              <textarea
+                className="field-textarea"
+                rows={3}
+                placeholder="Referrals, past work with the union, anything the next admin needs to know…"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <label className="field-label">Save as</label>
+              <select
+                className="field-select"
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+              >
+                {VENDOR_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s[0].toUpperCase() + s.slice(1)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="jobmodal-footer">
+          <div className="jobmodal-footer-summary">
+            <strong>{name || 'Unnamed vendor'}</strong> · {effectiveCategory} ·{' '}
+            <strong>{services.length}</strong> service{services.length === 1 ? '' : 's'} · status{' '}
+            <strong>{status}</strong>
+          </div>
+          <div className="jobmodal-footer-actions">
+            <Btn tone="outline" onClick={onCancel}>Cancel</Btn>
+            <Btn tone="teal" icon={Icon.Check} onClick={submit} disabled={!canSubmit}>
+              Save vendor
+            </Btn>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VendorDetailDrawer({ vendor, onClose, onUpdateStatus }) {
+  return (
+    <div className="fix-confirm" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="fix-confirm-box jobmodal-box">
+        <div className="fac-jobmodal-head">
+          <div>
+            <div className="fac-detail-eyebrow">{vendor.category}</div>
+            <div className="fac-jobmodal-title">{vendor.name}</div>
+            <div style={{ marginTop: 6, display: 'flex', gap: 8, alignItems: 'center' }}>
+              <Pill tone={vendorStatusTone(vendor.status)} dot>
+                {vendor.status[0].toUpperCase() + vendor.status.slice(1)}
+              </Pill>
+              {vendor.rating > 0 && (
+                <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+                  ⭐ {vendor.rating.toFixed(1)} · {vendor.jobsCompleted} jobs
+                </span>
+              )}
+            </div>
+          </div>
+          <button className="fac-detail-close" onClick={onClose}>
+            <Icon.X />
+          </button>
+        </div>
+
+        <div className="fac-jobmodal-body">
+          <div className="vendor-detail-grid">
+            <div>
+              <div className="fac-detail-l">Contact</div>
+              <div className="fac-detail-v">{vendor.contactPerson}</div>
+              <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>
+                {vendor.phone} · {vendor.email}
+              </div>
+            </div>
+            <div>
+              <div className="fac-detail-l">Address</div>
+              <div className="fac-detail-v" style={{ fontSize: 13 }}>{vendor.address}</div>
+            </div>
+            <div>
+              <div className="fac-detail-l">VAT</div>
+              <div className="fac-detail-v" style={{ fontSize: 13 }}>{vendor.vatNumber || '—'}</div>
+            </div>
+            <div>
+              <div className="fac-detail-l">B-BBEE</div>
+              <div className="fac-detail-v" style={{ fontSize: 13 }}>{vendor.beeLevel || '—'}</div>
+            </div>
+            <div>
+              <div className="fac-detail-l">Insurance expires</div>
+              <div className="fac-detail-v" style={{ fontSize: 13 }}>
+                {vendor.insuranceExpiry
+                  ? new Date(vendor.insuranceExpiry).toLocaleDateString('en-GB', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })
+                  : '—'}
+              </div>
+            </div>
+            <div>
+              <div className="fac-detail-l">Banking</div>
+              <div className="fac-detail-v" style={{ fontSize: 13 }}>
+                {vendor.bankName || '—'}{' '}
+                <span style={{ color: 'var(--muted)', fontWeight: 500 }}>{vendor.bankAccount}</span>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 16 }}>
+            <div className="fac-detail-l">Services offered</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+              {(vendor.services || []).map((s) => (
+                <Pill key={s} tone="navy">{s}</Pill>
+              ))}
+              {(vendor.services || []).length === 0 && (
+                <span style={{ fontSize: 12, color: 'var(--muted)' }}>None declared</span>
+              )}
+            </div>
+          </div>
+
+          {vendor.notes && (
+            <div style={{ marginTop: 16 }}>
+              <div className="fac-detail-l">Notes</div>
+              <div
+                style={{
+                  marginTop: 6,
+                  padding: 10,
+                  background: 'var(--paper)',
+                  borderRadius: 8,
+                  fontFamily: "'Montserrat',sans-serif",
+                  fontSize: 12.5,
+                  color: 'var(--ink)',
+                  lineHeight: 1.5,
+                }}
+              >
+                {vendor.notes}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="jobmodal-footer">
+          <div className="jobmodal-footer-summary">
+            {vendor.onboardedAt
+              ? `Onboarded ${new Date(vendor.onboardedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
+              : 'Not yet onboarded'}
+          </div>
+          <div className="jobmodal-footer-actions" style={{ flexWrap: 'wrap' }}>
+            {vendor.status === 'submitted' && (
+              <Btn tone="outline" size="sm" onClick={() => onUpdateStatus(vendor.id, 'verified')}>
+                Mark verified
+              </Btn>
+            )}
+            {(vendor.status === 'verified' || vendor.status === 'submitted') && (
+              <Btn tone="teal" size="sm" icon={Icon.Check} onClick={() => onUpdateStatus(vendor.id, 'onboarded')}>
+                Onboard
+              </Btn>
+            )}
+            {vendor.status === 'onboarded' && (
+              <Btn tone="outline" size="sm" onClick={() => onUpdateStatus(vendor.id, 'suspended')}>
+                Suspend
+              </Btn>
+            )}
+            {vendor.status === 'suspended' && (
+              <Btn tone="teal" size="sm" onClick={() => onUpdateStatus(vendor.id, 'onboarded')}>
+                Reinstate
+              </Btn>
+            )}
+            <Btn tone="outline" onClick={onClose}>Close</Btn>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export {
   AdminDashboard,
   AdminClubsList,
@@ -5829,4 +6694,5 @@ export {
   CreateSeriesForm,
   AdminClearances,
   AdminFacilities,
+  AdminVendors,
 };
