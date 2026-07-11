@@ -8161,6 +8161,256 @@
         background: rgba(15, 77, 46, 0.05);
       }
 
+      /* ─── Structured issue logger inside the AssessmentEditor ─── */
+      .assess-issues-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+        margin-bottom: 10px;
+      }
+      .assess-issues-subhead {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11.5px;
+        color: var(--muted);
+        margin-top: 3px;
+      }
+      .assess-log-btn {
+        background: var(--ink);
+        color: #fff;
+        border: 0;
+        border-radius: 8px;
+        padding: 8px 14px;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11.5px;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .assess-log-btn:hover {
+        background: var(--green);
+      }
+
+      /* Quick-tag category chip grid */
+      .assess-cat-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 6px;
+      }
+      .assess-cat-chip {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 12px;
+        background: var(--white);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        cursor: pointer;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11.5px;
+        font-weight: 700;
+        color: var(--ink);
+        text-align: left;
+        transition:
+          border-color 0.15s ease,
+          background 0.15s ease,
+          transform 0.15s ease;
+      }
+      .assess-cat-chip:hover {
+        border-color: var(--ink3);
+        transform: translateY(-1px);
+      }
+      .assess-cat-chip.on {
+        background: var(--ink);
+        color: #fff;
+        border-color: var(--ink);
+      }
+      .assess-cat-chip-icon {
+        font-size: 15px;
+        line-height: 1;
+      }
+
+      /* Inline logger form */
+      .assess-logger {
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 14px 16px;
+      }
+      .assess-logger-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      /* Severity chip row */
+      .assess-sev-row {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+      }
+      .assess-sev-chip {
+        background: var(--white);
+        border: 1.5px solid var(--line);
+        border-radius: 10px;
+        padding: 10px 12px;
+        cursor: pointer;
+        text-align: left;
+        transition:
+          border-color 0.15s ease,
+          background 0.15s ease;
+      }
+      .assess-sev-chip:hover {
+        border-color: var(--ink3);
+      }
+      .assess-sev-label {
+        display: block;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 12.5px;
+        font-weight: 800;
+        color: var(--ink);
+        letter-spacing: -0.01em;
+        margin-bottom: 3px;
+      }
+      .assess-sev-desc {
+        display: block;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10.5px;
+        color: var(--muted);
+        line-height: 1.4;
+      }
+      .assess-sev-chip.on.tone-coral {
+        border-color: #C33;
+        background: rgba(200, 51, 51, 0.08);
+      }
+      .assess-sev-chip.on.tone-gold {
+        border-color: #B79420;
+        background: rgba(183, 148, 32, 0.08);
+      }
+      .assess-sev-chip.on.tone-muted {
+        border-color: var(--muted);
+        background: var(--paper);
+      }
+      .assess-sev-chip.on.tone-coral .assess-sev-label {
+        color: #C33;
+      }
+      .assess-sev-chip.on.tone-gold .assess-sev-label {
+        color: #B79420;
+      }
+
+      /* Logged issue cards */
+      .assess-issue-list {
+        margin-top: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .assess-issue-card {
+        background: var(--white);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 12px 14px;
+        border-left: 4px solid var(--muted);
+      }
+      .assess-issue-card.tone-coral {
+        border-left-color: #C33;
+        background: rgba(200, 51, 51, 0.03);
+      }
+      .assess-issue-card.tone-gold {
+        border-left-color: #B79420;
+        background: rgba(183, 148, 32, 0.03);
+      }
+      .assess-issue-card.tone-muted {
+        border-left-color: var(--muted);
+      }
+      .assess-issue-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+      }
+      .assess-issue-cat {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .assess-issue-cat-icon {
+        font-size: 20px;
+        line-height: 1;
+      }
+      .assess-issue-cat-l {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 13px;
+        font-weight: 800;
+        color: var(--ink);
+        letter-spacing: -0.01em;
+      }
+      .assess-issue-loc {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10.5px;
+        color: var(--muted);
+        margin-top: 1px;
+      }
+      .assess-issue-controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .assess-issue-sev {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 4px 8px;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11px;
+        font-weight: 800;
+        background: var(--white);
+        cursor: pointer;
+      }
+      .assess-issue-sev.tone-coral {
+        color: #C33;
+        border-color: rgba(200, 51, 51, 0.4);
+      }
+      .assess-issue-sev.tone-gold {
+        color: #B79420;
+        border-color: rgba(183, 148, 32, 0.4);
+      }
+      .assess-issue-sev.tone-muted {
+        color: var(--muted);
+      }
+      .assess-issue-notes {
+        margin-top: 8px;
+        width: 100%;
+        background: transparent;
+        border: 0;
+        border-bottom: 1px dashed var(--line2);
+        font-family: 'Montserrat', sans-serif;
+        font-size: 12px;
+        color: var(--muted);
+        padding: 4px 0;
+      }
+      .assess-issue-notes:focus {
+        outline: none;
+        border-bottom-color: var(--green);
+        color: var(--ink);
+      }
+
+      /* Asset cards: styled by severity when issues render on the Asset assessment tab */
+      .fac-issue.tone-coral {
+        color: #C33;
+        border-left: 2px solid #C33;
+        padding-left: 8px;
+      }
+      .fac-issue.tone-gold {
+        color: #B79420;
+      }
+      .fac-issue-loc,
+      .fac-issue-notes {
+        color: var(--muted);
+        font-weight: 500;
+      }
+
       /* ─── Assessment mini-dashboard ─── */
       .fac-assess-dash {
         display: grid;

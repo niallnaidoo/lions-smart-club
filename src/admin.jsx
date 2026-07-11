@@ -53,6 +53,10 @@ import {
   VENDOR_SERVICES,
   BEE_LEVELS,
   vendorStatusTone,
+  ISSUE_SEVERITIES,
+  issueCategoriesFor,
+  issueLocationsFor,
+  severityTone,
   conditionWord,
   conditionTone,
   capexStatusTone,
@@ -4789,7 +4793,16 @@ function FacilityAssetsTab({
           <div className="fac-issues">
             <div className="fac-issues-l">Known issues · {pitch.issues.length}</div>
             {pitch.issues.map((i, x) => (
-              <div key={x} className="fac-issue">⚠ {i}</div>
+              <div key={x} className={`fac-issue tone-${severityTone(i?.severity)}`}>
+                {i?.icon || '⚠'}{' '}
+                {typeof i === 'string' ? i : (
+                  <>
+                    <strong>{i.category}</strong>
+                    {i.location && <span className="fac-issue-loc"> · 📍 {i.location}</span>}
+                    {i.notes && <span className="fac-issue-notes"> · {i.notes}</span>}
+                  </>
+                )}
+              </div>
             ))}
           </div>
         )}
@@ -4834,7 +4847,16 @@ function FacilityAssetsTab({
             <div className="fac-issues">
               <div className="fac-issues-l">Known issues · {covers.issues.length}</div>
               {covers.issues.map((i, x) => (
-                <div key={x} className="fac-issue">⚠ {i}</div>
+                <div key={x} className={`fac-issue tone-${severityTone(i?.severity)}`}>
+                {i?.icon || '⚠'}{' '}
+                {typeof i === 'string' ? i : (
+                  <>
+                    <strong>{i.category}</strong>
+                    {i.location && <span className="fac-issue-loc"> · 📍 {i.location}</span>}
+                    {i.notes && <span className="fac-issue-notes"> · {i.notes}</span>}
+                  </>
+                )}
+              </div>
               ))}
             </div>
           )}
@@ -4906,7 +4928,16 @@ function FacilityAssetsTab({
           <div className="fac-issues">
             <div className="fac-issues-l">Known issues · {outdoor.issues.length}</div>
             {outdoor.issues.map((i, x) => (
-              <div key={x} className="fac-issue">⚠ {i}</div>
+              <div key={x} className={`fac-issue tone-${severityTone(i?.severity)}`}>
+                {i?.icon || '⚠'}{' '}
+                {typeof i === 'string' ? i : (
+                  <>
+                    <strong>{i.category}</strong>
+                    {i.location && <span className="fac-issue-loc"> · 📍 {i.location}</span>}
+                    {i.notes && <span className="fac-issue-notes"> · {i.notes}</span>}
+                  </>
+                )}
+              </div>
             ))}
           </div>
         )}
@@ -4970,7 +5001,16 @@ function FacilityAssetsTab({
             <div className="fac-issues">
               <div className="fac-issues-l">Known issues</div>
               {bm.issues.map((i, x) => (
-                <div key={x} className="fac-issue">⚠ {i}</div>
+                <div key={x} className={`fac-issue tone-${severityTone(i?.severity)}`}>
+                {i?.icon || '⚠'}{' '}
+                {typeof i === 'string' ? i : (
+                  <>
+                    <strong>{i.category}</strong>
+                    {i.location && <span className="fac-issue-loc"> · 📍 {i.location}</span>}
+                    {i.notes && <span className="fac-issue-notes"> · {i.notes}</span>}
+                  </>
+                )}
+              </div>
               ))}
             </div>
           )}
@@ -5630,8 +5670,22 @@ function AssessmentEditor({ facility, assetKey, assets, customAssets = [], onSav
     title = ASSET_TITLES[assetKey] || assetKey;
   }
   const [condition, setCondition] = useState(initial.condition || 0);
-  const [issues, setIssues] = useState(initial.issues || []);
-  const [nextIssue, setNextIssue] = useState('');
+  // Normalize any legacy string issues into the structured shape so the
+  // UI can render them without special-casing further down.
+  const [issues, setIssues] = useState(() =>
+    (initial.issues || []).map((i) =>
+      typeof i === 'string'
+        ? {
+            category: 'Other',
+            categoryKey: 'other',
+            severity: 'moderate',
+            location: '',
+            notes: i,
+            icon: '⚠',
+          }
+        : i
+    )
+  );
   const [notes, setNotes] = useState(initial.assessmentNotes || '');
   const [assessedBy, setAssessedBy] = useState(
     initial.assessedBy || FACILITY_OWNERSHIP[facility.clubId].head.name
@@ -5641,14 +5695,52 @@ function AssessmentEditor({ facility, assetKey, assets, customAssets = [], onSav
     ...FACILITY_OWNERSHIP[facility.clubId].assistants,
   ];
 
-  function addIssue() {
-    if (!nextIssue.trim()) return;
-    setIssues((prev) => [...prev, nextIssue.trim()]);
-    setNextIssue('');
+  const categories = issueCategoriesFor(assetKey);
+  const locations = issueLocationsFor(assetKey);
+
+  // Add-issue state — a tiny inline form that appears when + Log issue is clicked.
+  const [logging, setLogging] = useState(false);
+  const [newCat, setNewCat] = useState(categories[0]?.key || 'other');
+  const [newCatOther, setNewCatOther] = useState('');
+  const [newSev, setNewSev] = useState('moderate');
+  const [newLoc, setNewLoc] = useState('');
+  const [newLocOther, setNewLocOther] = useState('');
+  const [newNotes, setNewNotes] = useState('');
+  const catObj = categories.find((c) => c.key === newCat) || categories[0];
+
+  function commitIssue() {
+    const catLabel = catObj?.key === 'other' && newCatOther.trim() ? newCatOther.trim() : catObj?.label;
+    const locLabel = newLoc === '__other' ? newLocOther.trim() : newLoc;
+    setIssues((prev) => [
+      ...prev,
+      {
+        category: catLabel,
+        categoryKey: catObj?.key || 'other',
+        icon: catObj?.icon || '⚠',
+        severity: newSev,
+        location: locLabel,
+        notes: newNotes.trim(),
+      },
+    ]);
+    setLogging(false);
+    setNewCat(categories[0]?.key || 'other');
+    setNewCatOther('');
+    setNewSev('moderate');
+    setNewLoc('');
+    setNewLocOther('');
+    setNewNotes('');
   }
   function removeIssue(i) {
     setIssues((prev) => prev.filter((_, x) => x !== i));
   }
+  function updateSeverity(i, sev) {
+    setIssues((prev) => prev.map((it, x) => (x === i ? { ...it, severity: sev } : it)));
+  }
+  function updateIssueField(i, field, value) {
+    setIssues((prev) => prev.map((it, x) => (x === i ? { ...it, [field]: value } : it)));
+  }
+
+  const canCommit = catObj && (catObj.key !== 'other' || newCatOther.trim().length > 0);
 
   function save() {
     onSave({
@@ -5659,6 +5751,9 @@ function AssessmentEditor({ facility, assetKey, assets, customAssets = [], onSav
       lastAssessed: new Date().toISOString().slice(0, 10),
     });
   }
+
+  const critCount = issues.filter((i) => i.severity === 'critical').length;
+  const modCount = issues.filter((i) => i.severity === 'moderate').length;
 
   return (
     <div className="fix-confirm" onClick={(e) => e.target === e.currentTarget && onCancel()}>
@@ -5712,37 +5807,193 @@ function AssessmentEditor({ facility, assetKey, assets, customAssets = [], onSav
             </div>
           </div>
 
-          {/* Issues */}
+          {/* Structured issues */}
           <div className="assess-section">
-            <label className="field-label">Issues found on inspection</label>
-            <div className="assess-issues">
-              {issues.length === 0 && (
-                <div className="assess-issues-empty">
-                  Nothing logged yet — add any wear, damage, or safety concerns below.
+            <div className="assess-issues-head">
+              <div>
+                <label className="field-label" style={{ margin: 0 }}>
+                  Issues found on inspection
+                </label>
+                <div className="assess-issues-subhead">
+                  {issues.length === 0
+                    ? 'Nothing logged yet — tap a category chip below or Log issue.'
+                    : `${issues.length} logged${critCount ? ` · ${critCount} critical` : ''}${modCount ? ` · ${modCount} moderate` : ''}`}
                 </div>
-              )}
-              {issues.map((iss, i) => (
-                <div key={i} className="assess-issue">
-                  <span className="assess-issue-icon">⚠</span>
-                  <span className="assess-issue-text">{iss}</span>
-                  <button className="assess-issue-remove" onClick={() => removeIssue(i)}>
-                    <Icon.X />
-                  </button>
-                </div>
-              ))}
-              <div className="assess-issue-add">
-                <input
-                  className="field-input"
-                  placeholder="e.g. Wear on middle strip, cover wheel bearing seized…"
-                  value={nextIssue}
-                  onChange={(e) => setNextIssue(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && addIssue()}
-                />
-                <Btn tone="outline" size="sm" onClick={addIssue}>
-                  Add
-                </Btn>
               </div>
+              <button className="assess-log-btn" onClick={() => setLogging(!logging)}>
+                {logging ? '× Cancel' : '+ Log issue'}
+              </button>
             </div>
+
+            {/* Quick-tag chip grid — one-tap common issues at this asset type */}
+            {!logging && (
+              <div className="assess-cat-grid">
+                {categories
+                  .filter((c) => c.key !== 'other')
+                  .map((c) => (
+                    <button
+                      key={c.key}
+                      type="button"
+                      className="assess-cat-chip"
+                      title={`Quick-log: ${c.label}`}
+                      onClick={() => {
+                        setNewCat(c.key);
+                        setLogging(true);
+                      }}
+                    >
+                      <span className="assess-cat-chip-icon">{c.icon}</span>
+                      <span>{c.label}</span>
+                    </button>
+                  ))}
+              </div>
+            )}
+
+            {/* Inline logger — appears when the admin is adding an issue */}
+            {logging && (
+              <div className="assess-logger">
+                <div>
+                  <label className="field-label">Category</label>
+                  <div className="assess-cat-grid">
+                    {categories.map((c) => (
+                      <button
+                        key={c.key}
+                        type="button"
+                        className={`assess-cat-chip ${newCat === c.key ? 'on' : ''}`}
+                        onClick={() => setNewCat(c.key)}
+                      >
+                        <span className="assess-cat-chip-icon">{c.icon}</span>
+                        <span>{c.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {catObj?.key === 'other' && (
+                    <input
+                      className="field-input"
+                      style={{ marginTop: 8 }}
+                      placeholder="Specify the issue category…"
+                      value={newCatOther}
+                      onChange={(e) => setNewCatOther(e.target.value)}
+                    />
+                  )}
+                </div>
+
+                <div style={{ marginTop: 12 }}>
+                  <label className="field-label">Severity</label>
+                  <div className="assess-sev-row">
+                    {ISSUE_SEVERITIES.map((s) => (
+                      <button
+                        key={s.key}
+                        type="button"
+                        className={`assess-sev-chip tone-${s.tone} ${newSev === s.key ? 'on' : ''}`}
+                        onClick={() => setNewSev(s.key)}
+                      >
+                        <span className="assess-sev-label">{s.label}</span>
+                        <span className="assess-sev-desc">{s.advice}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {locations.length > 0 && (
+                  <div style={{ marginTop: 12 }}>
+                    <label className="field-label">Location on asset (optional)</label>
+                    <select
+                      className="field-select"
+                      value={newLoc}
+                      onChange={(e) => setNewLoc(e.target.value)}
+                    >
+                      <option value="">— No specific location —</option>
+                      {locations.map((l) => (
+                        <option key={l} value={l}>
+                          {l}
+                        </option>
+                      ))}
+                      <option value="__other">Other…</option>
+                    </select>
+                    {newLoc === '__other' && (
+                      <input
+                        className="field-input"
+                        style={{ marginTop: 8 }}
+                        placeholder="Specify location…"
+                        value={newLocOther}
+                        onChange={(e) => setNewLocOther(e.target.value)}
+                      />
+                    )}
+                  </div>
+                )}
+
+                <div style={{ marginTop: 12 }}>
+                  <label className="field-label">Notes (optional)</label>
+                  <input
+                    className="field-input"
+                    placeholder="e.g. Right rear wheel · about 12mm long tear · sealed with tape as temp fix"
+                    value={newNotes}
+                    onChange={(e) => setNewNotes(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && canCommit && commitIssue()}
+                  />
+                </div>
+
+                <div className="assess-logger-actions">
+                  <Btn tone="outline" size="sm" onClick={() => setLogging(false)}>
+                    Cancel
+                  </Btn>
+                  <Btn tone="teal" size="sm" icon={Icon.Check} onClick={commitIssue} disabled={!canCommit}>
+                    Log this issue
+                  </Btn>
+                </div>
+              </div>
+            )}
+
+            {/* Existing issues render as coloured cards you can edit / remove */}
+            {issues.length > 0 && (
+              <div className="assess-issue-list">
+                {issues.map((iss, i) => {
+                  const tone = severityTone(iss.severity);
+                  return (
+                    <div key={i} className={`assess-issue-card tone-${tone}`}>
+                      <div className="assess-issue-top">
+                        <div className="assess-issue-cat">
+                          <span className="assess-issue-cat-icon">{iss.icon || '⚠'}</span>
+                          <div>
+                            <div className="assess-issue-cat-l">{iss.category}</div>
+                            {iss.location && <div className="assess-issue-loc">📍 {iss.location}</div>}
+                          </div>
+                        </div>
+                        <div className="assess-issue-controls">
+                          <select
+                            className={`assess-issue-sev tone-${tone}`}
+                            value={iss.severity || 'moderate'}
+                            onChange={(e) => updateSeverity(i, e.target.value)}
+                            title="Change severity"
+                          >
+                            {ISSUE_SEVERITIES.map((s) => (
+                              <option key={s.key} value={s.key}>
+                                {s.label}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            className="assess-issue-remove"
+                            onClick={() => removeIssue(i)}
+                            title="Remove issue"
+                          >
+                            <Icon.X />
+                          </button>
+                        </div>
+                      </div>
+                      {(iss.notes || iss.severity) && (
+                        <input
+                          className="assess-issue-notes"
+                          placeholder="Add a note about this issue…"
+                          value={iss.notes || ''}
+                          onChange={(e) => updateIssueField(i, 'notes', e.target.value)}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Attribution + notes */}

@@ -1148,6 +1148,110 @@ const FACILITY_JOBS = (() => {
   return jobs;
 })();
 
+/* ─── ISSUE catalog for physical inspections ───
+   Structured issues let the management team log what they see with a
+   click instead of typing prose. Categories are keyed off the asset
+   path so the picker adapts (a bowling machine can't have "turf wear"). */
+
+const ISSUE_SEVERITIES = [
+  { key: 'minor',    label: 'Minor',    tone: 'muted', advice: 'Note for next session · no immediate action' },
+  { key: 'moderate', label: 'Moderate', tone: 'gold',  advice: 'Schedule work within the month' },
+  { key: 'critical', label: 'Critical', tone: 'coral', advice: 'Blocks safe use · dispatch a job card now' },
+];
+
+const ISSUE_LOCATIONS = {
+  pitch: ['Middle strip', 'End 1 (north)', 'End 2 (south)', 'Popping crease', 'Outfield · long-on', 'Outfield · long-off', 'Boundary edge', 'Square', 'Whole strip'],
+  covers: ['Left cover', 'Right cover', 'Wheel assembly', 'Corner', 'Seams', 'Frame', 'Handles'],
+  'nets.outdoor': ['Lane 1', 'Lane 2', 'Lane 3', 'Lane 4', 'Lane 5', 'Lane 6', 'Side mesh', 'Rear net', 'Roof net', 'Concrete base', 'Fixings'],
+  'nets.indoor': ['Bay 1', 'Bay 2', 'Retractable curtain', 'Overhead', 'Fixings'],
+  'nets.bowlingMachines': ['Feeder mechanism', 'Delivery wheel', 'Motor', 'Power / cable', 'Chassis', 'Remote / control'],
+  support: ['Sightscreen · pavilion end', 'Sightscreen · far end', 'Scoreboard', 'Boundary rope', 'Boundary flags'],
+};
+
+const ISSUE_CATEGORIES = {
+  pitch: [
+    { key: 'turf-wear',     label: 'Turf wear',              icon: '🌿' },
+    { key: 'bare-patches',  label: 'Bare patches',           icon: '🟤' },
+    { key: 'uneven-bounce', label: 'Uneven bounce',          icon: '📉' },
+    { key: 'settlement',    label: 'Settlement',             icon: '⬇' },
+    { key: 'weed',          label: 'Weed / grass invasion',  icon: '🌾' },
+    { key: 'standing-water',label: 'Drainage · standing water', icon: '💧' },
+    { key: 'cracks',        label: 'Surface cracks',         icon: '⚡' },
+    { key: 'compaction',    label: 'Compaction',             icon: '🔨' },
+    { key: 'moss-fungal',   label: 'Moss / fungal growth',   icon: '🍄' },
+    { key: 'other',         label: 'Other',                  icon: '⚠' },
+  ],
+  covers: [
+    { key: 'wheel-bearing', label: 'Wheel bearing wear',     icon: '⚙' },
+    { key: 'tear',          label: 'Tear / rip',             icon: '📛' },
+    { key: 'waterproofing', label: 'Waterproofing failing',  icon: '💧' },
+    { key: 'frame-rust',    label: 'Frame rust / corrosion', icon: '🟤' },
+    { key: 'grommet',       label: 'Grommet damage',         icon: '🔗' },
+    { key: 'stitching',     label: 'Stitching split',        icon: '🪡' },
+    { key: 'handles',       label: 'Handles broken / worn',  icon: '🖐' },
+    { key: 'other',         label: 'Other',                  icon: '⚠' },
+  ],
+  'nets.outdoor': [
+    { key: 'mesh-tear',     label: 'Mesh tear',              icon: '📛' },
+    { key: 'mat-worn',      label: 'Mat worn / thinning',    icon: '🟫' },
+    { key: 'concrete-crack',label: 'Concrete base crack',    icon: '⚡' },
+    { key: 'net-loose',     label: 'Net loose / anchoring',  icon: '🔗' },
+    { key: 'fixings',       label: 'Fixings corrosion',      icon: '⚙' },
+    { key: 'return-panel',  label: 'Return panel damage',    icon: '⚠' },
+    { key: 'holes',         label: 'Ball passing through',   icon: '⚽' },
+    { key: 'other',         label: 'Other',                  icon: '⚠' },
+  ],
+  'nets.indoor': [
+    { key: 'mesh-tear',     label: 'Mesh tear',              icon: '📛' },
+    { key: 'lighting',      label: 'Lighting issue',         icon: '💡' },
+    { key: 'roof-leak',     label: 'Roof leak',              icon: '💧' },
+    { key: 'flooring',      label: 'Flooring damage',        icon: '🟫' },
+    { key: 'retractable',   label: 'Retractable mechanism',  icon: '⚙' },
+    { key: 'ventilation',   label: 'Ventilation',            icon: '🌀' },
+    { key: 'other',         label: 'Other',                  icon: '⚠' },
+  ],
+  'nets.bowlingMachines': [
+    { key: 'feeder-jam',    label: 'Feeder mechanism jam',   icon: '⚙' },
+    { key: 'motor',         label: 'Motor / power issue',    icon: '⚡' },
+    { key: 'wheel-wear',    label: 'Delivery wheel wear',    icon: '🔄' },
+    { key: 'electrical',    label: 'Electrical / wiring',    icon: '🔌' },
+    { key: 'accuracy',      label: 'Accuracy off',           icon: '🎯' },
+    { key: 'remote',        label: 'Remote / controller',    icon: '📱' },
+    { key: 'other',         label: 'Other',                  icon: '⚠' },
+  ],
+  support: [
+    { key: 'paint-fade',    label: 'Paint fade / peeling',   icon: '🎨' },
+    { key: 'panel-damage',  label: 'Panel damage',           icon: '📛' },
+    { key: 'wheel-track',   label: 'Wheel / track issue',    icon: '⚙' },
+    { key: 'bulb-digit',    label: 'Bulb / digit failure',   icon: '💡' },
+    { key: 'wiring',        label: 'Wiring',                 icon: '🔌' },
+    { key: 'rope-worn',     label: 'Rope worn / knotted',    icon: '🪢' },
+    { key: 'other',         label: 'Other',                  icon: '⚠' },
+  ],
+  custom: [
+    { key: 'general-wear',  label: 'General wear',           icon: '⚠' },
+    { key: 'damage',        label: 'Physical damage',        icon: '📛' },
+    { key: 'malfunction',   label: 'Malfunction',            icon: '⚙' },
+    { key: 'safety',        label: 'Safety concern',         icon: '🚨' },
+    { key: 'compliance',    label: 'Compliance issue',       icon: '📋' },
+    { key: 'other',         label: 'Other',                  icon: '⚠' },
+  ],
+};
+
+function issueCategoriesFor(assetKey) {
+  if (!assetKey) return ISSUE_CATEGORIES.custom;
+  if (assetKey.startsWith('custom.')) return ISSUE_CATEGORIES.custom;
+  return ISSUE_CATEGORIES[assetKey] || ISSUE_CATEGORIES.custom;
+}
+function issueLocationsFor(assetKey) {
+  if (!assetKey) return [];
+  if (assetKey.startsWith('custom.')) return [];
+  return ISSUE_LOCATIONS[assetKey] || [];
+}
+function severityTone(k) {
+  return (ISSUE_SEVERITIES.find((s) => s.key === k) || ISSUE_SEVERITIES[0]).tone;
+}
+
 /* ─── VENDORS · roster + onboarding lifecycle ───
    Vendors are the external suppliers/service providers the Lions office
    maintains an approved list of. Each vendor goes through an onboarding
@@ -1875,4 +1979,10 @@ export {
   VENDOR_SERVICES,
   BEE_LEVELS,
   vendorStatusTone,
+  ISSUE_CATEGORIES,
+  ISSUE_SEVERITIES,
+  ISSUE_LOCATIONS,
+  issueCategoriesFor,
+  issueLocationsFor,
+  severityTone,
 };
