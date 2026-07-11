@@ -600,7 +600,7 @@ function Shell({ initialProfile, onSwitchProfile }) {
       dot: hasReleased ? 'teal' : activeClub.paid ? 'gold' : 'muted',
       num: hasReleased ? 'NEW' : undefined,
     },
-    { v: 'facilities', label: 'Facilities', icon: Icon.Eye, dot: activeClub.paid ? 'teal' : 'muted' },
+    { v: 'facilities', label: 'Facilities', icon: Icon.Eye, dot: 'teal' },
     { v: 'vendors', label: 'Vendors', icon: Icon.Doc, dot: 'teal' },
     { v: 'financials', label: 'Financials', icon: Icon.Star, dot: 'teal' },
   ];
@@ -730,8 +730,6 @@ function Shell({ initialProfile, onSwitchProfile }) {
         );
       }
       if (view === 'facilities') {
-        if (!activeClub.paid)
-          return <ComingSoon title="Facility Reporting" phase="03" unlocked={false} eta="Aug 2026" />;
         return <ClubFacilitiesView club={activeClub} toast={toastShow} />;
       }
       if (view === 'vendors') {
