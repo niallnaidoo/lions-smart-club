@@ -181,6 +181,7 @@ import {
   CLUB_COST_SEED,
   CLUB_INCOME_SEED,
   SUBSCRIPTION_DEFAULT_ZAR,
+  FACILITY_JOBS,
 } from './data.jsx';
 import {
   ClubHome,
@@ -273,6 +274,58 @@ function Shell({ initialProfile, onSwitchProfile }) {
   }));
   // Subs paid state: { [clubId]: { [playerId]: { paid, amount, date, entryId } } }
   const [playerSubs, setPlayerSubs] = useState({});
+
+  // Facility job cards — hoisted so club-side reports auto-materialise as job
+  // cards on the admin side, and admin status changes flow back to the club's
+  // Reports panel.
+  const [jobs, setJobs] = useState(FACILITY_JOBS);
+
+  function severityToJobPriority(sev) {
+    if (!sev) return 'medium';
+    const s = String(sev).toLowerCase();
+    if (s.includes('major') || s.includes('urgent') || s.includes('critical') || s.includes('severe')) return 'high';
+    if (s.includes('minor') || s.includes('cosmetic') || s.includes('low')) return 'low';
+    return 'medium';
+  }
+
+  function logClubReport(club, assetKey, assetLabel, issue) {
+    const today = new Date().toISOString().slice(0, 10);
+    const due = new Date();
+    due.setDate(due.getDate() + 7);
+    const jobId = `club-job-${club.id}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const job = {
+      id: jobId,
+      facilityId: club.id,
+      type: 'reactive',
+      typeLabel: `Reactive · ${assetLabel}`,
+      title: [assetLabel, issue.category, issue.location].filter(Boolean).join(' · ') || `${assetLabel} · issue reported`,
+      status: 'open',
+      priority: severityToJobPriority(issue.severity),
+      assigneeId: null,
+      assigneeName: 'Awaiting dispatch',
+      dueDate: due.toISOString().slice(0, 10),
+      createdAt: today,
+      checklist: [],
+      notes: issue.note || '',
+      reportedByClub: {
+        clubId: club.id,
+        clubName: club.name,
+        chair: club.chair,
+        at: today,
+      },
+      sourceIssue: {
+        assetKey,
+        assetLabel,
+        category: issue.category,
+        severity: issue.severity,
+        location: issue.location,
+        note: issue.note,
+      },
+    };
+    setJobs((prev) => [job, ...prev]);
+    toastShow(`Job card raised for ${club.short || club.name} · ${assetLabel}`);
+    return jobId;
+  }
 
   function ledgerFor(cid) {
     return ledgerByClub[cid] || [];
@@ -650,7 +703,15 @@ function Shell({ initialProfile, onSwitchProfile }) {
             toast={toastShow}
           />
         );
-      if (view === 'facilities') return <AdminFacilities toast={toastShow} />;
+      if (view === 'facilities')
+        return (
+          <AdminFacilities
+            jobs={jobs}
+            setJobs={setJobs}
+            clubs={clubs}
+            toast={toastShow}
+          />
+        );
       if (view === 'vendors') return <AdminVendors toast={toastShow} />;
     } else {
       const goto = (v) => setView(v);
@@ -730,7 +791,16 @@ function Shell({ initialProfile, onSwitchProfile }) {
         );
       }
       if (view === 'facilities') {
-        return <ClubFacilitiesView club={activeClub} toast={toastShow} />;
+        return (
+          <ClubFacilitiesView
+            club={activeClub}
+            jobs={jobs.filter((j) => j.facilityId === clubId)}
+            onLogReport={(assetKey, assetLabel, issue) =>
+              logClubReport(activeClub, assetKey, assetLabel, issue)
+            }
+            toast={toastShow}
+          />
+        );
       }
       if (view === 'vendors') {
         return <ClubVendorsView club={activeClub} toast={toastShow} />;

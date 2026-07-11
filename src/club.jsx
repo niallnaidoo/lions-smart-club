@@ -3960,7 +3960,7 @@ function AddStaffModal({ club, onSubmit, onCancel }) {
   );
 }
 
-function ClubFacilitiesView({ club, toast }) {
+function ClubFacilitiesView({ club, jobs = [], onLogReport, toast }) {
   // Baseline data from the Lions admin cohort — the club sees the same
   // seed record for their ground and can add / assess on top of it.
   const baseline = FACILITY_ASSETS[club.id] || null;
@@ -3987,12 +3987,14 @@ function ClubFacilitiesView({ club, toast }) {
   // can be shown as a "recent reports" list at the bottom.
   const allIssues = useMemo(() => {
     const list = [];
+    const seenJobIds = new Set();
     function walk(obj, path, sourceLabel) {
       if (!obj || typeof obj !== 'object') return;
       if (Array.isArray(obj.issues)) {
         obj.issues.forEach((iss) => {
           if (typeof iss !== 'string' && iss?.reportedByClub) {
             list.push({ ...iss, sourceLabel: sourceLabel || path });
+            if (iss.jobId) seenJobIds.add(iss.jobId);
           }
         });
       }
@@ -4009,29 +4011,76 @@ function ClubFacilitiesView({ club, toast }) {
       (ca.issues || []).forEach((iss) => {
         if (typeof iss !== 'string' && iss?.reportedByClub) {
           list.push({ ...iss, sourceLabel: `${ca.category}${ca.description ? ' · ' + ca.description : ''}` });
+          if (iss.jobId) seenJobIds.add(iss.jobId);
         }
       });
     });
+    // Backfill from the shared jobs list — this keeps the reports panel
+    // populated even after a role switch resets local assessment state.
+    (jobs || []).forEach((j) => {
+      if (!j.reportedByClub || j.reportedByClub.clubId !== club.id) return;
+      if (seenJobIds.has(j.id)) return;
+      const src = j.sourceIssue || {};
+      list.push({
+        jobId: j.id,
+        category: src.category || j.title,
+        severity: src.severity || 'moderate',
+        location: src.location || '',
+        notes: src.note || j.notes || '',
+        icon: '⚠',
+        reportedByClub: j.reportedByClub,
+        reportedAt: j.reportedByClub?.at || j.createdAt,
+        sourceLabel: src.assetLabel || j.typeLabel,
+      });
+    });
     return list.sort((a, b) => (b.reportedAt || '').localeCompare(a.reportedAt || ''));
-  }, [assessments, customAssets]);
+  }, [assessments, customAssets, jobs, club.id]);
+
+  // Resolve a human label for the asset key being reported on (used in the
+  // job card the admin sees). Keeps it in sync with the pretty labels
+  // rendered elsewhere in the view.
+  function labelForKey(key) {
+    if (!key) return 'Asset';
+    if (key === 'pitch') return 'Pitch square';
+    if (key === 'covers') return 'Covers';
+    if (key === 'nets.outdoor') return 'Outdoor nets';
+    if (key === 'nets.indoor') return 'Indoor nets';
+    if (key === 'nets.bowlingMachines') return 'Bowling machines';
+    if (key.startsWith('custom.')) {
+      const id = key.slice(7);
+      const asset = customAssets.find((a) => a.id === id);
+      if (asset) return `${asset.category}${asset.description ? ' · ' + asset.description : ''}`;
+    }
+    return key;
+  }
 
   // Save an assessment — CRITICAL bit: every issue gets the reportedByClub stamp
-  // so admins can see who logged what.
+  // so admins can see who logged what. Newly-added issues (no jobId yet) also
+  // materialise as job-card entries via onLogReport so admins can dispatch.
   function saveAssessment(key, next) {
-    const stampedIssues = (next.issues || []).map((iss) =>
-      typeof iss === 'string'
-        ? iss
-        : {
-            ...iss,
-            reportedByClub: iss.reportedByClub || {
-              clubId: club.id,
-              clubName: club.name,
-              chair: club.chair,
-              at: new Date().toISOString().slice(0, 10),
-            },
-            reportedAt: iss.reportedAt || new Date().toISOString().slice(0, 10),
-          }
-    );
+    const assetLabel = labelForKey(key);
+    const today = new Date().toISOString().slice(0, 10);
+    const stampedIssues = (next.issues || []).map((iss) => {
+      if (typeof iss === 'string') return iss;
+      const reportedByClub = iss.reportedByClub || {
+        clubId: club.id,
+        clubName: club.name,
+        chair: club.chair,
+        at: today,
+      };
+      const reportedAt = iss.reportedAt || today;
+      // Newly-authored issue with no linked job card yet → raise one.
+      let jobId = iss.jobId;
+      if (!jobId && onLogReport) {
+        jobId = onLogReport(key, assetLabel, {
+          category: iss.category,
+          severity: iss.severity,
+          location: iss.location,
+          note: iss.note,
+        });
+      }
+      return { ...iss, reportedByClub, reportedAt, jobId };
+    });
     if (key.startsWith('custom.')) {
       const id = key.slice(7);
       setCustomAssets((prev) =>
@@ -4312,35 +4361,52 @@ function ClubFacilitiesView({ club, toast }) {
           </div>
         ) : (
           <div className="cf-reports-list">
-            {allIssues.map((iss, i) => (
-              <div key={i} className={`assess-issue-card tone-${severityTone(iss.severity)}`}>
-                <div className="assess-issue-top">
-                  <div className="assess-issue-cat">
-                    <span className="assess-issue-cat-icon">{iss.icon || '⚠'}</span>
-                    <div>
-                      <div className="assess-issue-cat-l">
-                        {iss.category} · <span style={{ fontWeight: 500 }}>{iss.sourceLabel}</span>
+            {allIssues.map((iss, i) => {
+              const linkedJob = iss.jobId ? jobs.find((j) => j.id === iss.jobId) : null;
+              const jobStatus = linkedJob?.status;
+              const statusLabel =
+                jobStatus === 'done'
+                  ? 'Resolved by admin'
+                  : jobStatus === 'in-progress'
+                    ? 'Admin working on it'
+                    : jobStatus === 'open'
+                      ? 'Sent to admin'
+                      : 'Sent to admin';
+              const statusTone =
+                jobStatus === 'done' ? 'teal' : jobStatus === 'in-progress' ? 'gold' : 'muted';
+              return (
+                <div key={i} className={`assess-issue-card tone-${severityTone(iss.severity)}`}>
+                  <div className="assess-issue-top">
+                    <div className="assess-issue-cat">
+                      <span className="assess-issue-cat-icon">{iss.icon || '⚠'}</span>
+                      <div>
+                        <div className="assess-issue-cat-l">
+                          {iss.category} · <span style={{ fontWeight: 500 }}>{iss.sourceLabel}</span>
+                        </div>
+                        {iss.location && <div className="assess-issue-loc">📍 {iss.location}</div>}
+                        {iss.notes && <div className="assess-issue-loc" style={{ marginTop: 2 }}>{iss.notes}</div>}
                       </div>
-                      {iss.location && <div className="assess-issue-loc">📍 {iss.location}</div>}
-                      {iss.notes && <div className="assess-issue-loc" style={{ marginTop: 2 }}>{iss.notes}</div>}
                     </div>
-                  </div>
-                  <div className="cf-report-meta">
-                    <Pill tone={severityTone(iss.severity)} dot>
-                      {(iss.severity || 'moderate')[0].toUpperCase() + (iss.severity || 'moderate').slice(1)}
-                    </Pill>
-                    <div className="cf-report-date">
-                      {iss.reportedAt
-                        ? new Date(iss.reportedAt).toLocaleDateString('en-GB', {
-                            day: 'numeric',
-                            month: 'short',
-                          })
-                        : ''}
+                    <div className="cf-report-meta">
+                      <Pill tone={severityTone(iss.severity)} dot>
+                        {(iss.severity || 'moderate')[0].toUpperCase() + (iss.severity || 'moderate').slice(1)}
+                      </Pill>
+                      <Pill tone={statusTone} dot>
+                        {statusLabel}
+                      </Pill>
+                      <div className="cf-report-date">
+                        {iss.reportedAt
+                          ? new Date(iss.reportedAt).toLocaleDateString('en-GB', {
+                              day: 'numeric',
+                              month: 'short',
+                            })
+                          : ''}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </Card>

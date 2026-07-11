@@ -2608,7 +2608,7 @@ function compTone(band) {
         : 'coral';
 }
 
-function AdminFacilities({ toast }) {
+function AdminFacilities({ jobs: jobsProp, setJobs: setJobsProp, clubs: clubsProp, toast }) {
   const [mode, setMode] = useState('table'); // "table" | "satellite"
   const [sort, setSort] = useState({ k: 'compliance', dir: 'desc' });
   const [scoreMin, setScoreMin] = useState(0);
@@ -2619,7 +2619,12 @@ function AdminFacilities({ toast }) {
   const [openGround, setOpenGround] = useState(null); // clubId of full drilldown
   const [showCreateJob, setShowCreateJob] = useState(false);
   const [jobCardType, setJobCardType] = useState(null); // pre-select a type when opened from an asset
-  const [jobs, setJobs] = useState(FACILITY_JOBS);
+  const [jobCardPrefill, setJobCardPrefill] = useState(null); // when opened from a club report
+  // Jobs are hoisted to the shell so club-side reports sync in. Fall back to
+  // local state if the shell hasn't supplied them (backwards compat).
+  const [localJobs, setLocalJobs] = useState(FACILITY_JOBS);
+  const jobs = jobsProp || localJobs;
+  const setJobs = setJobsProp || setLocalJobs;
   // Editable asset assessments live at the parent so edits persist across tab switches.
   const [assessments, setAssessments] = useState(FACILITY_ASSETS);
   const [assessing, setAssessing] = useState(null); // {clubId, key} — which asset section is being edited
@@ -2921,7 +2926,35 @@ function AdminFacilities({ toast }) {
             {critical}
           </div>
         </div>
+        <div className="players-stat">
+          <div className="players-stat-l">Club reports (open)</div>
+          <div
+            className="players-stat-n"
+            style={{ color: jobs.filter((j) => j.reportedByClub && j.status !== 'done').length ? 'var(--coral)' : 'var(--ink)' }}
+          >
+            {jobs.filter((j) => j.reportedByClub && j.status !== 'done').length}
+          </div>
+        </div>
       </div>
+
+      {/* Club Reports Inbox — the mirror of the club-side Facility Reporting flow.
+         Everything a chair logs on their facility page lands here as a draft job
+         card, waiting for the admin to dispatch, mark in-progress, or resolve. */}
+      <ClubReportsInbox
+        jobs={jobs}
+        clubs={clubsProp}
+        onOpenGround={setOpenGround}
+        onOpenCreateJob={(facility, job) => {
+          setOpenGround(facility.clubId);
+          setJobCardPrefill(job);
+          setJobCardType('reactive');
+          setShowCreateJob(true);
+        }}
+        onMarkStatus={(jobId, status) => {
+          setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, status } : j)));
+          toast?.(`Report ${status === 'in-progress' ? 'started' : status}`);
+        }}
+      />
 
       {mode === 'table' ? (
         <FacilitiesTable
@@ -6958,6 +6991,120 @@ function VendorDetailDrawer({ vendor, onClose, onUpdateStatus }) {
             <Btn tone="outline" onClick={onClose}>Close</Btn>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── ClubReportsInbox · admin-side mirror of club Facility Reporting ───
+   Everything a chair logs on their Facility page lands here. Admin can
+   open the ground, promote to a scheduled job card, mark in-progress, or
+   resolve. Whatever state is set flows back to the chair's Reports panel. */
+function ClubReportsInbox({ jobs, clubs = [], onOpenGround, onOpenCreateJob, onMarkStatus }) {
+  const reports = (jobs || []).filter((j) => j.reportedByClub);
+  const openReports = reports.filter((j) => j.status !== 'done');
+  const inProgress = reports.filter((j) => j.status === 'in-progress').length;
+  const resolved = reports.filter((j) => j.status === 'done').length;
+  const highPriority = reports.filter((j) => j.status !== 'done' && j.priority === 'high').length;
+
+  if (!reports.length) {
+    return (
+      <div className="cri-empty">
+        <div className="cri-empty-title">Club Reports Inbox</div>
+        <div className="cri-empty-body">
+          No club-side reports yet. When a chair logs an issue on their Facility page, it lands
+          here as a draft job card ready to dispatch.
+        </div>
+      </div>
+    );
+  }
+
+  const clubBy = (id) => clubs.find((c) => c.id === id);
+
+  return (
+    <div className="cri-wrap">
+      <div className="cri-head">
+        <div>
+          <div className="cri-eyebrow">Club Reports Inbox</div>
+          <div className="cri-title">
+            {openReports.length} pending · {inProgress} in progress · {resolved} resolved
+          </div>
+        </div>
+        <div className="cri-kpis">
+          {highPriority > 0 && (
+            <span className="cri-kpi cri-kpi-danger">🔥 {highPriority} high priority</span>
+          )}
+          <span className="cri-kpi">{reports.length} total</span>
+        </div>
+      </div>
+
+      <div className="cri-list">
+        {openReports.slice(0, 6).map((j) => {
+          const club = clubBy(j.facilityId);
+          const facility = FACILITIES.find((f) => f.clubId === j.facilityId);
+          const created = new Date(j.reportedByClub?.at || j.createdAt);
+          const daysAgo = Math.max(0, Math.round((new Date() - created) / 86400000));
+          return (
+            <div key={j.id} className={`cri-row cri-row-${j.priority}`}>
+              <div className="cri-row-l">
+                <div className="cri-row-club">
+                  <span className="cri-row-club-name">
+                    {club?.short || club?.name || facility?.venue || j.facilityId}
+                  </span>
+                  <span className="cri-row-chair">
+                    · 🎽 {j.reportedByClub?.chair || 'Chair'}
+                  </span>
+                </div>
+                <div className="cri-row-title">{j.title}</div>
+                {j.notes && <div className="cri-row-note">"{j.notes}"</div>}
+                <div className="cri-row-meta">
+                  <span className={`cri-pri cri-pri-${j.priority}`}>{j.priority}</span>
+                  <span className="cri-status">
+                    {j.status === 'open' ? 'Awaiting dispatch' : j.status}
+                  </span>
+                  <span className="cri-age">
+                    {daysAgo === 0 ? 'today' : `${daysAgo}d ago`}
+                  </span>
+                </div>
+              </div>
+              <div className="cri-row-actions">
+                {j.status === 'open' && (
+                  <button
+                    className="cri-btn cri-btn-primary"
+                    onClick={() => facility && onOpenCreateJob?.(facility, j)}
+                  >
+                    Dispatch →
+                  </button>
+                )}
+                {j.status !== 'open' && j.status !== 'done' && (
+                  <button
+                    className="cri-btn"
+                    onClick={() => onMarkStatus?.(j.id, 'done')}
+                  >
+                    Mark done
+                  </button>
+                )}
+                {j.status === 'open' && (
+                  <button
+                    className="cri-btn cri-btn-ghost"
+                    onClick={() => onMarkStatus?.(j.id, 'in-progress')}
+                  >
+                    Start
+                  </button>
+                )}
+                <button
+                  className="cri-btn cri-btn-ghost"
+                  onClick={() => onOpenGround?.(j.facilityId)}
+                >
+                  Open ground
+                </button>
+              </div>
+            </div>
+          );
+        })}
+        {openReports.length > 6 && (
+          <div className="cri-more">+ {openReports.length - 6} more open reports across the cohort</div>
+        )}
       </div>
     </div>
   );

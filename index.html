@@ -8980,6 +8980,221 @@
         color: var(--white);
       }
 
+      /* ─── Admin · Club Reports Inbox ─── */
+      .cri-wrap {
+        margin-top: 16px;
+        background: var(--white);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 16px 18px 18px;
+        border-left: 4px solid var(--gold);
+      }
+      .cri-empty {
+        margin-top: 16px;
+        padding: 16px 18px;
+        background: var(--paper);
+        border: 1px dashed var(--line);
+        border-radius: 12px;
+      }
+      .cri-empty-title {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .cri-empty-body {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 12.5px;
+        color: var(--muted);
+        margin-top: 6px;
+        line-height: 1.45;
+      }
+      .cri-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 12px;
+        margin-bottom: 12px;
+        flex-wrap: wrap;
+      }
+      .cri-eyebrow {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10.5px;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .cri-title {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 15px;
+        font-weight: 800;
+        color: var(--ink);
+        margin-top: 3px;
+      }
+      .cri-kpis {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+      .cri-kpi {
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: var(--paper);
+        border: 1px solid var(--line);
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10.5px;
+        font-weight: 700;
+        color: var(--muted);
+      }
+      .cri-kpi-danger {
+        background: rgba(220, 74, 74, 0.1);
+        border-color: rgba(220, 74, 74, 0.3);
+        color: var(--coral);
+      }
+      .cri-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .cri-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 14px;
+        padding: 12px 14px;
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        border-left: 3px solid var(--muted);
+      }
+      .cri-row-high {
+        border-left-color: var(--coral);
+        background: rgba(220, 74, 74, 0.05);
+      }
+      .cri-row-medium {
+        border-left-color: var(--gold);
+      }
+      .cri-row-low {
+        border-left-color: var(--paper3);
+      }
+      .cri-row-l {
+        flex: 1;
+        min-width: 0;
+      }
+      .cri-row-club {
+        display: flex;
+        gap: 6px;
+        align-items: baseline;
+        margin-bottom: 4px;
+      }
+      .cri-row-club-name {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 13px;
+        font-weight: 800;
+        color: var(--ink);
+      }
+      .cri-row-chair {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10.5px;
+        font-weight: 600;
+        color: var(--green);
+      }
+      .cri-row-title {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--ink);
+      }
+      .cri-row-note {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11.5px;
+        color: var(--muted);
+        margin-top: 4px;
+        font-style: italic;
+        line-height: 1.4;
+      }
+      .cri-row-meta {
+        display: flex;
+        gap: 8px;
+        margin-top: 6px;
+        align-items: center;
+      }
+      .cri-pri {
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 9.5px;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      .cri-pri-high {
+        background: rgba(220, 74, 74, 0.15);
+        color: var(--coral);
+      }
+      .cri-pri-medium {
+        background: rgba(181, 133, 0, 0.15);
+        color: #b58500;
+      }
+      .cri-pri-low {
+        background: var(--paper2);
+        color: var(--muted);
+      }
+      .cri-status {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10.5px;
+        font-weight: 700;
+        color: var(--muted);
+      }
+      .cri-age {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10.5px;
+        color: var(--muted);
+      }
+      .cri-row-actions {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+      .cri-btn {
+        padding: 6px 12px;
+        border-radius: 8px;
+        background: var(--white);
+        border: 1px solid var(--line);
+        cursor: pointer;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11.5px;
+        font-weight: 700;
+        color: var(--ink);
+      }
+      .cri-btn:hover {
+        border-color: var(--ink3);
+      }
+      .cri-btn-primary {
+        background: var(--ink);
+        color: var(--white);
+        border-color: var(--ink);
+      }
+      .cri-btn-primary:hover {
+        background: var(--ink2);
+      }
+      .cri-btn-ghost {
+        background: transparent;
+        color: var(--muted);
+      }
+      .cri-more {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11px;
+        color: var(--muted);
+        padding: 6px 4px;
+        text-align: center;
+        font-weight: 600;
+      }
+
       /* ─── Player subs paid pill ─── */
       .subs-pill {
         display: inline-flex;
