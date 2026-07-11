@@ -182,6 +182,7 @@ import {
   CLUB_INCOME_SEED,
   SUBSCRIPTION_DEFAULT_ZAR,
   FACILITY_JOBS,
+  PROJECT_SEED,
 } from './data.jsx';
 import {
   ClubHome,
@@ -205,6 +206,7 @@ import {
   AdminClearances,
   AdminFacilities,
   AdminVendors,
+  AdminProjects,
 } from './admin.jsx';
 import { Onboarding } from './onboarding.jsx';
 
@@ -279,6 +281,9 @@ function Shell({ initialProfile, onSwitchProfile }) {
   // cards on the admin side, and admin status changes flow back to the club's
   // Reports panel.
   const [jobs, setJobs] = useState(FACILITY_JOBS);
+
+  // Admin project portfolio state
+  const [projects, setProjects] = useState(PROJECT_SEED);
 
   function severityToJobPriority(sev) {
     if (!sev) return 'medium';
@@ -595,6 +600,7 @@ function Shell({ initialProfile, onSwitchProfile }) {
     { v: 'fixtures', label: 'Fixtures & Venues', icon: Icon.Field, dot: 'teal' },
     { v: 'facilities', label: 'Facilities', icon: Icon.Eye, dot: 'teal' },
     { v: 'vendors', label: 'Vendors', icon: Icon.Doc, dot: 'teal' },
+    { v: 'projects', label: 'Projects', icon: Icon.Star, dot: 'teal' },
     {
       v: 'clearances',
       label: 'Clearances',
@@ -713,6 +719,10 @@ function Shell({ initialProfile, onSwitchProfile }) {
           />
         );
       if (view === 'vendors') return <AdminVendors toast={toastShow} />;
+      if (view === 'projects')
+        return (
+          <AdminProjects projects={projects} setProjects={setProjects} toast={toastShow} />
+        );
     } else {
       const goto = (v) => setView(v);
       // Affiliation + Documents render in modals layered on top of Home (handled below).

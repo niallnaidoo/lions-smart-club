@@ -1792,6 +1792,181 @@ const CLUB_INCOME_SEED = [
   { id: 'i-006', direction: 'in', date: '2026-05-22', category: 'donation', payee: 'Anonymous alumnus', desc: 'Bowling machine · service fund', amount: 1500, frequency: 'One-off', invoice: '', paid: true },
 ];
 
+/* ─── Lions office staff · internal resource pool for project portfolio ───
+   These are the union's own employees. When a project owner picks "internal"
+   in the People modal, they choose from this list. Externals come from the
+   VENDORS pool (searchable in the same modal). */
+
+const LIONS_OFFICE_STAFF = [
+  { id: 'los-001', name: 'Bilal Faku', role: 'Operations Lead', phone: '083 111 2233', email: 'bilal@lions.co.za', dailyRate: 4500 },
+  { id: 'los-002', name: 'Nadia Naidoo', role: 'Finance & Admin', phone: '082 220 3388', email: 'nadia@lions.co.za', dailyRate: 4000 },
+  { id: 'los-003', name: 'Sipho Zulu', role: 'Facilities Manager', phone: '076 810 2245', email: 'sipho@lions.co.za', dailyRate: 4200 },
+  { id: 'los-004', name: 'Rushil Patel', role: 'Cricket Development Officer', phone: '083 604 4471', email: 'rushil@lions.co.za', dailyRate: 3800 },
+  { id: 'los-005', name: 'Marissa Botha', role: 'Marketing & Comms', phone: '072 447 0091', email: 'marissa@lions.co.za', dailyRate: 3600 },
+  { id: 'los-006', name: 'Themba Ndlovu', role: 'Groundskeeping Coordinator', phone: '084 118 2299', email: 'themba@lions.co.za', dailyRate: 3400 },
+  { id: 'los-007', name: 'Kirsten Adams', role: 'Player Welfare Officer', phone: '082 990 4477', email: 'kirsten@lions.co.za', dailyRate: 3800 },
+];
+
+/* ─── PROJECT PORTFOLIO · Lions-office project management ───
+   The admin's project portfolio spans tournaments, asset upgrades, ground
+   works, community outreach, compliance drives, and coaching programmes.
+   Each project carries a task list, an equipment BOM, a resourcing plan
+   (internal Lions staff + external vendors), and a rolling spend total. */
+
+const PROJECT_TYPES = [
+  { key: 'tournament', label: 'Tournament', icon: '🏆', tone: 'gold' },
+  { key: 'asset',      label: 'Asset upgrade', icon: '🔧', tone: 'navy' },
+  { key: 'ground',     label: 'Ground works', icon: '🏟', tone: 'navy' },
+  { key: 'community',  label: 'Community outreach', icon: '🎽', tone: 'teal' },
+  { key: 'compliance', label: 'Compliance', icon: '📋', tone: 'muted' },
+  { key: 'coaching',   label: 'Coaching programme', icon: '🎯', tone: 'teal' },
+  { key: 'other',      label: 'Other', icon: '📌', tone: 'muted' },
+];
+
+const PROJECT_STATUSES = [
+  { key: 'planning',  label: 'Planning',  tone: 'muted' },
+  { key: 'active',    label: 'Active',    tone: 'teal' },
+  { key: 'on_hold',   label: 'On hold',   tone: 'gold' },
+  { key: 'completed', label: 'Completed', tone: 'teal' },
+  { key: 'cancelled', label: 'Cancelled', tone: 'coral' },
+];
+
+const TASK_STATUSES = [
+  { key: 'todo',        label: 'To do',       tone: 'muted' },
+  { key: 'in_progress', label: 'In progress', tone: 'gold' },
+  { key: 'done',        label: 'Done',        tone: 'teal' },
+  { key: 'blocked',     label: 'Blocked',     tone: 'coral' },
+];
+
+const PROJECT_SEED = [
+  {
+    id: 'proj-001',
+    name: 'KZNCU Premier League · 2026/27',
+    type: 'tournament',
+    status: 'active',
+    ownerId: 'los-001',
+    owner: 'Bilal Faku',
+    description: 'Season-long premier league across 14 affiliated clubs. Coordinates fixtures, umpiring, prize kit and marketing.',
+    startDate: '2026-08-01',
+    endDate: '2027-03-30',
+    budget: 380000,
+    tasks: [
+      { id: 't-101', title: 'Confirm fixtures schedule with clubs', status: 'done', assigneeId: 'los-001', assigneeName: 'Bilal Faku', dueDate: '2026-07-15' },
+      { id: 't-102', title: 'Umpire panel briefing + contracts', status: 'in_progress', assigneeId: 'los-001', assigneeName: 'Bilal Faku', dueDate: '2026-07-25' },
+      { id: 't-103', title: 'Prize kit procurement', status: 'todo', assigneeId: 'los-005', assigneeName: 'Marissa Botha', dueDate: '2026-08-10' },
+      { id: 't-104', title: 'Season launch press release', status: 'todo', assigneeId: 'los-005', assigneeName: 'Marissa Botha', dueDate: '2026-07-30' },
+      { id: 't-105', title: 'Match-day physio panel confirmed', status: 'todo', assigneeId: 'los-007', assigneeName: 'Kirsten Adams', dueDate: '2026-08-05' },
+    ],
+    equipment: [
+      { id: 'e-101', name: 'Match balls · Kookaburra Red', qty: 60, unitCost: 350, source: 'vendor', vendorId: 'v-002' },
+      { id: 'e-102', name: 'Umpire coats + hats', qty: 8, unitCost: 850, source: 'vendor', vendorId: 'v-015' },
+      { id: 'e-103', name: 'Winner\'s trophy + plaques × 3', qty: 4, unitCost: 4500, source: 'vendor', vendorId: 'v-015' },
+      { id: 'e-104', name: 'Scoreboard batteries + spares', qty: 20, unitCost: 180, source: 'internal' },
+    ],
+    people: [
+      { id: 'p-101', type: 'internal', staffId: 'los-002', name: 'Nadia Naidoo', role: 'Finance & prize money', dailyRate: 4000, days: 6 },
+      { id: 'p-102', type: 'internal', staffId: 'los-005', name: 'Marissa Botha', role: 'Marketing & press', dailyRate: 3600, days: 8 },
+      { id: 'p-103', type: 'vendor', vendorId: 'v-014', name: 'KZN Cricket Union', role: 'Umpire panel', dailyRate: 2500, days: 12 },
+    ],
+    notes: 'Sponsorship confirmed with Coastal Insurance (Gold). Prize pool R 45k.',
+  },
+  {
+    id: 'proj-002',
+    name: 'Howard College Oval · Pitch Renewal',
+    type: 'asset',
+    status: 'active',
+    ownerId: 'los-003',
+    owner: 'Sipho Zulu',
+    description: 'Full pitch square relay + top-dress after seasonal wear survey flagged Vinis health <55.',
+    startDate: '2026-07-01',
+    endDate: '2026-08-15',
+    budget: 42000,
+    tasks: [
+      { id: 't-201', title: 'Site survey with turf consultant', status: 'done', assigneeId: 'los-003', assigneeName: 'Sipho Zulu', dueDate: '2026-07-05' },
+      { id: 't-202', title: 'Turf delivery + laying', status: 'in_progress', assigneeId: 'los-003', assigneeName: 'Sipho Zulu', dueDate: '2026-07-20' },
+      { id: 't-203', title: 'Sign off with UKZN CC chair', status: 'todo', assigneeId: 'los-001', assigneeName: 'Bilal Faku', dueDate: '2026-08-15' },
+    ],
+    equipment: [
+      { id: 'e-201', name: 'Kikuyu turf rolls · 200m²', qty: 200, unitCost: 85, source: 'vendor', vendorId: 'v-001' },
+      { id: 'e-202', name: 'Top dressing loam · tonnes', qty: 3, unitCost: 2200, source: 'vendor', vendorId: 'v-001' },
+    ],
+    people: [
+      { id: 'p-201', type: 'internal', staffId: 'los-003', name: 'Sipho Zulu', role: 'Site oversight', dailyRate: 4200, days: 5 },
+      { id: 'p-202', type: 'vendor', vendorId: 'v-001', name: 'Green Turf Solutions', role: 'Turf contractor', dailyRate: 3800, days: 4 },
+      { id: 'p-203', type: 'vendor', vendorId: 'v-004', name: 'JR Turf Consulting', role: 'Independent audit', dailyRate: 5500, days: 1 },
+    ],
+    notes: 'Vinis dropped to 52.2. Post-relay target: 65+.',
+  },
+  {
+    id: 'proj-003',
+    name: 'Kingsmead North · Boundary & Sightscreens',
+    type: 'ground',
+    status: 'planning',
+    ownerId: 'los-003',
+    owner: 'Sipho Zulu',
+    description: 'Replace worn boundary rope + fabricate second-end sightscreen. Prep for T20 hosting.',
+    startDate: '2026-08-15',
+    endDate: '2026-09-30',
+    budget: 28000,
+    tasks: [
+      { id: 't-301', title: 'Confirm design with Harlequins CC chair', status: 'todo', assigneeId: 'los-003', assigneeName: 'Sipho Zulu', dueDate: '2026-08-20' },
+      { id: 't-302', title: 'Fabricator quotes ×3', status: 'in_progress', assigneeId: 'los-006', assigneeName: 'Themba Ndlovu', dueDate: '2026-08-25' },
+    ],
+    equipment: [
+      { id: 'e-301', name: 'Boundary rope · 450m + stakes', qty: 1, unitCost: 4200, source: 'vendor', vendorId: 'v-001' },
+      { id: 'e-302', name: 'Sightscreen · fabricated + painted', qty: 1, unitCost: 18500, source: 'vendor', vendorId: 'v-005' },
+    ],
+    people: [
+      { id: 'p-301', type: 'internal', staffId: 'los-006', name: 'Themba Ndlovu', role: 'Project lead', dailyRate: 3400, days: 4 },
+    ],
+    notes: '',
+  },
+  {
+    id: 'proj-004',
+    name: 'Township Junior Development · Q3',
+    type: 'community',
+    status: 'active',
+    ownerId: 'los-004',
+    owner: 'Rushil Patel',
+    description: 'School-based coaching in Umlazi, Chatsworth & Phoenix. 6-week programme, 12 sessions, ~120 juniors.',
+    startDate: '2026-07-15',
+    endDate: '2026-08-28',
+    budget: 65000,
+    tasks: [
+      { id: 't-401', title: 'School coordinator briefings', status: 'done', assigneeId: 'los-004', assigneeName: 'Rushil Patel', dueDate: '2026-07-05' },
+      { id: 't-402', title: 'Coaching kit distribution', status: 'in_progress', assigneeId: 'los-004', assigneeName: 'Rushil Patel', dueDate: '2026-07-20' },
+      { id: 't-403', title: 'Session 1 · Umlazi Primary', status: 'todo', assigneeId: 'los-004', assigneeName: 'Rushil Patel', dueDate: '2026-07-22' },
+      { id: 't-404', title: 'Mid-programme review with union', status: 'todo', assigneeId: 'los-001', assigneeName: 'Bilal Faku', dueDate: '2026-08-05' },
+    ],
+    equipment: [
+      { id: 'e-401', name: 'Junior kit sets · shirt + cap', qty: 120, unitCost: 220, source: 'vendor', vendorId: 'v-015' },
+      { id: 'e-402', name: 'Softball × 24 packs of 6', qty: 24, unitCost: 480, source: 'vendor', vendorId: 'v-002' },
+      { id: 'e-403', name: 'Portable stumps + bases × 12 sets', qty: 12, unitCost: 650, source: 'internal' },
+    ],
+    people: [
+      { id: 'p-401', type: 'internal', staffId: 'los-004', name: 'Rushil Patel', role: 'Programme lead', dailyRate: 3800, days: 12 },
+      { id: 'p-402', type: 'vendor', vendorId: 'v-009', name: 'Sanele Cele Cricket Academy', role: 'Coaching', dailyRate: 2500, days: 8 },
+    ],
+    notes: 'KZNCU grant of R15k confirmed. Coastal Insurance in-kind: R5k towards kit.',
+  },
+];
+
+function computeProjectSpend(p) {
+  const equip = (p.equipment || []).reduce((s, e) => s + (Number(e.qty) || 0) * (Number(e.unitCost) || 0), 0);
+  const people = (p.people || []).reduce((s, r) => s + (Number(r.dailyRate) || 0) * (Number(r.days) || 0), 0);
+  return equip + people;
+}
+
+function projectStatusTone(key) {
+  return PROJECT_STATUSES.find((s) => s.key === key)?.tone || 'muted';
+}
+function projectTypeMeta(key) {
+  return PROJECT_TYPES.find((t) => t.key === key) || { key, label: key, icon: '📌', tone: 'muted' };
+}
+function taskStatusTone(key) {
+  return TASK_STATUSES.find((s) => s.key === key)?.tone || 'muted';
+}
+
 function vendorStatusTone(s) {
   return s === 'onboarded'
     ? 'teal'
@@ -2329,4 +2504,13 @@ export {
   CLUB_PRIMARY_INCOME_GROUPS,
   CLUB_INCOME_SEED,
   SUBSCRIPTION_DEFAULT_ZAR,
+  LIONS_OFFICE_STAFF,
+  PROJECT_TYPES,
+  PROJECT_STATUSES,
+  TASK_STATUSES,
+  PROJECT_SEED,
+  computeProjectSpend,
+  projectStatusTone,
+  projectTypeMeta,
+  taskStatusTone,
 };

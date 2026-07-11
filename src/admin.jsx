@@ -53,6 +53,15 @@ import {
   VENDOR_SERVICES,
   BEE_LEVELS,
   vendorStatusTone,
+  LIONS_OFFICE_STAFF,
+  PROJECT_TYPES,
+  PROJECT_STATUSES,
+  TASK_STATUSES,
+  PROJECT_SEED,
+  computeProjectSpend,
+  projectStatusTone,
+  projectTypeMeta,
+  taskStatusTone,
   ISSUE_SEVERITIES,
   issueCategoriesFor,
   issueLocationsFor,
@@ -7110,6 +7119,1045 @@ function ClubReportsInbox({ jobs, clubs = [], onOpenGround, onOpenCreateJob, onM
   );
 }
 
+/* ─── AdminProjects · Project Portfolio ───
+   Cross-cutting project management for the Lions office. Every project has a
+   task list, an equipment BOM, resourcing (Lions staff + external vendors),
+   and a rolling spend total computed from the equipment + people costs. */
+function AdminProjects({ projects, setProjects, toast }) {
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [query, setQuery] = useState('');
+  const [openProject, setOpenProject] = useState(null);
+  const [addingProject, setAddingProject] = useState(false);
+
+  const withSpend = useMemo(
+    () => projects.map((p) => ({ ...p, _spend: computeProjectSpend(p) })),
+    [projects]
+  );
+
+  const filtered = withSpend
+    .filter((p) => (typeFilter === 'all' ? true : p.type === typeFilter))
+    .filter((p) => (statusFilter === 'all' ? true : p.status === statusFilter))
+    .filter((p) =>
+      !query.trim()
+        ? true
+        : (p.name + ' ' + p.owner + ' ' + (p.description || ''))
+            .toLowerCase()
+            .includes(query.toLowerCase())
+    );
+
+  const active = withSpend.filter((p) => p.status === 'active').length;
+  const planning = withSpend.filter((p) => p.status === 'planning').length;
+  const totalBudget = withSpend.reduce((s, p) => s + (p.budget || 0), 0);
+  const totalSpend = withSpend.reduce((s, p) => s + p._spend, 0);
+
+  const typeCounts = withSpend.reduce((acc, p) => {
+    acc[p.type] = (acc[p.type] || 0) + 1;
+    return acc;
+  }, {});
+
+  function updateProject(id, patch) {
+    setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  }
+  function addProject(p) {
+    const withId = { ...p, id: 'proj-' + Date.now(), tasks: [], equipment: [], people: [] };
+    setProjects((prev) => [withId, ...prev]);
+    setAddingProject(false);
+    toast?.(`Project "${p.name}" created`);
+    setOpenProject(withId.id);
+  }
+  function removeProject(id) {
+    setProjects((prev) => prev.filter((p) => p.id !== id));
+    setOpenProject(null);
+    toast?.('Project archived');
+  }
+
+  const detail = openProject ? withSpend.find((p) => p.id === openProject) : null;
+  if (detail) {
+    return (
+      <ProjectDetail
+        project={detail}
+        onBack={() => setOpenProject(null)}
+        onUpdate={(patch) => updateProject(detail.id, patch)}
+        onRemove={() => removeProject(detail.id)}
+        toast={toast}
+      />
+    );
+  }
+
+  return (
+    <div>
+      <div className="page-head">
+        <div className="ph-left">
+          <div className="ph-crumb">Lions · Admin Console / Projects</div>
+          <h1 className="ph-title">
+            Project <em>Portfolio</em>
+          </h1>
+          <p className="ph-desc">
+            Every union-run initiative in one place — tournaments, asset upgrades, ground works,
+            community outreach. Track tasks, kit, resourcing and money spent.
+          </p>
+        </div>
+        <div className="ph-actions">
+          <Btn tone="outline" size="sm" icon={Icon.Download}>Export</Btn>
+          <Btn tone="teal" size="sm" icon={Icon.Plus} onClick={() => setAddingProject(true)}>
+            New project
+          </Btn>
+        </div>
+      </div>
+
+      {/* KPI strip */}
+      <div className="players-stats">
+        <div className="players-stat">
+          <div className="players-stat-l">Portfolio</div>
+          <div className="players-stat-n">{withSpend.length}</div>
+        </div>
+        <div className="players-stat">
+          <div className="players-stat-l">Active</div>
+          <div className="players-stat-n" style={{ color: 'var(--green)' }}>{active}</div>
+        </div>
+        <div className="players-stat">
+          <div className="players-stat-l">In planning</div>
+          <div className="players-stat-n" style={{ color: planning ? 'var(--gold)' : 'var(--ink)' }}>{planning}</div>
+        </div>
+        <div className="players-stat">
+          <div className="players-stat-l">Total budget</div>
+          <div className="players-stat-n">R {(totalBudget / 1000).toFixed(0)}k</div>
+        </div>
+        <div className="players-stat">
+          <div className="players-stat-l">Total spend</div>
+          <div className="players-stat-n" style={{ color: totalSpend > totalBudget ? 'var(--coral)' : 'var(--ink)' }}>
+            R {(totalSpend / 1000).toFixed(0)}k
+          </div>
+        </div>
+      </div>
+
+      {/* Type filter */}
+      <div className="filter-row" style={{ marginTop: 14 }}>
+        <button
+          className={`filter-pill ${typeFilter === 'all' ? 'active' : ''}`}
+          onClick={() => setTypeFilter('all')}
+        >
+          All types <span style={{ opacity: 0.7, marginLeft: 4 }}>{withSpend.length}</span>
+        </button>
+        {PROJECT_TYPES.filter((t) => typeCounts[t.key]).map((t) => (
+          <button
+            key={t.key}
+            className={`filter-pill ${typeFilter === t.key ? 'active' : ''}`}
+            onClick={() => setTypeFilter(t.key)}
+          >
+            {t.icon} {t.label}
+            <span style={{ opacity: 0.7, marginLeft: 4 }}>{typeCounts[t.key]}</span>
+          </button>
+        ))}
+        <input
+          className="field-input"
+          style={{ maxWidth: 240, marginLeft: 'auto', height: 34 }}
+          placeholder="Search projects…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      </div>
+
+      {/* Status pill row */}
+      <div className="filter-row" style={{ marginTop: 8 }}>
+        <span className="vendor-cat-label">Status</span>
+        <button
+          className={`filter-pill ${statusFilter === 'all' ? 'active' : ''}`}
+          onClick={() => setStatusFilter('all')}
+        >
+          Any
+        </button>
+        {PROJECT_STATUSES.map((s) => (
+          <button
+            key={s.key}
+            className={`filter-pill ${statusFilter === s.key ? 'active' : ''}`}
+            onClick={() => setStatusFilter(s.key)}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Project cards */}
+      <div className="proj-grid">
+        {filtered.map((p) => {
+          const meta = projectTypeMeta(p.type);
+          const budget = p.budget || 0;
+          const spend = p._spend || 0;
+          const usage = budget ? Math.min(100, (spend / budget) * 100) : 0;
+          const overBudget = spend > budget && budget > 0;
+          const tasksDone = (p.tasks || []).filter((t) => t.status === 'done').length;
+          const tasksTotal = (p.tasks || []).length;
+          return (
+            <div key={p.id} className="proj-card" onClick={() => setOpenProject(p.id)}>
+              <div className="proj-card-head">
+                <div className="proj-card-icon">{meta.icon}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="proj-card-name">{p.name}</div>
+                  <div className="proj-card-type">{meta.label}</div>
+                </div>
+                <Pill tone={projectStatusTone(p.status)} dot>
+                  {PROJECT_STATUSES.find((s) => s.key === p.status)?.label || p.status}
+                </Pill>
+              </div>
+
+              <div className="proj-card-desc">{p.description}</div>
+
+              <div className="proj-card-stats">
+                <div className="proj-card-stat">
+                  <span className="proj-card-stat-l">Tasks</span>
+                  <span className="proj-card-stat-n">{tasksDone}/{tasksTotal}</span>
+                </div>
+                <div className="proj-card-stat">
+                  <span className="proj-card-stat-l">Kit items</span>
+                  <span className="proj-card-stat-n">{(p.equipment || []).length}</span>
+                </div>
+                <div className="proj-card-stat">
+                  <span className="proj-card-stat-l">People</span>
+                  <span className="proj-card-stat-n">{(p.people || []).length}</span>
+                </div>
+                <div className="proj-card-stat">
+                  <span className="proj-card-stat-l">Owner</span>
+                  <span className="proj-card-stat-n" style={{ fontSize: 12.5 }}>{p.owner}</span>
+                </div>
+              </div>
+
+              <div className="proj-card-spend">
+                <div className="proj-card-spend-row">
+                  <span>
+                    <strong>R {spend.toLocaleString()}</strong>
+                    <span style={{ color: 'var(--muted)', fontWeight: 500 }}>
+                      {' '}spent of R {budget.toLocaleString()}
+                    </span>
+                  </span>
+                  <span style={{ color: overBudget ? 'var(--coral)' : 'var(--muted)', fontWeight: 700, fontSize: 11 }}>
+                    {overBudget ? 'Over' : `${usage.toFixed(0)}%`}
+                  </span>
+                </div>
+                <div className="proj-card-spend-bar">
+                  <div
+                    className="proj-card-spend-bar-fill"
+                    style={{
+                      width: `${Math.min(100, usage)}%`,
+                      background: overBudget ? 'var(--coral)' : usage > 80 ? 'var(--gold)' : 'var(--green)',
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        {filtered.length === 0 && (
+          <div className="cv-empty">No projects match this filter.</div>
+        )}
+      </div>
+
+      {addingProject && ReactDOM.createPortal(
+        <AddProjectModal onSubmit={addProject} onCancel={() => setAddingProject(false)} />,
+        document.body
+      )}
+    </div>
+  );
+}
+
+/* ─── ProjectDetail · four-column drilldown ─── */
+function ProjectDetail({ project, onBack, onUpdate, onRemove, toast }) {
+  const [addingTask, setAddingTask] = useState(false);
+  const [addingEquip, setAddingEquip] = useState(false);
+  const [addingPerson, setAddingPerson] = useState(false);
+
+  const spend = computeProjectSpend(project);
+  const budget = project.budget || 0;
+  const budgetLeft = budget - spend;
+  const meta = projectTypeMeta(project.type);
+
+  const equipCost = (project.equipment || []).reduce(
+    (s, e) => s + (Number(e.qty) || 0) * (Number(e.unitCost) || 0),
+    0
+  );
+  const peopleCost = (project.people || []).reduce(
+    (s, r) => s + (Number(r.dailyRate) || 0) * (Number(r.days) || 0),
+    0
+  );
+
+  function addTask(t) {
+    onUpdate({ tasks: [...(project.tasks || []), { ...t, id: 't-' + Date.now() }] });
+    setAddingTask(false);
+    toast?.('Task added');
+  }
+  function updateTask(id, patch) {
+    onUpdate({ tasks: (project.tasks || []).map((t) => (t.id === id ? { ...t, ...patch } : t)) });
+  }
+  function removeTask(id) {
+    onUpdate({ tasks: (project.tasks || []).filter((t) => t.id !== id) });
+  }
+
+  function addEquip(e) {
+    onUpdate({ equipment: [...(project.equipment || []), { ...e, id: 'e-' + Date.now() }] });
+    setAddingEquip(false);
+    toast?.(`${e.name} added · R ${((Number(e.qty)||0)*(Number(e.unitCost)||0)).toLocaleString()}`);
+  }
+  function removeEquip(id) {
+    onUpdate({ equipment: (project.equipment || []).filter((e) => e.id !== id) });
+  }
+
+  function addPerson(r) {
+    onUpdate({ people: [...(project.people || []), { ...r, id: 'p-' + Date.now() }] });
+    setAddingPerson(false);
+    toast?.(`${r.name} added to project`);
+  }
+  function removePerson(id) {
+    onUpdate({ people: (project.people || []).filter((r) => r.id !== id) });
+  }
+
+  return (
+    <div>
+      <div className="page-head">
+        <div className="ph-left">
+          <div className="ph-crumb">
+            <button className="ph-crumb-back" onClick={onBack}>← Portfolio</button>
+            {' '}· {meta.label}
+          </div>
+          <h1 className="ph-title">
+            {meta.icon} {project.name}
+          </h1>
+          <p className="ph-desc">{project.description}</p>
+        </div>
+        <div className="ph-actions" style={{ alignItems: 'flex-start' }}>
+          <select
+            className="field-select"
+            style={{ width: 150 }}
+            value={project.status}
+            onChange={(e) => onUpdate({ status: e.target.value })}
+          >
+            {PROJECT_STATUSES.map((s) => (<option key={s.key} value={s.key}>{s.label}</option>))}
+          </select>
+          <Btn tone="outline" size="sm" onClick={onRemove}>Archive</Btn>
+        </div>
+      </div>
+
+      {/* Meta strip */}
+      <div className="proj-meta">
+        <div className="proj-meta-item">
+          <span className="proj-meta-l">Owner</span>
+          <span className="proj-meta-v">{project.owner}</span>
+        </div>
+        <div className="proj-meta-item">
+          <span className="proj-meta-l">Timeline</span>
+          <span className="proj-meta-v">
+            {project.startDate ? new Date(project.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}
+            {' → '}
+            {project.endDate ? new Date(project.endDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+          </span>
+        </div>
+        <div className="proj-meta-item">
+          <span className="proj-meta-l">Budget</span>
+          <span className="proj-meta-v">R {budget.toLocaleString()}</span>
+        </div>
+        <div className="proj-meta-item">
+          <span className="proj-meta-l">Spend to date</span>
+          <span className="proj-meta-v" style={{ color: spend > budget ? 'var(--coral)' : 'var(--ink)' }}>
+            R {spend.toLocaleString()}
+          </span>
+        </div>
+        <div className="proj-meta-item">
+          <span className="proj-meta-l">Budget left</span>
+          <span className="proj-meta-v" style={{ color: budgetLeft < 0 ? 'var(--coral)' : 'var(--green)' }}>
+            R {budgetLeft.toLocaleString()}
+          </span>
+        </div>
+      </div>
+
+      {/* Four-column layout */}
+      <div className="proj-cols">
+        {/* TASKS */}
+        <div className="proj-col">
+          <div className="proj-col-head">
+            <div>
+              <div className="proj-col-title">Tasks</div>
+              <div className="proj-col-sub">
+                {(project.tasks || []).filter((t) => t.status === 'done').length} of{' '}
+                {(project.tasks || []).length} done
+              </div>
+            </div>
+            <Btn tone="teal" size="sm" icon={Icon.Plus} onClick={() => setAddingTask(true)}>
+              Task
+            </Btn>
+          </div>
+          <div className="proj-col-body">
+            {(project.tasks || []).length === 0 && (
+              <div className="proj-col-empty">No tasks yet.</div>
+            )}
+            {(project.tasks || []).map((t) => (
+              <div key={t.id} className={`proj-task proj-task-${t.status}`}>
+                <div className="proj-task-top">
+                  <select
+                    className="proj-task-status"
+                    value={t.status}
+                    onChange={(e) => updateTask(t.id, { status: e.target.value })}
+                  >
+                    {TASK_STATUSES.map((s) => (<option key={s.key} value={s.key}>{s.label}</option>))}
+                  </select>
+                  <button className="proj-task-x" onClick={() => removeTask(t.id)}>×</button>
+                </div>
+                <div className="proj-task-title">{t.title}</div>
+                <div className="proj-task-meta">
+                  {t.assigneeName && <span>👤 {t.assigneeName}</span>}
+                  {t.dueDate && (
+                    <span>📅 {new Date(t.dueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* EQUIPMENT */}
+        <div className="proj-col">
+          <div className="proj-col-head">
+            <div>
+              <div className="proj-col-title">Equipment</div>
+              <div className="proj-col-sub">{(project.equipment || []).length} line items · R {equipCost.toLocaleString()}</div>
+            </div>
+            <Btn tone="teal" size="sm" icon={Icon.Plus} onClick={() => setAddingEquip(true)}>
+              Item
+            </Btn>
+          </div>
+          <div className="proj-col-body">
+            {(project.equipment || []).length === 0 && (
+              <div className="proj-col-empty">No equipment logged.</div>
+            )}
+            {(project.equipment || []).map((e) => {
+              const line = (Number(e.qty)||0) * (Number(e.unitCost)||0);
+              const vendor = e.vendorId ? VENDORS.find((v) => v.id === e.vendorId) : null;
+              return (
+                <div key={e.id} className="proj-equip">
+                  <div className="proj-equip-top">
+                    <div className="proj-equip-name">{e.name}</div>
+                    <button className="proj-task-x" onClick={() => removeEquip(e.id)}>×</button>
+                  </div>
+                  <div className="proj-equip-meta">
+                    <span>{e.qty} × R {Number(e.unitCost).toLocaleString()}</span>
+                    <span className={`proj-src proj-src-${e.source}`}>
+                      {e.source === 'internal' ? 'Internal store' : vendor?.name || 'Vendor'}
+                    </span>
+                  </div>
+                  <div className="proj-equip-line">R {line.toLocaleString()}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* PEOPLE */}
+        <div className="proj-col">
+          <div className="proj-col-head">
+            <div>
+              <div className="proj-col-title">People</div>
+              <div className="proj-col-sub">{(project.people || []).length} on project · R {peopleCost.toLocaleString()}</div>
+            </div>
+            <Btn tone="teal" size="sm" icon={Icon.Plus} onClick={() => setAddingPerson(true)}>
+              Person
+            </Btn>
+          </div>
+          <div className="proj-col-body">
+            {(project.people || []).length === 0 && (
+              <div className="proj-col-empty">No one assigned yet.</div>
+            )}
+            {(project.people || []).map((r) => {
+              const line = (Number(r.dailyRate)||0) * (Number(r.days)||0);
+              return (
+                <div key={r.id} className="proj-person">
+                  <div className="proj-equip-top">
+                    <div className="proj-equip-name">{r.name}</div>
+                    <button className="proj-task-x" onClick={() => removePerson(r.id)}>×</button>
+                  </div>
+                  <div className="proj-person-role">{r.role}</div>
+                  <div className="proj-equip-meta">
+                    <span>R {Number(r.dailyRate).toLocaleString()}/d × {r.days}d</span>
+                    <span className={`proj-src proj-src-${r.type === 'internal' ? 'internal' : 'vendor'}`}>
+                      {r.type === 'internal' ? 'Lions office' : 'Vendor'}
+                    </span>
+                  </div>
+                  <div className="proj-equip-line">R {line.toLocaleString()}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* MONEY */}
+        <div className="proj-col proj-col-money">
+          <div className="proj-col-head">
+            <div>
+              <div className="proj-col-title">Money spent</div>
+              <div className="proj-col-sub">Auto-computed from equipment + people</div>
+            </div>
+          </div>
+          <div className="proj-col-body">
+            <div className="proj-money-hero">
+              <div className="proj-money-hero-l">Total spend</div>
+              <div className="proj-money-hero-n">R {spend.toLocaleString()}</div>
+              <div className="proj-money-hero-sub">of R {budget.toLocaleString()} budget</div>
+            </div>
+            <div className="proj-money-row">
+              <span>🔧 Equipment</span>
+              <strong>R {equipCost.toLocaleString()}</strong>
+            </div>
+            <div className="proj-money-row">
+              <span>👤 People</span>
+              <strong>R {peopleCost.toLocaleString()}</strong>
+            </div>
+            <div className="proj-money-row proj-money-row-total">
+              <span>Budget left</span>
+              <strong style={{ color: budgetLeft < 0 ? 'var(--coral)' : 'var(--green)' }}>
+                R {budgetLeft.toLocaleString()}
+              </strong>
+            </div>
+            <div className="proj-money-bar">
+              <div
+                className="proj-money-bar-fill"
+                style={{
+                  width: `${budget ? Math.min(100, (spend / budget) * 100) : 0}%`,
+                  background: spend > budget ? 'var(--coral)' : spend / (budget || 1) > 0.8 ? 'var(--gold)' : 'var(--green)',
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {addingTask && ReactDOM.createPortal(
+        <AddTaskModal onSubmit={addTask} onCancel={() => setAddingTask(false)} />,
+        document.body
+      )}
+      {addingEquip && ReactDOM.createPortal(
+        <AddEquipmentModal onSubmit={addEquip} onCancel={() => setAddingEquip(false)} />,
+        document.body
+      )}
+      {addingPerson && ReactDOM.createPortal(
+        <AddPersonModal onSubmit={addPerson} onCancel={() => setAddingPerson(false)} />,
+        document.body
+      )}
+    </div>
+  );
+}
+
+/* ─── AddProjectModal ─── */
+function AddProjectModal({ onSubmit, onCancel }) {
+  const [name, setName] = useState('');
+  const [type, setType] = useState(PROJECT_TYPES[0].key);
+  const [status, setStatus] = useState('planning');
+  const [ownerId, setOwnerId] = useState(LIONS_OFFICE_STAFF[0].id);
+  const [description, setDescription] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [budget, setBudget] = useState('');
+
+  const canSubmit = name.trim() && type;
+
+  function submit() {
+    if (!canSubmit) return;
+    const owner = LIONS_OFFICE_STAFF.find((s) => s.id === ownerId);
+    onSubmit({
+      name: name.trim(),
+      type,
+      status,
+      ownerId,
+      owner: owner?.name || '',
+      description: description.trim(),
+      startDate: startDate || null,
+      endDate: endDate || null,
+      budget: Number(String(budget).replace(/[^\d.]/g, '')) || 0,
+      notes: '',
+    });
+  }
+
+  return (
+    <div className="fix-confirm" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div className="fix-confirm-box jobmodal-box" style={{ maxWidth: 620 }}>
+        <div className="fac-jobmodal-head">
+          <div>
+            <div className="fac-detail-eyebrow">Project portfolio</div>
+            <div className="fac-jobmodal-title">New project</div>
+          </div>
+          <button className="fac-detail-close" onClick={onCancel}><Icon.X /></button>
+        </div>
+        <div className="fac-jobmodal-body">
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">Basics</div>
+            <div>
+              <label className="field-label">Project name <span className="req">*</span></label>
+              <input
+                className="field-input"
+                placeholder="e.g. Umlazi Junior Programme · Q3"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
+            <div className="field-grid-2" style={{ marginTop: 12 }}>
+              <div>
+                <label className="field-label">Type</label>
+                <select className="field-select" value={type} onChange={(e) => setType(e.target.value)}>
+                  {PROJECT_TYPES.map((t) => (<option key={t.key} value={t.key}>{t.icon} {t.label}</option>))}
+                </select>
+              </div>
+              <div>
+                <label className="field-label">Status</label>
+                <select className="field-select" value={status} onChange={(e) => setStatus(e.target.value)}>
+                  {PROJECT_STATUSES.map((s) => (<option key={s.key} value={s.key}>{s.label}</option>))}
+                </select>
+              </div>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <label className="field-label">Owner (Lions office)</label>
+              <select className="field-select" value={ownerId} onChange={(e) => setOwnerId(e.target.value)}>
+                {LIONS_OFFICE_STAFF.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name} · {s.role}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <label className="field-label">Description</label>
+              <textarea
+                className="field-textarea"
+                rows={3}
+                placeholder="What's the project, who benefits, what's the outcome?"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">Timeline &amp; budget</div>
+            <div className="field-grid-2">
+              <div>
+                <label className="field-label">Start date</label>
+                <input className="field-input" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              </div>
+              <div>
+                <label className="field-label">End date</label>
+                <input className="field-input" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+              </div>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <label className="field-label">Budget (ZAR)</label>
+              <input
+                className="field-input"
+                inputMode="decimal"
+                placeholder="0"
+                value={budget}
+                onChange={(e) => setBudget(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+        <div className="jobmodal-footer">
+          <div className="jobmodal-footer-summary">
+            <strong>{name || 'Unnamed project'}</strong> · {projectTypeMeta(type).label}
+          </div>
+          <div className="jobmodal-footer-actions">
+            <Btn tone="outline" onClick={onCancel}>Cancel</Btn>
+            <Btn tone="teal" icon={Icon.Check} onClick={submit} disabled={!canSubmit}>Create project</Btn>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── AddTaskModal ─── */
+function AddTaskModal({ onSubmit, onCancel }) {
+  const [title, setTitle] = useState('');
+  const [assigneeId, setAssigneeId] = useState(LIONS_OFFICE_STAFF[0].id);
+  const [status, setStatus] = useState('todo');
+  const [dueDate, setDueDate] = useState('');
+  const canSubmit = title.trim();
+
+  function submit() {
+    if (!canSubmit) return;
+    const assignee = LIONS_OFFICE_STAFF.find((s) => s.id === assigneeId);
+    onSubmit({
+      title: title.trim(),
+      status,
+      assigneeId,
+      assigneeName: assignee?.name || '',
+      dueDate: dueDate || null,
+    });
+  }
+
+  return (
+    <div className="fix-confirm" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div className="fix-confirm-box jobmodal-box" style={{ maxWidth: 520 }}>
+        <div className="fac-jobmodal-head">
+          <div>
+            <div className="fac-detail-eyebrow">Task</div>
+            <div className="fac-jobmodal-title">Add a task</div>
+          </div>
+          <button className="fac-detail-close" onClick={onCancel}><Icon.X /></button>
+        </div>
+        <div className="fac-jobmodal-body">
+          <div className="jobmodal-step">
+            <div>
+              <label className="field-label">Task title <span className="req">*</span></label>
+              <input
+                className="field-input"
+                placeholder="e.g. Confirm umpire panel briefing"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+              />
+            </div>
+            <div className="field-grid-2" style={{ marginTop: 12 }}>
+              <div>
+                <label className="field-label">Assignee</label>
+                <select className="field-select" value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}>
+                  {LIONS_OFFICE_STAFF.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name} · {s.role}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="field-label">Status</label>
+                <select className="field-select" value={status} onChange={(e) => setStatus(e.target.value)}>
+                  {TASK_STATUSES.map((s) => (<option key={s.key} value={s.key}>{s.label}</option>))}
+                </select>
+              </div>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <label className="field-label">Due date</label>
+              <input className="field-input" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            </div>
+          </div>
+        </div>
+        <div className="jobmodal-footer">
+          <div className="jobmodal-footer-actions">
+            <Btn tone="outline" onClick={onCancel}>Cancel</Btn>
+            <Btn tone="teal" icon={Icon.Check} onClick={submit} disabled={!canSubmit}>Add task</Btn>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── AddEquipmentModal · internal or vendor-sourced ─── */
+function AddEquipmentModal({ onSubmit, onCancel }) {
+  const [name, setName] = useState('');
+  const [qty, setQty] = useState('1');
+  const [unitCost, setUnitCost] = useState('');
+  const [source, setSource] = useState('vendor');
+  const [vendorQuery, setVendorQuery] = useState('');
+  const [vendorId, setVendorId] = useState('');
+
+  const availableVendors = useMemo(
+    () => VENDORS.filter((v) => v.status === 'onboarded' || v.status === 'verified'),
+    []
+  );
+  const filteredVendors = vendorQuery.trim()
+    ? availableVendors.filter((v) =>
+        (v.name + ' ' + v.category + ' ' + (v.services || []).join(' '))
+          .toLowerCase()
+          .includes(vendorQuery.toLowerCase())
+      )
+    : availableVendors;
+
+  const parsedQty = Number(qty) || 0;
+  const parsedCost = Number(String(unitCost).replace(/[^\d.]/g, '')) || 0;
+  const line = parsedQty * parsedCost;
+  const canSubmit = name.trim() && parsedQty > 0 && parsedCost > 0 && (source === 'internal' || vendorId);
+
+  function submit() {
+    if (!canSubmit) return;
+    onSubmit({
+      name: name.trim(),
+      qty: parsedQty,
+      unitCost: parsedCost,
+      source,
+      vendorId: source === 'vendor' ? vendorId : null,
+    });
+  }
+
+  return (
+    <div className="fix-confirm" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div className="fix-confirm-box jobmodal-box" style={{ maxWidth: 620 }}>
+        <div className="fac-jobmodal-head">
+          <div>
+            <div className="fac-detail-eyebrow">Equipment</div>
+            <div className="fac-jobmodal-title">Add equipment / kit</div>
+          </div>
+          <button className="fac-detail-close" onClick={onCancel}><Icon.X /></button>
+        </div>
+        <div className="fac-jobmodal-body">
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">Item</div>
+            <div>
+              <label className="field-label">Item name <span className="req">*</span></label>
+              <input
+                className="field-input"
+                placeholder="e.g. Kookaburra Red match balls"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
+            <div className="field-grid-2" style={{ marginTop: 12 }}>
+              <div>
+                <label className="field-label">Quantity</label>
+                <input className="field-input" inputMode="numeric" value={qty} onChange={(e) => setQty(e.target.value)} />
+              </div>
+              <div>
+                <label className="field-label">Unit cost (ZAR)</label>
+                <input className="field-input" inputMode="decimal" value={unitCost} onChange={(e) => setUnitCost(e.target.value)} />
+              </div>
+            </div>
+          </div>
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">Source</div>
+            <div className="proj-src-toggle">
+              <button
+                className={`proj-src-choice ${source === 'internal' ? 'on' : ''}`}
+                onClick={() => setSource('internal')}
+              >
+                🏠 Internal store
+                <div className="proj-src-choice-sub">Use existing Lions stock</div>
+              </button>
+              <button
+                className={`proj-src-choice ${source === 'vendor' ? 'on' : ''}`}
+                onClick={() => setSource('vendor')}
+              >
+                🚚 External vendor
+                <div className="proj-src-choice-sub">Order from a vendor</div>
+              </button>
+            </div>
+            {source === 'vendor' && (
+              <div style={{ marginTop: 14 }}>
+                <label className="field-label">Search vendors</label>
+                <input
+                  className="field-input"
+                  placeholder="Search name · category · service…"
+                  value={vendorQuery}
+                  onChange={(e) => setVendorQuery(e.target.value)}
+                />
+                <div className="proj-vendor-list">
+                  {filteredVendors.slice(0, 8).map((v) => (
+                    <button
+                      key={v.id}
+                      className={`proj-vendor-choice ${vendorId === v.id ? 'on' : ''}`}
+                      onClick={() => setVendorId(v.id)}
+                    >
+                      <div className="proj-vendor-choice-l">
+                        <div className="proj-vendor-choice-name">{v.name}</div>
+                        <div className="proj-vendor-choice-cat">{v.category}</div>
+                      </div>
+                      {v.rating > 0 && (
+                        <div className="proj-vendor-choice-r">⭐ {v.rating.toFixed(1)}</div>
+                      )}
+                    </button>
+                  ))}
+                  {filteredVendors.length === 0 && (
+                    <div className="proj-col-empty">No vendors match.</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="jobmodal-footer">
+          <div className="jobmodal-footer-summary">
+            <strong>R {line.toLocaleString()}</strong> total ·{' '}
+            {parsedQty} × R {parsedCost.toLocaleString()}
+          </div>
+          <div className="jobmodal-footer-actions">
+            <Btn tone="outline" onClick={onCancel}>Cancel</Btn>
+            <Btn tone="teal" icon={Icon.Check} onClick={submit} disabled={!canSubmit}>Add item</Btn>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── AddPersonModal · internal Lions staff or external vendor ─── */
+function AddPersonModal({ onSubmit, onCancel }) {
+  const [type, setType] = useState('internal');
+  const [staffId, setStaffId] = useState(LIONS_OFFICE_STAFF[0].id);
+  const [vendorQuery, setVendorQuery] = useState('');
+  const [vendorId, setVendorId] = useState('');
+  const [role, setRole] = useState('');
+  const [dailyRate, setDailyRate] = useState(String(LIONS_OFFICE_STAFF[0].dailyRate));
+  const [days, setDays] = useState('1');
+
+  const availableVendors = useMemo(
+    () => VENDORS.filter((v) => v.status === 'onboarded' || v.status === 'verified'),
+    []
+  );
+  const filteredVendors = vendorQuery.trim()
+    ? availableVendors.filter((v) =>
+        (v.name + ' ' + v.category + ' ' + (v.services || []).join(' '))
+          .toLowerCase()
+          .includes(vendorQuery.toLowerCase())
+      )
+    : availableVendors;
+
+  function pickStaff(id) {
+    setStaffId(id);
+    const s = LIONS_OFFICE_STAFF.find((x) => x.id === id);
+    if (s) setDailyRate(String(s.dailyRate));
+  }
+
+  const parsedRate = Number(String(dailyRate).replace(/[^\d.]/g, '')) || 0;
+  const parsedDays = Number(days) || 0;
+  const line = parsedRate * parsedDays;
+
+  const canSubmit =
+    parsedRate > 0 && parsedDays > 0 &&
+    (type === 'internal' ? !!staffId : !!vendorId) && role.trim();
+
+  function submit() {
+    if (!canSubmit) return;
+    if (type === 'internal') {
+      const s = LIONS_OFFICE_STAFF.find((x) => x.id === staffId);
+      onSubmit({
+        type: 'internal',
+        staffId,
+        name: s?.name || '',
+        role: role.trim(),
+        dailyRate: parsedRate,
+        days: parsedDays,
+      });
+    } else {
+      const v = VENDORS.find((x) => x.id === vendorId);
+      onSubmit({
+        type: 'vendor',
+        vendorId,
+        name: v?.name || '',
+        role: role.trim(),
+        dailyRate: parsedRate,
+        days: parsedDays,
+      });
+    }
+  }
+
+  return (
+    <div className="fix-confirm" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div className="fix-confirm-box jobmodal-box" style={{ maxWidth: 620 }}>
+        <div className="fac-jobmodal-head">
+          <div>
+            <div className="fac-detail-eyebrow">People</div>
+            <div className="fac-jobmodal-title">Add someone to the project</div>
+          </div>
+          <button className="fac-detail-close" onClick={onCancel}><Icon.X /></button>
+        </div>
+        <div className="fac-jobmodal-body">
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">Who is this?</div>
+            <div className="proj-src-toggle">
+              <button
+                className={`proj-src-choice ${type === 'internal' ? 'on' : ''}`}
+                onClick={() => setType('internal')}
+              >
+                🦁 Lions office
+                <div className="proj-src-choice-sub">Pick from union staff</div>
+              </button>
+              <button
+                className={`proj-src-choice ${type === 'vendor' ? 'on' : ''}`}
+                onClick={() => setType('vendor')}
+              >
+                🚚 External vendor
+                <div className="proj-src-choice-sub">Search vendor database</div>
+              </button>
+            </div>
+
+            {type === 'internal' ? (
+              <div style={{ marginTop: 14 }}>
+                <label className="field-label">Lions office staff</label>
+                <div className="proj-vendor-list">
+                  {LIONS_OFFICE_STAFF.map((s) => (
+                    <button
+                      key={s.id}
+                      className={`proj-vendor-choice ${staffId === s.id ? 'on' : ''}`}
+                      onClick={() => pickStaff(s.id)}
+                    >
+                      <div className="proj-vendor-choice-l">
+                        <div className="proj-vendor-choice-name">{s.name}</div>
+                        <div className="proj-vendor-choice-cat">{s.role}</div>
+                      </div>
+                      <div className="proj-vendor-choice-r">R {s.dailyRate.toLocaleString()}/d</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div style={{ marginTop: 14 }}>
+                <label className="field-label">Search vendors</label>
+                <input
+                  className="field-input"
+                  placeholder="Search name · category · service…"
+                  value={vendorQuery}
+                  onChange={(e) => setVendorQuery(e.target.value)}
+                />
+                <div className="proj-vendor-list">
+                  {filteredVendors.slice(0, 8).map((v) => (
+                    <button
+                      key={v.id}
+                      className={`proj-vendor-choice ${vendorId === v.id ? 'on' : ''}`}
+                      onClick={() => setVendorId(v.id)}
+                    >
+                      <div className="proj-vendor-choice-l">
+                        <div className="proj-vendor-choice-name">{v.name}</div>
+                        <div className="proj-vendor-choice-cat">{v.category}</div>
+                      </div>
+                      {v.rating > 0 && (
+                        <div className="proj-vendor-choice-r">⭐ {v.rating.toFixed(1)}</div>
+                      )}
+                    </button>
+                  ))}
+                  {filteredVendors.length === 0 && (
+                    <div className="proj-col-empty">No vendors match.</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">Role &amp; cost</div>
+            <div>
+              <label className="field-label">Role on this project <span className="req">*</span></label>
+              <input
+                className="field-input"
+                placeholder="e.g. Umpire panel · Marketing lead · Turf contractor"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+              />
+            </div>
+            <div className="field-grid-2" style={{ marginTop: 12 }}>
+              <div>
+                <label className="field-label">Daily rate (ZAR)</label>
+                <input className="field-input" inputMode="decimal" value={dailyRate} onChange={(e) => setDailyRate(e.target.value)} />
+              </div>
+              <div>
+                <label className="field-label">Days on project</label>
+                <input className="field-input" inputMode="numeric" value={days} onChange={(e) => setDays(e.target.value)} />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="jobmodal-footer">
+          <div className="jobmodal-footer-summary">
+            <strong>R {line.toLocaleString()}</strong> total ·{' '}
+            {parsedDays}d × R {parsedRate.toLocaleString()}
+          </div>
+          <div className="jobmodal-footer-actions">
+            <Btn tone="outline" onClick={onCancel}>Cancel</Btn>
+            <Btn tone="teal" icon={Icon.Check} onClick={submit} disabled={!canSubmit}>Add person</Btn>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export {
   AdminDashboard,
   AdminClubsList,
@@ -7119,6 +8167,7 @@ export {
   AdminClearances,
   AdminFacilities,
   AdminVendors,
+  AdminProjects,
   // Shared with the club-side facilities view:
   AssessmentEditor,
   AddAssetModal,
