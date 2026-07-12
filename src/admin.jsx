@@ -60,6 +60,7 @@ import {
   PROJECT_SEED,
   RATE_UNITS,
   personLineCost,
+  computeTaskSpend,
   computeProjectSpend,
   projectStatusTone,
   projectTypeMeta,
@@ -7540,49 +7541,87 @@ function ProjectsGantt({ projects, onOpen }) {
 
 /* ─── ProjectDetail · four-column drilldown ─── */
 function ProjectDetail({ project, onBack, onUpdate, onRemove, toast }) {
+  // Default to Gantt in the detail view — it matches the portfolio and is the
+  // easiest at-a-glance layout for the admin. Cards remain one click away.
+  const [mode, setMode] = useState('gantt');
   const [addingTask, setAddingTask] = useState(false);
-  const [addingEquip, setAddingEquip] = useState(false);
-  const [addingPerson, setAddingPerson] = useState(false);
+  const [addingEquipFor, setAddingEquipFor] = useState(null); // taskId
+  const [addingPersonFor, setAddingPersonFor] = useState(null); // taskId
 
   const spend = computeProjectSpend(project);
   const budget = project.budget || 0;
   const budgetLeft = budget - spend;
   const meta = projectTypeMeta(project.type);
 
-  const equipCost = (project.equipment || []).reduce(
-    (s, e) => s + (Number(e.qty) || 0) * (Number(e.unitCost) || 0),
+  const equipCost = (project.tasks || []).reduce(
+    (s, t) => s + (t.equipment || []).reduce((ss, e) => ss + (Number(e.qty) || 0) * (Number(e.unitCost) || 0), 0),
     0
   );
-  const peopleCost = (project.people || []).reduce((s, r) => s + personLineCost(r), 0);
+  const peopleCost = (project.tasks || []).reduce(
+    (s, t) => s + (t.people || []).reduce((ss, r) => ss + personLineCost(r), 0),
+    0
+  );
 
   function addTask(t) {
-    onUpdate({ tasks: [...(project.tasks || []), { ...t, id: 't-' + Date.now() }] });
+    onUpdate({
+      tasks: [...(project.tasks || []), {
+        ...t,
+        id: 't-' + Date.now(),
+        equipment: [],
+        people: [],
+      }],
+    });
     setAddingTask(false);
-    toast?.('Task added');
+    toast?.('Activity added — now attach equipment and people to it');
   }
   function updateTask(id, patch) {
     onUpdate({ tasks: (project.tasks || []).map((t) => (t.id === id ? { ...t, ...patch } : t)) });
   }
   function removeTask(id) {
     onUpdate({ tasks: (project.tasks || []).filter((t) => t.id !== id) });
+    toast?.('Activity removed');
   }
 
-  function addEquip(e) {
-    onUpdate({ equipment: [...(project.equipment || []), { ...e, id: 'e-' + Date.now() }] });
-    setAddingEquip(false);
+  function addEquipToTask(taskId, e) {
+    onUpdate({
+      tasks: (project.tasks || []).map((t) =>
+        t.id === taskId
+          ? { ...t, equipment: [...(t.equipment || []), { ...e, id: 'e-' + Date.now() }] }
+          : t
+      ),
+    });
+    setAddingEquipFor(null);
     toast?.(`${e.name} added · R ${((Number(e.qty)||0)*(Number(e.unitCost)||0)).toLocaleString()}`);
   }
-  function removeEquip(id) {
-    onUpdate({ equipment: (project.equipment || []).filter((e) => e.id !== id) });
+  function removeEquipFromTask(taskId, equipId) {
+    onUpdate({
+      tasks: (project.tasks || []).map((t) =>
+        t.id === taskId
+          ? { ...t, equipment: (t.equipment || []).filter((e) => e.id !== equipId) }
+          : t
+      ),
+    });
   }
 
-  function addPerson(r) {
-    onUpdate({ people: [...(project.people || []), { ...r, id: 'p-' + Date.now() }] });
-    setAddingPerson(false);
-    toast?.(`${r.name} added to project`);
+  function addPersonToTask(taskId, r) {
+    onUpdate({
+      tasks: (project.tasks || []).map((t) =>
+        t.id === taskId
+          ? { ...t, people: [...(t.people || []), { ...r, id: 'p-' + Date.now() }] }
+          : t
+      ),
+    });
+    setAddingPersonFor(null);
+    toast?.(`${r.name} added to activity`);
   }
-  function removePerson(id) {
-    onUpdate({ people: (project.people || []).filter((r) => r.id !== id) });
+  function removePersonFromTask(taskId, personId) {
+    onUpdate({
+      tasks: (project.tasks || []).map((t) =>
+        t.id === taskId
+          ? { ...t, people: (t.people || []).filter((r) => r.id !== personId) }
+          : t
+      ),
+    });
   }
 
   return (
@@ -7599,14 +7638,44 @@ function ProjectDetail({ project, onBack, onUpdate, onRemove, toast }) {
           <p className="ph-desc">{project.description}</p>
         </div>
         <div className="ph-actions" style={{ alignItems: 'flex-start' }}>
+          <div className="fac-mode-switch" role="tablist">
+            <button
+              role="tab"
+              className={`fac-mode-btn ${mode === 'gantt' ? 'active' : ''}`}
+              onClick={() => setMode('gantt')}
+            >
+              <svg viewBox="0 0 16 16" fill="none">
+                <rect x="2" y="3" width="9" height="2.4" rx="1" fill="currentColor" opacity="0.9" />
+                <rect x="5" y="6.8" width="8" height="2.4" rx="1" fill="currentColor" opacity="0.7" />
+                <rect x="3" y="10.6" width="6" height="2.4" rx="1" fill="currentColor" opacity="0.5" />
+              </svg>
+              Gantt
+            </button>
+            <button
+              role="tab"
+              className={`fac-mode-btn ${mode === 'cards' ? 'active' : ''}`}
+              onClick={() => setMode('cards')}
+            >
+              <svg viewBox="0 0 16 16" fill="none">
+                <rect x="2" y="2" width="5.5" height="5.5" rx="1" stroke="currentColor" strokeWidth="1.4" />
+                <rect x="8.5" y="2" width="5.5" height="5.5" rx="1" stroke="currentColor" strokeWidth="1.4" />
+                <rect x="2" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" strokeWidth="1.4" />
+                <rect x="8.5" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" strokeWidth="1.4" />
+              </svg>
+              Cards
+            </button>
+          </div>
           <select
             className="field-select"
-            style={{ width: 150 }}
+            style={{ width: 140 }}
             value={project.status}
             onChange={(e) => onUpdate({ status: e.target.value })}
           >
             {PROJECT_STATUSES.map((s) => (<option key={s.key} value={s.key}>{s.label}</option>))}
           </select>
+          <Btn tone="teal" size="sm" icon={Icon.Plus} onClick={() => setAddingTask(true)}>
+            Activity
+          </Btn>
           <Btn tone="outline" size="sm" onClick={onRemove}>Archive</Btn>
         </div>
       </div>
@@ -7626,202 +7695,304 @@ function ProjectDetail({ project, onBack, onUpdate, onRemove, toast }) {
           </span>
         </div>
         <div className="proj-meta-item">
+          <span className="proj-meta-l">Activities</span>
+          <span className="proj-meta-v">
+            {(project.tasks || []).filter((t) => t.status === 'done').length} of {(project.tasks || []).length} done
+          </span>
+        </div>
+        <div className="proj-meta-item">
           <span className="proj-meta-l">Budget</span>
           <span className="proj-meta-v">R {budget.toLocaleString()}</span>
         </div>
         <div className="proj-meta-item">
-          <span className="proj-meta-l">Spend to date</span>
+          <span className="proj-meta-l">Spend</span>
           <span className="proj-meta-v" style={{ color: spend > budget ? 'var(--coral)' : 'var(--ink)' }}>
             R {spend.toLocaleString()}
           </span>
         </div>
         <div className="proj-meta-item">
-          <span className="proj-meta-l">Budget left</span>
+          <span className="proj-meta-l">Left</span>
           <span className="proj-meta-v" style={{ color: budgetLeft < 0 ? 'var(--coral)' : 'var(--green)' }}>
             R {budgetLeft.toLocaleString()}
           </span>
         </div>
       </div>
 
-      {/* Four-column layout */}
-      <div className="proj-cols">
-        {/* TASKS */}
-        <div className="proj-col">
-          <div className="proj-col-head">
-            <div>
-              <div className="proj-col-title">Tasks</div>
-              <div className="proj-col-sub">
-                {(project.tasks || []).filter((t) => t.status === 'done').length} of{' '}
-                {(project.tasks || []).length} done
+      {/* GANTT view — one bar per activity across project timeline */}
+      {mode === 'gantt' && (
+        <ProjectActivityGantt
+          project={project}
+          onOpenAsCards={() => setMode('cards')}
+        />
+      )}
+
+      {/* CARDS view — activity cards with inline equipment + people */}
+      {mode === 'cards' && (
+        <div className="pd-activities">
+          {(project.tasks || []).length === 0 && (
+            <div className="cv-empty">
+              This project has no activities yet. Click <strong>+ Activity</strong> above to add one —
+              every equipment purchase and person on the project belongs to an activity.
+            </div>
+          )}
+          {(project.tasks || []).map((t) => {
+            const taskSpend = computeTaskSpend(t);
+            const statusMeta = TASK_STATUSES.find((s) => s.key === t.status);
+            return (
+              <div key={t.id} className={`pd-activity pd-activity-${t.status}`}>
+                {/* Activity header */}
+                <div className="pd-activity-head">
+                  <div className="pd-activity-head-l">
+                    <select
+                      className="proj-task-status"
+                      value={t.status}
+                      onChange={(e) => updateTask(t.id, { status: e.target.value })}
+                    >
+                      {TASK_STATUSES.map((s) => (<option key={s.key} value={s.key}>{s.label}</option>))}
+                    </select>
+                    <div>
+                      <div className="pd-activity-title">{t.title}</div>
+                      <div className="pd-activity-meta">
+                        {t.assigneeName && <span>👤 {t.assigneeName}</span>}
+                        {t.startDate && t.endDate && (
+                          <span>
+                            📅 {new Date(t.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                            {' → '}
+                            {new Date(t.endDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                          </span>
+                        )}
+                        {!t.startDate && t.dueDate && (
+                          <span>📅 Due {new Date(t.dueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="pd-activity-head-r">
+                    <div className="pd-activity-total">R {taskSpend.toLocaleString()}</div>
+                    <button className="proj-task-x" onClick={() => removeTask(t.id)} title="Remove activity">×</button>
+                  </div>
+                </div>
+
+                {/* Two side-by-side inline sections: Equipment + People */}
+                <div className="pd-activity-body">
+                  <div className="pd-section">
+                    <div className="pd-section-head">
+                      <span className="pd-section-title">🔧 Equipment</span>
+                      <button
+                        className="pd-add-btn"
+                        onClick={() => setAddingEquipFor(t.id)}
+                      >+ Add equipment</button>
+                    </div>
+                    {(t.equipment || []).length === 0 && (
+                      <div className="pd-empty">No equipment attached. Click "Add equipment" to purchase for this activity.</div>
+                    )}
+                    {(t.equipment || []).map((e) => {
+                      const line = (Number(e.qty)||0) * (Number(e.unitCost)||0);
+                      const vendor = e.vendorId ? VENDORS.find((v) => v.id === e.vendorId) : null;
+                      return (
+                        <div key={e.id} className="pd-line">
+                          <div className="pd-line-l">
+                            <div className="pd-line-name">{e.name}</div>
+                            <div className="pd-line-sub">
+                              {e.qty} × R {Number(e.unitCost).toLocaleString()} ·{' '}
+                              <span className={`proj-src proj-src-${e.source}`}>
+                                {e.source === 'internal' ? 'Internal store' : vendor?.name || 'Vendor'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="pd-line-r">
+                            <strong>R {line.toLocaleString()}</strong>
+                            <button className="proj-task-x" onClick={() => removeEquipFromTask(t.id, e.id)}>×</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="pd-section">
+                    <div className="pd-section-head">
+                      <span className="pd-section-title">👤 People</span>
+                      <button
+                        className="pd-add-btn"
+                        onClick={() => setAddingPersonFor(t.id)}
+                      >+ Add person</button>
+                    </div>
+                    {(t.people || []).length === 0 && (
+                      <div className="pd-empty">No one assigned. Click "Add person" to book time on this activity.</div>
+                    )}
+                    {(t.people || []).map((r) => {
+                      const line = personLineCost(r);
+                      const rate = Number(r.rate ?? r.dailyRate ?? 0) || 0;
+                      const unit = r.rateUnit || 'day';
+                      const units = Number(r.units ?? r.days ?? 0) || 0;
+                      const shortUnit = unit === 'hour' ? '/hr' : unit === 'day' ? '/d' : unit === 'deliverable' ? '/deliv.' : ' fixed';
+                      const unitLabel = unit === 'hour' ? 'hrs' : unit === 'day' ? 'd' : unit === 'deliverable' ? 'items' : '';
+                      return (
+                        <div key={r.id} className="pd-line">
+                          <div className="pd-line-l">
+                            <div className="pd-line-name">{r.name}</div>
+                            <div className="pd-line-sub">
+                              {r.role} · R {rate.toLocaleString()}{shortUnit}
+                              {unit !== 'once_off' && ` × ${units}${unitLabel}`} ·{' '}
+                              <span className={`proj-src proj-src-${r.type === 'internal' ? 'internal' : 'vendor'}`}>
+                                {r.type === 'internal' ? 'Lions office' : 'Vendor'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="pd-line-r">
+                            <strong>R {line.toLocaleString()}</strong>
+                            <button className="proj-task-x" onClick={() => removePersonFromTask(t.id, r.id)}>×</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
-            </div>
-            <Btn tone="teal" size="sm" icon={Icon.Plus} onClick={() => setAddingTask(true)}>
-              Task
-            </Btn>
-          </div>
-          <div className="proj-col-body">
-            {(project.tasks || []).length === 0 && (
-              <div className="proj-col-empty">No tasks yet.</div>
-            )}
-            {(project.tasks || []).map((t) => (
-              <div key={t.id} className={`proj-task proj-task-${t.status}`}>
-                <div className="proj-task-top">
-                  <select
-                    className="proj-task-status"
-                    value={t.status}
-                    onChange={(e) => updateTask(t.id, { status: e.target.value })}
-                  >
-                    {TASK_STATUSES.map((s) => (<option key={s.key} value={s.key}>{s.label}</option>))}
-                  </select>
-                  <button className="proj-task-x" onClick={() => removeTask(t.id)}>×</button>
-                </div>
-                <div className="proj-task-title">{t.title}</div>
-                <div className="proj-task-meta">
-                  {t.assigneeName && <span>👤 {t.assigneeName}</span>}
-                  {t.dueDate && (
-                    <span>📅 {new Date(t.dueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
+      )}
 
-        {/* EQUIPMENT */}
-        <div className="proj-col">
-          <div className="proj-col-head">
-            <div>
-              <div className="proj-col-title">Equipment</div>
-              <div className="proj-col-sub">{(project.equipment || []).length} line items · R {equipCost.toLocaleString()}</div>
-            </div>
-            <Btn tone="teal" size="sm" icon={Icon.Plus} onClick={() => setAddingEquip(true)}>
-              Item
-            </Btn>
-          </div>
-          <div className="proj-col-body">
-            {(project.equipment || []).length === 0 && (
-              <div className="proj-col-empty">No equipment logged.</div>
-            )}
-            {(project.equipment || []).map((e) => {
-              const line = (Number(e.qty)||0) * (Number(e.unitCost)||0);
-              const vendor = e.vendorId ? VENDORS.find((v) => v.id === e.vendorId) : null;
-              return (
-                <div key={e.id} className="proj-equip">
-                  <div className="proj-equip-top">
-                    <div className="proj-equip-name">{e.name}</div>
-                    <button className="proj-task-x" onClick={() => removeEquip(e.id)}>×</button>
-                  </div>
-                  <div className="proj-equip-meta">
-                    <span>{e.qty} × R {Number(e.unitCost).toLocaleString()}</span>
-                    <span className={`proj-src proj-src-${e.source}`}>
-                      {e.source === 'internal' ? 'Internal store' : vendor?.name || 'Vendor'}
-                    </span>
-                  </div>
-                  <div className="proj-equip-line">R {line.toLocaleString()}</div>
-                </div>
-              );
-            })}
-          </div>
+      {addingTask && ReactDOM.createPortal(
+        <AddTaskModal
+          project={project}
+          onSubmit={addTask}
+          onCancel={() => setAddingTask(false)}
+        />,
+        document.body
+      )}
+      {addingEquipFor && ReactDOM.createPortal(
+        <AddEquipmentModal
+          onSubmit={(e) => addEquipToTask(addingEquipFor, e)}
+          onCancel={() => setAddingEquipFor(null)}
+        />,
+        document.body
+      )}
+      {addingPersonFor && ReactDOM.createPortal(
+        <AddPersonModal
+          onSubmit={(r) => addPersonToTask(addingPersonFor, r)}
+          onCancel={() => setAddingPersonFor(null)}
+        />,
+        document.body
+      )}
+    </div>
+  );
+}
+
+/* ─── ProjectActivityGantt · one bar per activity on the project window ─── */
+function ProjectActivityGantt({ project, onOpenAsCards }) {
+  const winStart = new Date(project.startDate || '2026-07-01');
+  const winEnd = new Date(project.endDate || '2027-03-31');
+  const winMs = Math.max(1, winEnd - winStart);
+
+  const months = [];
+  const cur = new Date(winStart.getFullYear(), winStart.getMonth(), 1);
+  const end = new Date(winEnd.getFullYear(), winEnd.getMonth(), 1);
+  while (cur <= end) {
+    months.push(new Date(cur));
+    cur.setMonth(cur.getMonth() + 1);
+  }
+  const today = new Date();
+  const todayPct = today >= winStart && today <= winEnd
+    ? ((today - winStart) / winMs) * 100
+    : null;
+
+  function pctFor(dateStr) {
+    if (!dateStr) return null;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return null;
+    const clamped = Math.max(winStart.getTime(), Math.min(winEnd.getTime(), d.getTime()));
+    return ((clamped - winStart.getTime()) / winMs) * 100;
+  }
+
+  const tasks = project.tasks || [];
+
+  return (
+    <div className="gantt">
+      <div className="gantt-head">
+        <div className="gantt-l-head pd-gantt-l">
+          <div className="gantt-l-col gantt-l-col-name">Activity</div>
+          <div className="gantt-l-col">Equipment</div>
+          <div className="gantt-l-col">People</div>
+          <div className="gantt-l-col">Cost</div>
         </div>
-
-        {/* PEOPLE */}
-        <div className="proj-col">
-          <div className="proj-col-head">
-            <div>
-              <div className="proj-col-title">People</div>
-              <div className="proj-col-sub">{(project.people || []).length} on project · R {peopleCost.toLocaleString()}</div>
+        <div className="gantt-r-head">
+          {months.map((m) => (
+            <div key={m.getTime()} className="gantt-month">
+              {m.toLocaleDateString('en-GB', { month: 'short' })}
+              <span className="gantt-year">{m.getFullYear().toString().slice(2)}</span>
             </div>
-            <Btn tone="teal" size="sm" icon={Icon.Plus} onClick={() => setAddingPerson(true)}>
-              Person
-            </Btn>
-          </div>
-          <div className="proj-col-body">
-            {(project.people || []).length === 0 && (
-              <div className="proj-col-empty">No one assigned yet.</div>
-            )}
-            {(project.people || []).map((r) => {
-              const line = personLineCost(r);
-              const rate = Number(r.rate ?? r.dailyRate ?? 0) || 0;
-              const unit = r.rateUnit || 'day';
-              const units = Number(r.units ?? r.days ?? 0) || 0;
-              const shortUnit = unit === 'hour' ? '/hr' : unit === 'day' ? '/d' : unit === 'deliverable' ? '/deliv.' : ' fixed';
-              const unitLabel = unit === 'hour' ? 'hrs' : unit === 'day' ? 'd' : unit === 'deliverable' ? 'items' : '';
-              return (
-                <div key={r.id} className="proj-person">
-                  <div className="proj-equip-top">
-                    <div className="proj-equip-name">{r.name}</div>
-                    <button className="proj-task-x" onClick={() => removePerson(r.id)}>×</button>
-                  </div>
-                  <div className="proj-person-role">{r.role}</div>
-                  <div className="proj-equip-meta">
-                    <span>
-                      R {rate.toLocaleString()}{shortUnit}
-                      {unit !== 'once_off' && ` × ${units}${unitLabel}`}
-                    </span>
-                    <span className={`proj-src proj-src-${r.type === 'internal' ? 'internal' : 'vendor'}`}>
-                      {r.type === 'internal' ? 'Lions office' : 'Vendor'}
-                    </span>
-                  </div>
-                  <div className="proj-equip-line">R {line.toLocaleString()}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* MONEY */}
-        <div className="proj-col proj-col-money">
-          <div className="proj-col-head">
-            <div>
-              <div className="proj-col-title">Money spent</div>
-              <div className="proj-col-sub">Auto-computed from equipment + people</div>
-            </div>
-          </div>
-          <div className="proj-col-body">
-            <div className="proj-money-hero">
-              <div className="proj-money-hero-l">Total spend</div>
-              <div className="proj-money-hero-n">R {spend.toLocaleString()}</div>
-              <div className="proj-money-hero-sub">of R {budget.toLocaleString()} budget</div>
-            </div>
-            <div className="proj-money-row">
-              <span>🔧 Equipment</span>
-              <strong>R {equipCost.toLocaleString()}</strong>
-            </div>
-            <div className="proj-money-row">
-              <span>👤 People</span>
-              <strong>R {peopleCost.toLocaleString()}</strong>
-            </div>
-            <div className="proj-money-row proj-money-row-total">
-              <span>Budget left</span>
-              <strong style={{ color: budgetLeft < 0 ? 'var(--coral)' : 'var(--green)' }}>
-                R {budgetLeft.toLocaleString()}
-              </strong>
-            </div>
-            <div className="proj-money-bar">
-              <div
-                className="proj-money-bar-fill"
-                style={{
-                  width: `${budget ? Math.min(100, (spend / budget) * 100) : 0}%`,
-                  background: spend > budget ? 'var(--coral)' : spend / (budget || 1) > 0.8 ? 'var(--gold)' : 'var(--green)',
-                }}
-              />
-            </div>
-          </div>
+          ))}
+          {todayPct != null && (
+            <div className="gantt-today" style={{ left: `${todayPct}%` }} />
+          )}
         </div>
       </div>
 
-      {addingTask && ReactDOM.createPortal(
-        <AddTaskModal onSubmit={addTask} onCancel={() => setAddingTask(false)} />,
-        document.body
-      )}
-      {addingEquip && ReactDOM.createPortal(
-        <AddEquipmentModal onSubmit={addEquip} onCancel={() => setAddingEquip(false)} />,
-        document.body
-      )}
-      {addingPerson && ReactDOM.createPortal(
-        <AddPersonModal onSubmit={addPerson} onCancel={() => setAddingPerson(false)} />,
-        document.body
-      )}
+      <div className="gantt-body">
+        {tasks.length === 0 && (
+          <div className="cv-empty" style={{ margin: 20 }}>
+            No activities yet. Click <strong>+ Activity</strong> at the top of the page to add one.
+          </div>
+        )}
+        {tasks.map((t) => {
+          const taskSpend = computeTaskSpend(t);
+          const startPct = pctFor(t.startDate);
+          const endPct = pctFor(t.endDate || t.dueDate);
+          const barLeft = startPct != null ? startPct : 0;
+          const barWidth = startPct != null && endPct != null ? Math.max(2, endPct - startPct) : 0;
+          const equipCount = (t.equipment || []).length;
+          const peopleCount = (t.people || []).length;
+          const statusMeta = TASK_STATUSES.find((s) => s.key === t.status);
+          return (
+            <div key={t.id} className="gantt-row pd-gantt-row" onClick={onOpenAsCards} title="Open Cards view to edit">
+              <div className="gantt-l pd-gantt-l">
+                <div className="gantt-l-col gantt-l-col-name">
+                  <div className="gantt-l-name">
+                    <div style={{ minWidth: 0 }}>
+                      <div className="gantt-l-name-t">{t.title}</div>
+                      <div className="gantt-l-name-s">
+                        {t.assigneeName || '—'} · {statusMeta?.label || t.status}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="gantt-l-col gantt-l-cell">
+                  <div className="gantt-l-cell-n">{equipCount}</div>
+                  <div className="gantt-l-cell-s">item{equipCount === 1 ? '' : 's'}</div>
+                </div>
+                <div className="gantt-l-col gantt-l-cell">
+                  <div className="gantt-l-cell-n">{peopleCount}</div>
+                  <div className="gantt-l-cell-s">on activity</div>
+                </div>
+                <div className="gantt-l-col gantt-l-cell">
+                  <div className="gantt-l-cell-n">R {(taskSpend / 1000).toFixed(1)}k</div>
+                  <div className="gantt-l-cell-s">
+                    {equipCount > 0 && peopleCount > 0 ? 'kit + people' : equipCount > 0 ? 'kit only' : peopleCount > 0 ? 'people only' : 'no cost yet'}
+                  </div>
+                </div>
+              </div>
+              <div className="gantt-r">
+                {startPct != null && endPct != null && (
+                  <div
+                    className={`gantt-bar gantt-bar-${t.status}`}
+                    style={{ left: `${barLeft}%`, width: `${barWidth}%` }}
+                    title={`${t.startDate || ''} → ${t.endDate || t.dueDate || ''}`}
+                  >
+                    <span className="gantt-bar-label">
+                      R {(taskSpend / 1000).toFixed(1)}k
+                    </span>
+                  </div>
+                )}
+                {todayPct != null && (
+                  <div className="gantt-today gantt-today-body" style={{ left: `${todayPct}%` }} />
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -7950,11 +8121,12 @@ function AddProjectModal({ onSubmit, onCancel }) {
 }
 
 /* ─── AddTaskModal ─── */
-function AddTaskModal({ onSubmit, onCancel }) {
+function AddTaskModal({ project, onSubmit, onCancel }) {
   const [title, setTitle] = useState('');
   const [assigneeId, setAssigneeId] = useState(LIONS_OFFICE_STAFF[0].id);
   const [status, setStatus] = useState('todo');
-  const [dueDate, setDueDate] = useState('');
+  const [startDate, setStartDate] = useState(project?.startDate || '');
+  const [endDate, setEndDate] = useState('');
   const canSubmit = title.trim();
 
   function submit() {
@@ -7965,34 +8137,40 @@ function AddTaskModal({ onSubmit, onCancel }) {
       status,
       assigneeId,
       assigneeName: assignee?.name || '',
-      dueDate: dueDate || null,
+      startDate: startDate || null,
+      endDate: endDate || null,
+      dueDate: endDate || null,
     });
   }
 
   return (
     <div className="fix-confirm" onClick={(e) => e.target === e.currentTarget && onCancel()}>
-      <div className="fix-confirm-box jobmodal-box" style={{ maxWidth: 520 }}>
+      <div className="fix-confirm-box jobmodal-box" style={{ maxWidth: 540 }}>
         <div className="fac-jobmodal-head">
           <div>
-            <div className="fac-detail-eyebrow">Task</div>
-            <div className="fac-jobmodal-title">Add a task</div>
+            <div className="fac-detail-eyebrow">Activity</div>
+            <div className="fac-jobmodal-title">Add an activity</div>
           </div>
           <button className="fac-detail-close" onClick={onCancel}><Icon.X /></button>
         </div>
         <div className="fac-jobmodal-body">
           <div className="jobmodal-step">
             <div>
-              <label className="field-label">Task title <span className="req">*</span></label>
+              <label className="field-label">What is the activity? <span className="req">*</span></label>
               <input
                 className="field-input"
                 placeholder="e.g. Confirm umpire panel briefing"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
               />
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                Once the activity exists you can attach the equipment purchased for it and the
+                people booked to work on it.
+              </div>
             </div>
             <div className="field-grid-2" style={{ marginTop: 12 }}>
               <div>
-                <label className="field-label">Assignee</label>
+                <label className="field-label">Who is responsible?</label>
                 <select className="field-select" value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}>
                   {LIONS_OFFICE_STAFF.map((s) => (
                     <option key={s.id} value={s.id}>{s.name} · {s.role}</option>
@@ -8006,16 +8184,22 @@ function AddTaskModal({ onSubmit, onCancel }) {
                 </select>
               </div>
             </div>
-            <div style={{ marginTop: 12 }}>
-              <label className="field-label">Due date</label>
-              <input className="field-input" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            <div className="field-grid-2" style={{ marginTop: 12 }}>
+              <div>
+                <label className="field-label">Start</label>
+                <input className="field-input" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              </div>
+              <div>
+                <label className="field-label">End / due</label>
+                <input className="field-input" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+              </div>
             </div>
           </div>
         </div>
         <div className="jobmodal-footer">
           <div className="jobmodal-footer-actions">
             <Btn tone="outline" onClick={onCancel}>Cancel</Btn>
-            <Btn tone="teal" icon={Icon.Check} onClick={submit} disabled={!canSubmit}>Add task</Btn>
+            <Btn tone="teal" icon={Icon.Check} onClick={submit} disabled={!canSubmit}>Add activity</Btn>
           </div>
         </div>
       </div>

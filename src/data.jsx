@@ -1851,23 +1851,68 @@ const PROJECT_SEED = [
     endDate: '2027-03-30',
     budget: 380000,
     tasks: [
-      { id: 't-101', title: 'Confirm fixtures schedule with clubs', status: 'done', assigneeId: 'los-001', assigneeName: 'Bilal Faku', dueDate: '2026-07-15' },
-      { id: 't-102', title: 'Umpire panel briefing + contracts', status: 'in_progress', assigneeId: 'los-001', assigneeName: 'Bilal Faku', dueDate: '2026-07-25' },
-      { id: 't-103', title: 'Prize kit procurement', status: 'todo', assigneeId: 'los-005', assigneeName: 'Marissa Botha', dueDate: '2026-08-10' },
-      { id: 't-104', title: 'Season launch press release', status: 'todo', assigneeId: 'los-005', assigneeName: 'Marissa Botha', dueDate: '2026-07-30' },
-      { id: 't-105', title: 'Match-day physio panel confirmed', status: 'todo', assigneeId: 'los-007', assigneeName: 'Kirsten Adams', dueDate: '2026-08-05' },
-    ],
-    equipment: [
-      { id: 'e-101', name: 'Match balls · Kookaburra Red', qty: 60, unitCost: 350, source: 'vendor', vendorId: 'v-002' },
-      { id: 'e-102', name: 'Umpire coats + hats', qty: 8, unitCost: 850, source: 'vendor', vendorId: 'v-015' },
-      { id: 'e-103', name: 'Winner\'s trophy + plaques × 3', qty: 4, unitCost: 4500, source: 'vendor', vendorId: 'v-015' },
-      { id: 'e-104', name: 'Scoreboard batteries + spares', qty: 20, unitCost: 180, source: 'internal' },
-    ],
-    people: [
-      { id: 'p-101', type: 'internal', staffId: 'los-002', name: 'Nadia Naidoo', role: 'Finance & prize money', rate:4000, rateUnit: 'day', units:6 },
-      { id: 'p-102', type: 'internal', staffId: 'los-005', name: 'Marissa Botha', role: 'Marketing & press', rate:3600, rateUnit: 'day', units:8 },
-      { id: 'p-103', type: 'vendor', vendorId: 'v-014', name: 'KZN Cricket Union', role: 'Umpire panel · per match', rate: 1500, rateUnit: 'deliverable', units: 20 },
-      { id: 'p-104', type: 'internal', staffId: 'los-005', name: 'Marissa Botha', role: 'Season launch event mgmt', rate: 18000, rateUnit: 'once_off', units: 1 },
+      {
+        id: 't-101',
+        title: 'Confirm fixtures schedule with clubs',
+        status: 'done',
+        assigneeId: 'los-001', assigneeName: 'Bilal Faku',
+        startDate: '2026-07-05', endDate: '2026-07-15', dueDate: '2026-07-15',
+        equipment: [],
+        people: [
+          { id: 'p-101-1', type: 'internal', staffId: 'los-001', name: 'Bilal Faku', role: 'Fixture coordination', rate: 4500, rateUnit: 'day', units: 3 },
+        ],
+      },
+      {
+        id: 't-102',
+        title: 'Umpire panel briefing + contracts',
+        status: 'in_progress',
+        assigneeId: 'los-001', assigneeName: 'Bilal Faku',
+        startDate: '2026-07-15', endDate: '2026-08-01', dueDate: '2026-07-25',
+        equipment: [
+          { id: 'e-102-1', name: 'Umpire coats + hats', qty: 8, unitCost: 850, source: 'vendor', vendorId: 'v-015' },
+        ],
+        people: [
+          { id: 'p-102-1', type: 'vendor', vendorId: 'v-014', name: 'KZN Cricket Union', role: 'Umpire panel · per match', rate: 1500, rateUnit: 'deliverable', units: 20 },
+        ],
+      },
+      {
+        id: 't-103',
+        title: 'Prize kit procurement',
+        status: 'todo',
+        assigneeId: 'los-005', assigneeName: 'Marissa Botha',
+        startDate: '2026-07-25', endDate: '2026-08-10', dueDate: '2026-08-10',
+        equipment: [
+          { id: 'e-103-1', name: 'Winner\'s trophy + plaques × 3', qty: 4, unitCost: 4500, source: 'vendor', vendorId: 'v-015' },
+        ],
+        people: [
+          { id: 'p-103-1', type: 'internal', staffId: 'los-002', name: 'Nadia Naidoo', role: 'Finance & prize money', rate: 4000, rateUnit: 'day', units: 4 },
+        ],
+      },
+      {
+        id: 't-104',
+        title: 'Season launch press release',
+        status: 'todo',
+        assigneeId: 'los-005', assigneeName: 'Marissa Botha',
+        startDate: '2026-07-20', endDate: '2026-07-30', dueDate: '2026-07-30',
+        equipment: [],
+        people: [
+          { id: 'p-104-1', type: 'internal', staffId: 'los-005', name: 'Marissa Botha', role: 'Season launch event mgmt', rate: 18000, rateUnit: 'once_off', units: 1 },
+        ],
+      },
+      {
+        id: 't-105',
+        title: 'Match-day physio panel confirmed',
+        status: 'todo',
+        assigneeId: 'los-007', assigneeName: 'Kirsten Adams',
+        startDate: '2026-07-28', endDate: '2026-08-05', dueDate: '2026-08-05',
+        equipment: [
+          { id: 'e-105-1', name: 'Match balls · Kookaburra Red', qty: 60, unitCost: 350, source: 'vendor', vendorId: 'v-002' },
+          { id: 'e-105-2', name: 'Scoreboard batteries + spares', qty: 20, unitCost: 180, source: 'internal' },
+        ],
+        people: [
+          { id: 'p-105-1', type: 'internal', staffId: 'los-007', name: 'Kirsten Adams', role: 'Physio panel confirms', rate: 3800, rateUnit: 'day', units: 2 },
+        ],
+      },
     ],
     notes: 'Sponsorship confirmed with Coastal Insurance (Gold). Prize pool R 45k.',
   },
@@ -1883,18 +1928,43 @@ const PROJECT_SEED = [
     endDate: '2026-08-15',
     budget: 42000,
     tasks: [
-      { id: 't-201', title: 'Site survey with turf consultant', status: 'done', assigneeId: 'los-003', assigneeName: 'Sipho Zulu', dueDate: '2026-07-05' },
-      { id: 't-202', title: 'Turf delivery + laying', status: 'in_progress', assigneeId: 'los-003', assigneeName: 'Sipho Zulu', dueDate: '2026-07-20' },
-      { id: 't-203', title: 'Sign off with UKZN CC chair', status: 'todo', assigneeId: 'los-001', assigneeName: 'Bilal Faku', dueDate: '2026-08-15' },
-    ],
-    equipment: [
-      { id: 'e-201', name: 'Kikuyu turf rolls · 200m²', qty: 200, unitCost: 85, source: 'vendor', vendorId: 'v-001' },
-      { id: 'e-202', name: 'Top dressing loam · tonnes', qty: 3, unitCost: 2200, source: 'vendor', vendorId: 'v-001' },
-    ],
-    people: [
-      { id: 'p-201', type: 'internal', staffId: 'los-003', name: 'Sipho Zulu', role: 'Site oversight', rate:4200, rateUnit: 'day', units:5 },
-      { id: 'p-202', type: 'vendor', vendorId: 'v-001', name: 'Green Turf Solutions', role: 'Turf contractor', rate:3800, rateUnit: 'day', units:4 },
-      { id: 'p-203', type: 'vendor', vendorId: 'v-004', name: 'JR Turf Consulting', role: 'Independent audit', rate: 5500, rateUnit: 'once_off', units: 1 },
+      {
+        id: 't-201',
+        title: 'Site survey with turf consultant',
+        status: 'done',
+        assigneeId: 'los-003', assigneeName: 'Sipho Zulu',
+        startDate: '2026-07-01', endDate: '2026-07-05', dueDate: '2026-07-05',
+        equipment: [],
+        people: [
+          { id: 'p-201-1', type: 'vendor', vendorId: 'v-004', name: 'JR Turf Consulting', role: 'Independent audit', rate: 5500, rateUnit: 'once_off', units: 1 },
+        ],
+      },
+      {
+        id: 't-202',
+        title: 'Turf delivery + laying',
+        status: 'in_progress',
+        assigneeId: 'los-003', assigneeName: 'Sipho Zulu',
+        startDate: '2026-07-08', endDate: '2026-07-20', dueDate: '2026-07-20',
+        equipment: [
+          { id: 'e-202-1', name: 'Kikuyu turf rolls · 200m²', qty: 200, unitCost: 85, source: 'vendor', vendorId: 'v-001' },
+          { id: 'e-202-2', name: 'Top dressing loam · tonnes', qty: 3, unitCost: 2200, source: 'vendor', vendorId: 'v-001' },
+        ],
+        people: [
+          { id: 'p-202-1', type: 'internal', staffId: 'los-003', name: 'Sipho Zulu', role: 'Site oversight', rate: 4200, rateUnit: 'day', units: 5 },
+          { id: 'p-202-2', type: 'vendor', vendorId: 'v-001', name: 'Green Turf Solutions', role: 'Turf contractor', rate: 3800, rateUnit: 'day', units: 4 },
+        ],
+      },
+      {
+        id: 't-203',
+        title: 'Sign off with UKZN CC chair',
+        status: 'todo',
+        assigneeId: 'los-001', assigneeName: 'Bilal Faku',
+        startDate: '2026-08-10', endDate: '2026-08-15', dueDate: '2026-08-15',
+        equipment: [],
+        people: [
+          { id: 'p-203-1', type: 'internal', staffId: 'los-001', name: 'Bilal Faku', role: 'Handover meeting', rate: 4500, rateUnit: 'day', units: 1 },
+        ],
+      },
     ],
     notes: 'Vinis dropped to 52.2. Post-relay target: 65+.',
   },
@@ -1910,15 +1980,32 @@ const PROJECT_SEED = [
     endDate: '2026-09-30',
     budget: 28000,
     tasks: [
-      { id: 't-301', title: 'Confirm design with Harlequins CC chair', status: 'todo', assigneeId: 'los-003', assigneeName: 'Sipho Zulu', dueDate: '2026-08-20' },
-      { id: 't-302', title: 'Fabricator quotes ×3', status: 'in_progress', assigneeId: 'los-006', assigneeName: 'Themba Ndlovu', dueDate: '2026-08-25' },
-    ],
-    equipment: [
-      { id: 'e-301', name: 'Boundary rope · 450m + stakes', qty: 1, unitCost: 4200, source: 'vendor', vendorId: 'v-001' },
-      { id: 'e-302', name: 'Sightscreen · fabricated + painted', qty: 1, unitCost: 18500, source: 'vendor', vendorId: 'v-005' },
-    ],
-    people: [
-      { id: 'p-301', type: 'internal', staffId: 'los-006', name: 'Themba Ndlovu', role: 'Project lead', rate:3400, rateUnit: 'day', units:4 },
+      {
+        id: 't-301',
+        title: 'Confirm design with Harlequins CC chair',
+        status: 'todo',
+        assigneeId: 'los-003', assigneeName: 'Sipho Zulu',
+        startDate: '2026-08-15', endDate: '2026-08-20', dueDate: '2026-08-20',
+        equipment: [
+          { id: 'e-301-1', name: 'Boundary rope · 450m + stakes', qty: 1, unitCost: 4200, source: 'vendor', vendorId: 'v-001' },
+        ],
+        people: [
+          { id: 'p-301-1', type: 'internal', staffId: 'los-003', name: 'Sipho Zulu', role: 'Design lead', rate: 4200, rateUnit: 'day', units: 2 },
+        ],
+      },
+      {
+        id: 't-302',
+        title: 'Fabricator quotes ×3',
+        status: 'in_progress',
+        assigneeId: 'los-006', assigneeName: 'Themba Ndlovu',
+        startDate: '2026-08-20', endDate: '2026-08-25', dueDate: '2026-08-25',
+        equipment: [
+          { id: 'e-302-1', name: 'Sightscreen · fabricated + painted', qty: 1, unitCost: 18500, source: 'vendor', vendorId: 'v-005' },
+        ],
+        people: [
+          { id: 'p-302-1', type: 'internal', staffId: 'los-006', name: 'Themba Ndlovu', role: 'Project lead', rate: 3400, rateUnit: 'day', units: 4 },
+        ],
+      },
     ],
     notes: '',
   },
@@ -1934,19 +2021,55 @@ const PROJECT_SEED = [
     endDate: '2026-08-28',
     budget: 65000,
     tasks: [
-      { id: 't-401', title: 'School coordinator briefings', status: 'done', assigneeId: 'los-004', assigneeName: 'Rushil Patel', dueDate: '2026-07-05' },
-      { id: 't-402', title: 'Coaching kit distribution', status: 'in_progress', assigneeId: 'los-004', assigneeName: 'Rushil Patel', dueDate: '2026-07-20' },
-      { id: 't-403', title: 'Session 1 · Umlazi Primary', status: 'todo', assigneeId: 'los-004', assigneeName: 'Rushil Patel', dueDate: '2026-07-22' },
-      { id: 't-404', title: 'Mid-programme review with union', status: 'todo', assigneeId: 'los-001', assigneeName: 'Bilal Faku', dueDate: '2026-08-05' },
-    ],
-    equipment: [
-      { id: 'e-401', name: 'Junior kit sets · shirt + cap', qty: 120, unitCost: 220, source: 'vendor', vendorId: 'v-015' },
-      { id: 'e-402', name: 'Softball × 24 packs of 6', qty: 24, unitCost: 480, source: 'vendor', vendorId: 'v-002' },
-      { id: 'e-403', name: 'Portable stumps + bases × 12 sets', qty: 12, unitCost: 650, source: 'internal' },
-    ],
-    people: [
-      { id: 'p-401', type: 'internal', staffId: 'los-004', name: 'Rushil Patel', role: 'Programme lead', rate:3800, rateUnit: 'day', units:12 },
-      { id: 'p-402', type: 'vendor', vendorId: 'v-009', name: 'Sanele Cele Cricket Academy', role: 'Coaching · per session hour', rate: 600, rateUnit: 'hour', units: 36 },
+      {
+        id: 't-401',
+        title: 'School coordinator briefings',
+        status: 'done',
+        assigneeId: 'los-004', assigneeName: 'Rushil Patel',
+        startDate: '2026-07-15', endDate: '2026-07-05', dueDate: '2026-07-05',
+        equipment: [],
+        people: [
+          { id: 'p-401-1', type: 'internal', staffId: 'los-004', name: 'Rushil Patel', role: 'Briefings', rate: 3800, rateUnit: 'day', units: 2 },
+        ],
+      },
+      {
+        id: 't-402',
+        title: 'Coaching kit distribution',
+        status: 'in_progress',
+        assigneeId: 'los-004', assigneeName: 'Rushil Patel',
+        startDate: '2026-07-08', endDate: '2026-07-20', dueDate: '2026-07-20',
+        equipment: [
+          { id: 'e-402-1', name: 'Junior kit sets · shirt + cap', qty: 120, unitCost: 220, source: 'vendor', vendorId: 'v-015' },
+          { id: 'e-402-2', name: 'Softball × 24 packs of 6', qty: 24, unitCost: 480, source: 'vendor', vendorId: 'v-002' },
+          { id: 'e-402-3', name: 'Portable stumps + bases × 12 sets', qty: 12, unitCost: 650, source: 'internal' },
+        ],
+        people: [
+          { id: 'p-402-1', type: 'internal', staffId: 'los-004', name: 'Rushil Patel', role: 'Distribution lead', rate: 3800, rateUnit: 'day', units: 3 },
+        ],
+      },
+      {
+        id: 't-403',
+        title: 'Session 1 · Umlazi Primary',
+        status: 'todo',
+        assigneeId: 'los-004', assigneeName: 'Rushil Patel',
+        startDate: '2026-07-22', endDate: '2026-08-15', dueDate: '2026-07-22',
+        equipment: [],
+        people: [
+          { id: 'p-403-1', type: 'vendor', vendorId: 'v-009', name: 'Sanele Cele Cricket Academy', role: 'Coaching · per session hour', rate: 600, rateUnit: 'hour', units: 36 },
+          { id: 'p-403-2', type: 'internal', staffId: 'los-004', name: 'Rushil Patel', role: 'Programme oversight', rate: 3800, rateUnit: 'day', units: 7 },
+        ],
+      },
+      {
+        id: 't-404',
+        title: 'Mid-programme review with union',
+        status: 'todo',
+        assigneeId: 'los-001', assigneeName: 'Bilal Faku',
+        startDate: '2026-08-01', endDate: '2026-08-05', dueDate: '2026-08-05',
+        equipment: [],
+        people: [
+          { id: 'p-404-1', type: 'internal', staffId: 'los-001', name: 'Bilal Faku', role: 'Union review', rate: 4500, rateUnit: 'day', units: 1 },
+        ],
+      },
     ],
     notes: 'KZNCU grant of R15k confirmed. Coastal Insurance in-kind: R5k towards kit.',
   },
@@ -1970,13 +2093,27 @@ function personLineCost(r) {
   return rate * units;
 }
 
-function computeProjectSpend(p) {
-  const equip = (p.equipment || []).reduce(
+// MS-Project style: equipment + people live on each activity (task). The
+// project spend is the sum of every activity's spend. Legacy top-level
+// project.equipment / project.people are still supported so existing seed
+// data reads correctly, but new UI writes everything into activities.
+function computeTaskSpend(t) {
+  const equip = (t?.equipment || []).reduce(
     (s, e) => s + (Number(e.qty) || 0) * (Number(e.unitCost) || 0),
     0
   );
-  const people = (p.people || []).reduce((s, r) => s + personLineCost(r), 0);
+  const people = (t?.people || []).reduce((s, r) => s + personLineCost(r), 0);
   return equip + people;
+}
+
+function computeProjectSpend(p) {
+  const legacyEquip = (p.equipment || []).reduce(
+    (s, e) => s + (Number(e.qty) || 0) * (Number(e.unitCost) || 0),
+    0
+  );
+  const legacyPeople = (p.people || []).reduce((s, r) => s + personLineCost(r), 0);
+  const taskSum = (p.tasks || []).reduce((s, t) => s + computeTaskSpend(t), 0);
+  return legacyEquip + legacyPeople + taskSum;
 }
 
 function projectStatusTone(key) {
@@ -2533,6 +2670,7 @@ export {
   PROJECT_SEED,
   RATE_UNITS,
   personLineCost,
+  computeTaskSpend,
   computeProjectSpend,
   projectStatusTone,
   projectTypeMeta,
