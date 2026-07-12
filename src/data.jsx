@@ -2156,6 +2156,48 @@ function computeProjectSpend(p) {
   return legacyEquip + legacyPeople + taskSum;
 }
 
+// Break one project's committed spend down by equipment/people, capex/opex,
+// and by service category (using the equipment + people category labels).
+// Walks both the activity-nested lines and any legacy top-level lines, so it
+// works for old and new project shapes. Returns totals the union financials
+// view rolls up across every project.
+function projectSpendBreakdown(p) {
+  let equipment = 0;
+  let people = 0;
+  let capex = 0;
+  let opex = 0;
+  const byService = {};
+
+  const addEquip = (e) => {
+    const line = (Number(e.qty) || 0) * (Number(e.unitCost) || 0);
+    if (!line) return;
+    const cat = equipmentCategoryMeta(e.category);
+    equipment += line;
+    if (cat.kind === 'capex') capex += line;
+    else opex += line;
+    const k = `${cat.icon} ${cat.label}`;
+    byService[k] = (byService[k] || 0) + line;
+  };
+  const addPerson = (r) => {
+    const line = personLineCost(r);
+    if (!line) return;
+    const cat = peopleCategoryMeta(r.category);
+    people += line;
+    opex += line; // people cost is always operating spend
+    const k = `${cat.icon} ${cat.label}`;
+    byService[k] = (byService[k] || 0) + line;
+  };
+
+  (p.tasks || []).forEach((t) => {
+    (t.equipment || []).forEach(addEquip);
+    (t.people || []).forEach(addPerson);
+  });
+  (p.equipment || []).forEach(addEquip);
+  (p.people || []).forEach(addPerson);
+
+  return { equipment, people, capex, opex, total: equipment + people, byService };
+}
+
 function projectStatusTone(key) {
   return PROJECT_STATUSES.find((s) => s.key === key)?.tone || 'muted';
 }
@@ -2716,6 +2758,7 @@ export {
   personLineCost,
   computeTaskSpend,
   computeProjectSpend,
+  projectSpendBreakdown,
   projectStatusTone,
   projectTypeMeta,
   taskStatusTone,

@@ -66,6 +66,7 @@ import {
   personLineCost,
   computeTaskSpend,
   computeProjectSpend,
+  projectSpendBreakdown,
   projectStatusTone,
   projectTypeMeta,
   taskStatusTone,
@@ -8817,6 +8818,34 @@ function AdminFinancials({ ledgerByClub = {}, projects = [], clubs = [], toast }
   // Union net = cohort net – project spend (union runs projects on top of clubs)
   const unionNet = cohortNet - projectSpend;
 
+  // ─── Project funding requirements — roll every project's categorised spend
+  // up so the union can see what its service programmes need funding for.
+  const projectFunding = useMemo(() => {
+    let capex = 0;
+    let opex = 0;
+    let equipment = 0;
+    let people = 0;
+    const byService = {};
+    projects.forEach((p) => {
+      const b = projectSpendBreakdown(p);
+      capex += b.capex;
+      opex += b.opex;
+      equipment += b.equipment;
+      people += b.people;
+      Object.entries(b.byService).forEach(([k, v]) => {
+        byService[k] = (byService[k] || 0) + v;
+      });
+    });
+    const services = Object.entries(byService)
+      .map(([name, amount]) => ({ name, amount }))
+      .sort((a, b) => b.amount - a.amount);
+    return { capex, opex, equipment, people, services };
+  }, [projects]);
+
+  // How much of the committed project spend still has to be found — budget not
+  // yet covered by confirmed income. A rough "still to fund" signal for the union.
+  const projectUnfunded = Math.max(0, projectBudget - projectSpend);
+
   // ─── Aggregations for Summary tab
   const groupBreakdown = useMemo(() => {
     const out = {};
@@ -8932,6 +8961,7 @@ function AdminFinancials({ ledgerByClub = {}, projects = [], clubs = [], toast }
     });
     const projectRows = projects.map((p) => {
       const spend = computeProjectSpend(p);
+      const b = projectSpendBreakdown(p);
       return [
         p.startDate || '',
         'Union · Project',
@@ -8939,20 +8969,27 @@ function AdminFinancials({ ledgerByClub = {}, projects = [], clubs = [], toast }
         p.name,
         projectTypeMeta(p.type).label,
         p.owner || '',
-        p.description || '',
+        `${p.description || ''} — capex R ${b.capex} / opex R ${b.opex}`,
         spend,
         '',
         p.id,
         p.status,
       ];
     });
+    // Funding requirement by service across every project.
+    const fundingRows = projectFunding.services.map((sv) => [
+      '', 'Union · Funding', 'OUT', sv.name, 'Project funding', '', 'Funding required by service',
+      sv.amount, '', '', '',
+    ]);
     const summary = [
       ['', '', '', '', '', '', 'TOTAL COHORT IN', cohortIn, '', '', ''],
       ['', '', '', '', '', '', 'TOTAL COHORT OUT', cohortOut, '', '', ''],
       ['', '', '', '', '', '', 'TOTAL PROJECT SPEND', projectSpend, '', '', ''],
+      ['', '', '', '', '', '', 'PROJECT CAPEX', projectFunding.capex, '', '', ''],
+      ['', '', '', '', '', '', 'PROJECT OPEX', projectFunding.opex, '', '', ''],
       ['', '', '', '', '', '', 'UNION NET', unionNet, '', '', ''],
     ];
-    const csv = [headers, ...rows, ...projectRows, ...summary]
+    const csv = [headers, ...rows, ...projectRows, ...fundingRows, ...summary]
       .map((r) => r.map((c) => {
         const s = String(c ?? '');
         return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -9016,7 +9053,7 @@ function AdminFinancials({ ledgerByClub = {}, projects = [], clubs = [], toast }
           <div className="af-kpi-l">📋 Project spend</div>
           <div className="af-kpi-n">R {projectSpend.toLocaleString()}</div>
           <div className="af-kpi-sub">
-            of R {projectBudget.toLocaleString()} budget
+            R {projectFunding.capex.toLocaleString()} capex · R {projectFunding.opex.toLocaleString()} opex
           </div>
         </div>
       </div>
@@ -9181,6 +9218,66 @@ function AdminFinancials({ ledgerByClub = {}, projects = [], clubs = [], toast }
               </div>
             </div>
           )}
+
+          {/* Project funding requirements — the categorised project spend rolled
+             up so the union sees what its service programmes need funding for. */}
+          {projectSpend > 0 && (
+            <div className="af-panel af-fund">
+              <div className="af-panel-head">
+                <span className="af-panel-title">Project funding requirements</span>
+                <span className="af-panel-sub">
+                  {projects.length} project{projects.length === 1 ? '' : 's'} · R {projectSpend.toLocaleString()} committed of R {projectBudget.toLocaleString()} budgeted
+                </span>
+              </div>
+              <div className="af-fund-grid">
+                <div className="af-fund-stat af-fund-capex">
+                  <div className="af-fund-l">Capex</div>
+                  <div className="af-fund-n">R {projectFunding.capex.toLocaleString()}</div>
+                  <div className="af-fund-s">lasting assets</div>
+                </div>
+                <div className="af-fund-stat af-fund-opex">
+                  <div className="af-fund-l">Opex</div>
+                  <div className="af-fund-n">R {projectFunding.opex.toLocaleString()}</div>
+                  <div className="af-fund-s">running costs</div>
+                </div>
+                <div className="af-fund-stat">
+                  <div className="af-fund-l">🔧 Equipment</div>
+                  <div className="af-fund-n">R {projectFunding.equipment.toLocaleString()}</div>
+                  <div className="af-fund-s">across all projects</div>
+                </div>
+                <div className="af-fund-stat">
+                  <div className="af-fund-l">👤 People</div>
+                  <div className="af-fund-n">R {projectFunding.people.toLocaleString()}</div>
+                  <div className="af-fund-s">across all projects</div>
+                </div>
+                <div className="af-fund-stat af-fund-gap">
+                  <div className="af-fund-l">Still to fund</div>
+                  <div className="af-fund-n">R {projectUnfunded.toLocaleString()}</div>
+                  <div className="af-fund-s">budget headroom</div>
+                </div>
+              </div>
+              <div className="af-panel-head" style={{ marginTop: 14 }}>
+                <span className="af-panel-title" style={{ fontSize: 10.5 }}>Funding required by service</span>
+                <span className="af-panel-sub">Where the money goes across every project</span>
+              </div>
+              <div className="af-panel-body">
+                {projectFunding.services.slice(0, 8).map((sv) => (
+                  <div key={sv.name} className="af-bar-row">
+                    <div className="af-bar-l">
+                      <span>{sv.name}</span>
+                      <strong>R {sv.amount.toLocaleString()}</strong>
+                    </div>
+                    <div className="af-bar">
+                      <div
+                        className="af-bar-fill af-bar-fund"
+                        style={{ width: `${projectSpend ? Math.min(100, (sv.amount / projectSpend) * 100) : 0}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -9247,12 +9344,15 @@ function AdminFinancials({ ledgerByClub = {}, projects = [], clubs = [], toast }
                 <th>Status</th>
                 <th style={{ textAlign: 'right' }}>Budget</th>
                 <th style={{ textAlign: 'right' }}>Spend</th>
+                <th style={{ textAlign: 'right' }}>Capex</th>
+                <th style={{ textAlign: 'right' }}>Opex</th>
                 <th style={{ textAlign: 'right' }}>Variance</th>
               </tr>
             </thead>
             <tbody>
               {projects.map((p) => {
                 const spend = computeProjectSpend(p);
+                const b = projectSpendBreakdown(p);
                 const variance = (p.budget || 0) - spend;
                 const meta = projectTypeMeta(p.type);
                 return (
@@ -9277,6 +9377,12 @@ function AdminFinancials({ ledgerByClub = {}, projects = [], clubs = [], toast }
                     <td style={{ textAlign: 'right', fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 13 }}>
                       R {spend.toLocaleString()}
                     </td>
+                    <td style={{ textAlign: 'right', fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 12.5, color: '#b58500' }}>
+                      R {b.capex.toLocaleString()}
+                    </td>
+                    <td style={{ textAlign: 'right', fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 12.5, color: 'var(--green)' }}>
+                      R {b.opex.toLocaleString()}
+                    </td>
                     <td style={{ textAlign: 'right', fontFamily: "'Montserrat',sans-serif", fontWeight: 800, fontSize: 13, color: variance >= 0 ? 'var(--green)' : 'var(--coral)' }}>
                       {variance >= 0 ? '+' : '−'} R {Math.abs(variance).toLocaleString()}
                     </td>
@@ -9285,7 +9391,7 @@ function AdminFinancials({ ledgerByClub = {}, projects = [], clubs = [], toast }
               })}
               {projects.length === 0 && (
                 <tr>
-                  <td colSpan="6" style={{ padding: 28, textAlign: 'center', color: 'var(--muted)' }}>
+                  <td colSpan="8" style={{ padding: 28, textAlign: 'center', color: 'var(--muted)' }}>
                     No projects logged yet.
                   </td>
                 </tr>

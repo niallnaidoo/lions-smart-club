@@ -9143,6 +9143,52 @@
       .af-bar-fill { height: 100%; border-radius: 999px; }
       .af-bar-in { background: var(--green); }
       .af-bar-out { background: var(--coral); }
+      .af-bar-fund { background: var(--ink); }
+
+      /* Project funding requirements panel */
+      .af-fund { border-left: 4px solid var(--ink); }
+      .af-fund-grid {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 10px;
+        margin-top: 10px;
+      }
+      @media (max-width: 900px) {
+        .af-fund-grid { grid-template-columns: repeat(2, 1fr); }
+      }
+      .af-fund-stat {
+        background: var(--paper);
+        border-radius: 8px;
+        padding: 10px 12px;
+      }
+      .af-fund-capex { border-left: 3px solid #b58500; }
+      .af-fund-opex { border-left: 3px solid var(--green); }
+      .af-fund-gap { border-left: 3px solid var(--ink3); }
+      .af-fund-l {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 9.5px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .af-fund-n {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 17px;
+        font-weight: 900;
+        color: var(--ink);
+        margin-top: 3px;
+        font-variant-numeric: tabular-nums;
+      }
+      .af-fund-capex .af-fund-n { color: #b58500; }
+      .af-fund-opex .af-fund-n { color: var(--green); }
+      .af-fund-s {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--muted);
+        margin-top: 2px;
+      }
 
       .af-rank-row {
         display: flex;
