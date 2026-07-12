@@ -58,6 +58,8 @@ import {
   PROJECT_STATUSES,
   TASK_STATUSES,
   PROJECT_SEED,
+  RATE_UNITS,
+  personLineCost,
   computeProjectSpend,
   projectStatusTone,
   projectTypeMeta,
@@ -7126,6 +7128,7 @@ function ClubReportsInbox({ jobs, clubs = [], onOpenGround, onOpenCreateJob, onM
    task list, an equipment BOM, resourcing (Lions staff + external vendors),
    and a rolling spend total computed from the equipment + people costs. */
 function AdminProjects({ projects, setProjects, toast }) {
+  const [mode, setMode] = useState('gantt'); // "gantt" (default) or "cards"
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [query, setQuery] = useState('');
@@ -7201,6 +7204,33 @@ function AdminProjects({ projects, setProjects, toast }) {
           </p>
         </div>
         <div className="ph-actions">
+          <div className="fac-mode-switch" role="tablist">
+            <button
+              role="tab"
+              className={`fac-mode-btn ${mode === 'gantt' ? 'active' : ''}`}
+              onClick={() => setMode('gantt')}
+            >
+              <svg viewBox="0 0 16 16" fill="none">
+                <rect x="2" y="3" width="9" height="2.4" rx="1" fill="currentColor" opacity="0.9" />
+                <rect x="5" y="6.8" width="8" height="2.4" rx="1" fill="currentColor" opacity="0.7" />
+                <rect x="3" y="10.6" width="6" height="2.4" rx="1" fill="currentColor" opacity="0.5" />
+              </svg>
+              Gantt
+            </button>
+            <button
+              role="tab"
+              className={`fac-mode-btn ${mode === 'cards' ? 'active' : ''}`}
+              onClick={() => setMode('cards')}
+            >
+              <svg viewBox="0 0 16 16" fill="none">
+                <rect x="2" y="2" width="5.5" height="5.5" rx="1" stroke="currentColor" strokeWidth="1.4" />
+                <rect x="8.5" y="2" width="5.5" height="5.5" rx="1" stroke="currentColor" strokeWidth="1.4" />
+                <rect x="2" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" strokeWidth="1.4" />
+                <rect x="8.5" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" strokeWidth="1.4" />
+              </svg>
+              Cards
+            </button>
+          </div>
           <Btn tone="outline" size="sm" icon={Icon.Download}>Export</Btn>
           <Btn tone="teal" size="sm" icon={Icon.Plus} onClick={() => setAddingProject(true)}>
             New project
@@ -7281,7 +7311,13 @@ function AdminProjects({ projects, setProjects, toast }) {
         ))}
       </div>
 
+      {/* Gantt view (default) */}
+      {mode === 'gantt' && (
+        <ProjectsGantt projects={filtered} onOpen={(id) => setOpenProject(id)} />
+      )}
+
       {/* Project cards */}
+      {mode === 'cards' && (
       <div className="proj-grid">
         {filtered.map((p) => {
           const meta = projectTypeMeta(p.type);
@@ -7354,11 +7390,150 @@ function AdminProjects({ projects, setProjects, toast }) {
           <div className="cv-empty">No projects match this filter.</div>
         )}
       </div>
+      )}
 
       {addingProject && ReactDOM.createPortal(
         <AddProjectModal onSubmit={addProject} onCancel={() => setAddingProject(false)} />,
         document.body
       )}
+    </div>
+  );
+}
+
+/* ─── ProjectsGantt · timeline view (default) ───
+   Left frozen columns show Project · Tasks · Equipment · Cost · People.
+   Right side shows a proportional timeline bar over the season window
+   (Jul 2026 → Mar 2027). Bar is coloured by status; spend-vs-budget
+   progress is overlaid inside the bar. */
+function ProjectsGantt({ projects, onOpen }) {
+  // Fixed season window — Jul 2026 through Mar 2027 covers every seeded project.
+  const winStart = new Date('2026-07-01');
+  const winEnd = new Date('2027-03-31');
+  const winMs = winEnd - winStart;
+
+  const months = [];
+  const cur = new Date(winStart);
+  while (cur <= winEnd) {
+    months.push(new Date(cur));
+    cur.setMonth(cur.getMonth() + 1);
+  }
+  const today = new Date();
+  const todayPct = today >= winStart && today <= winEnd
+    ? ((today - winStart) / winMs) * 100
+    : null;
+
+  function pctFor(dateStr) {
+    if (!dateStr) return null;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return null;
+    const clamped = Math.max(winStart.getTime(), Math.min(winEnd.getTime(), d.getTime()));
+    return ((clamped - winStart.getTime()) / winMs) * 100;
+  }
+
+  return (
+    <div className="gantt">
+      <div className="gantt-head">
+        <div className="gantt-l-head">
+          <div className="gantt-l-col gantt-l-col-name">Project</div>
+          <div className="gantt-l-col">Tasks</div>
+          <div className="gantt-l-col">Equipment</div>
+          <div className="gantt-l-col">Cost</div>
+          <div className="gantt-l-col">People</div>
+        </div>
+        <div className="gantt-r-head">
+          {months.map((m) => (
+            <div key={m.getTime()} className="gantt-month">
+              {m.toLocaleDateString('en-GB', { month: 'short' })}
+              <span className="gantt-year">{m.getFullYear().toString().slice(2)}</span>
+            </div>
+          ))}
+          {todayPct != null && (
+            <div className="gantt-today" style={{ left: `${todayPct}%` }} title={`Today · ${today.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`} />
+          )}
+        </div>
+      </div>
+
+      <div className="gantt-body">
+        {projects.map((p) => {
+          const meta = projectTypeMeta(p.type);
+          const spend = p._spend != null ? p._spend : computeProjectSpend(p);
+          const budget = p.budget || 0;
+          const usage = budget ? Math.min(100, (spend / budget) * 100) : 0;
+          const overBudget = spend > budget && budget > 0;
+          const tasksDone = (p.tasks || []).filter((t) => t.status === 'done').length;
+          const tasksTotal = (p.tasks || []).length;
+          const startPct = pctFor(p.startDate);
+          const endPct = pctFor(p.endDate);
+          const barLeft = startPct != null ? startPct : 0;
+          const barWidth = startPct != null && endPct != null ? Math.max(2, endPct - startPct) : 0;
+          const statusMeta = PROJECT_STATUSES.find((s) => s.key === p.status);
+          return (
+            <div key={p.id} className="gantt-row" onClick={() => onOpen(p.id)}>
+              <div className="gantt-l">
+                <div className="gantt-l-col gantt-l-col-name">
+                  <div className="gantt-l-name">
+                    <span className="gantt-l-icon">{meta.icon}</span>
+                    <div style={{ minWidth: 0 }}>
+                      <div className="gantt-l-name-t">{p.name}</div>
+                      <div className="gantt-l-name-s">
+                        {meta.label} · {p.owner}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="gantt-l-col gantt-l-cell">
+                  <div className="gantt-l-cell-n">
+                    {tasksDone}<span className="gantt-l-cell-of">/{tasksTotal}</span>
+                  </div>
+                  <div className="gantt-l-cell-s">done</div>
+                </div>
+                <div className="gantt-l-col gantt-l-cell">
+                  <div className="gantt-l-cell-n">{(p.equipment || []).length}</div>
+                  <div className="gantt-l-cell-s">
+                    R {(p.equipment || []).reduce((s, e) => s + (Number(e.qty) || 0) * (Number(e.unitCost) || 0), 0).toLocaleString()}
+                  </div>
+                </div>
+                <div className="gantt-l-col gantt-l-cell">
+                  <div className="gantt-l-cell-n" style={{ color: overBudget ? 'var(--coral)' : 'var(--ink)' }}>
+                    R {(spend / 1000).toFixed(0)}k
+                  </div>
+                  <div className="gantt-l-cell-s">of R {(budget / 1000).toFixed(0)}k</div>
+                </div>
+                <div className="gantt-l-col gantt-l-cell">
+                  <div className="gantt-l-cell-n">{(p.people || []).length}</div>
+                  <div className="gantt-l-cell-s">on project</div>
+                </div>
+              </div>
+              <div className="gantt-r">
+                {startPct != null && endPct != null && (
+                  <div
+                    className={`gantt-bar gantt-bar-${p.status}`}
+                    style={{ left: `${barLeft}%`, width: `${barWidth}%` }}
+                    title={`${p.startDate} → ${p.endDate}`}
+                  >
+                    <div
+                      className="gantt-bar-fill"
+                      style={{
+                        width: `${Math.min(100, usage)}%`,
+                        background: overBudget ? 'rgba(220, 74, 74, 0.9)' : 'rgba(15, 77, 46, 0.9)',
+                      }}
+                    />
+                    <span className="gantt-bar-label">
+                      {statusMeta?.label} · {spend > 0 ? `R ${(spend / 1000).toFixed(0)}k` : '—'}
+                    </span>
+                  </div>
+                )}
+                {todayPct != null && (
+                  <div className="gantt-today gantt-today-body" style={{ left: `${todayPct}%` }} />
+                )}
+              </div>
+            </div>
+          );
+        })}
+        {projects.length === 0 && (
+          <div className="cv-empty" style={{ margin: 20 }}>No projects match this filter.</div>
+        )}
+      </div>
     </div>
   );
 }
@@ -7378,10 +7553,7 @@ function ProjectDetail({ project, onBack, onUpdate, onRemove, toast }) {
     (s, e) => s + (Number(e.qty) || 0) * (Number(e.unitCost) || 0),
     0
   );
-  const peopleCost = (project.people || []).reduce(
-    (s, r) => s + (Number(r.dailyRate) || 0) * (Number(r.days) || 0),
-    0
-  );
+  const peopleCost = (project.people || []).reduce((s, r) => s + personLineCost(r), 0);
 
   function addTask(t) {
     onUpdate({ tasks: [...(project.tasks || []), { ...t, id: 't-' + Date.now() }] });
@@ -7568,7 +7740,12 @@ function ProjectDetail({ project, onBack, onUpdate, onRemove, toast }) {
               <div className="proj-col-empty">No one assigned yet.</div>
             )}
             {(project.people || []).map((r) => {
-              const line = (Number(r.dailyRate)||0) * (Number(r.days)||0);
+              const line = personLineCost(r);
+              const rate = Number(r.rate ?? r.dailyRate ?? 0) || 0;
+              const unit = r.rateUnit || 'day';
+              const units = Number(r.units ?? r.days ?? 0) || 0;
+              const shortUnit = unit === 'hour' ? '/hr' : unit === 'day' ? '/d' : unit === 'deliverable' ? '/deliv.' : ' fixed';
+              const unitLabel = unit === 'hour' ? 'hrs' : unit === 'day' ? 'd' : unit === 'deliverable' ? 'items' : '';
               return (
                 <div key={r.id} className="proj-person">
                   <div className="proj-equip-top">
@@ -7577,7 +7754,10 @@ function ProjectDetail({ project, onBack, onUpdate, onRemove, toast }) {
                   </div>
                   <div className="proj-person-role">{r.role}</div>
                   <div className="proj-equip-meta">
-                    <span>R {Number(r.dailyRate).toLocaleString()}/d × {r.days}d</span>
+                    <span>
+                      R {rate.toLocaleString()}{shortUnit}
+                      {unit !== 'once_off' && ` × ${units}${unitLabel}`}
+                    </span>
                     <span className={`proj-src proj-src-${r.type === 'internal' ? 'internal' : 'vendor'}`}>
                       {r.type === 'internal' ? 'Lions office' : 'Vendor'}
                     </span>
@@ -7985,9 +8165,11 @@ function AddPersonModal({ onSubmit, onCancel }) {
   const [staffId, setStaffId] = useState(LIONS_OFFICE_STAFF[0].id);
   const [vendorQuery, setVendorQuery] = useState('');
   const [vendorId, setVendorId] = useState('');
+  const [autoName, setAutoName] = useState(LIONS_OFFICE_STAFF[0].name);
   const [role, setRole] = useState('');
-  const [dailyRate, setDailyRate] = useState(String(LIONS_OFFICE_STAFF[0].dailyRate));
-  const [days, setDays] = useState('1');
+  const [rate, setRate] = useState(String(LIONS_OFFICE_STAFF[0].rate));
+  const [rateUnit, setRateUnit] = useState('day');
+  const [units, setUnits] = useState('1');
 
   const availableVendors = useMemo(
     () => VENDORS.filter((v) => v.status === 'onboarded' || v.status === 'verified'),
@@ -8004,45 +8186,67 @@ function AddPersonModal({ onSubmit, onCancel }) {
   function pickStaff(id) {
     setStaffId(id);
     const s = LIONS_OFFICE_STAFF.find((x) => x.id === id);
-    if (s) setDailyRate(String(s.dailyRate));
+    if (s) {
+      setAutoName(s.name);
+      setRate(String(s.rate));
+    }
+  }
+  function pickVendor(id) {
+    setVendorId(id);
+    const v = VENDORS.find((x) => x.id === id);
+    if (v) setAutoName(v.name);
+  }
+  function switchType(next) {
+    setType(next);
+    if (next === 'internal') {
+      const s = LIONS_OFFICE_STAFF.find((x) => x.id === staffId);
+      setAutoName(s?.name || '');
+      if (s) setRate(String(s.rate));
+    } else {
+      const v = VENDORS.find((x) => x.id === vendorId);
+      setAutoName(v?.name || '');
+    }
   }
 
-  const parsedRate = Number(String(dailyRate).replace(/[^\d.]/g, '')) || 0;
-  const parsedDays = Number(days) || 0;
-  const line = parsedRate * parsedDays;
+  const parsedRate = Number(String(rate).replace(/[^\d.]/g, '')) || 0;
+  const parsedUnits = rateUnit === 'once_off' ? 1 : Number(units) || 0;
+  const line = rateUnit === 'once_off' ? parsedRate : parsedRate * parsedUnits;
+
+  const unitDef = RATE_UNITS.find((r) => r.key === rateUnit) || RATE_UNITS[1];
+  const unitInputLabel =
+    rateUnit === 'hour' ? 'Hours on project'
+    : rateUnit === 'day' ? 'Days on project'
+    : rateUnit === 'deliverable' ? 'Number of deliverables'
+    : '';
+  const rateLabel =
+    rateUnit === 'once_off' ? 'Once-off fee (ZAR)'
+    : rateUnit === 'hour' ? 'Hourly rate (ZAR)'
+    : rateUnit === 'deliverable' ? 'Rate per deliverable (ZAR)'
+    : 'Daily rate (ZAR)';
 
   const canSubmit =
-    parsedRate > 0 && parsedDays > 0 &&
-    (type === 'internal' ? !!staffId : !!vendorId) && role.trim();
+    parsedRate > 0 &&
+    (rateUnit === 'once_off' || parsedUnits > 0) &&
+    (type === 'internal' ? !!staffId : !!vendorId) &&
+    role.trim() &&
+    autoName.trim();
 
   function submit() {
     if (!canSubmit) return;
-    if (type === 'internal') {
-      const s = LIONS_OFFICE_STAFF.find((x) => x.id === staffId);
-      onSubmit({
-        type: 'internal',
-        staffId,
-        name: s?.name || '',
-        role: role.trim(),
-        dailyRate: parsedRate,
-        days: parsedDays,
-      });
-    } else {
-      const v = VENDORS.find((x) => x.id === vendorId);
-      onSubmit({
-        type: 'vendor',
-        vendorId,
-        name: v?.name || '',
-        role: role.trim(),
-        dailyRate: parsedRate,
-        days: parsedDays,
-      });
-    }
+    const base = {
+      name: autoName.trim(),
+      role: role.trim(),
+      rate: parsedRate,
+      rateUnit,
+      units: parsedUnits,
+    };
+    if (type === 'internal') onSubmit({ ...base, type: 'internal', staffId });
+    else onSubmit({ ...base, type: 'vendor', vendorId });
   }
 
   return (
     <div className="fix-confirm" onClick={(e) => e.target === e.currentTarget && onCancel()}>
-      <div className="fix-confirm-box jobmodal-box" style={{ maxWidth: 620 }}>
+      <div className="fix-confirm-box jobmodal-box" style={{ maxWidth: 640 }}>
         <div className="fac-jobmodal-head">
           <div>
             <div className="fac-detail-eyebrow">People</div>
@@ -8056,14 +8260,14 @@ function AddPersonModal({ onSubmit, onCancel }) {
             <div className="proj-src-toggle">
               <button
                 className={`proj-src-choice ${type === 'internal' ? 'on' : ''}`}
-                onClick={() => setType('internal')}
+                onClick={() => switchType('internal')}
               >
                 🦁 Lions office
                 <div className="proj-src-choice-sub">Pick from union staff</div>
               </button>
               <button
                 className={`proj-src-choice ${type === 'vendor' ? 'on' : ''}`}
-                onClick={() => setType('vendor')}
+                onClick={() => switchType('vendor')}
               >
                 🚚 External vendor
                 <div className="proj-src-choice-sub">Search vendor database</div>
@@ -8084,7 +8288,7 @@ function AddPersonModal({ onSubmit, onCancel }) {
                         <div className="proj-vendor-choice-name">{s.name}</div>
                         <div className="proj-vendor-choice-cat">{s.role}</div>
                       </div>
-                      <div className="proj-vendor-choice-r">R {s.dailyRate.toLocaleString()}/d</div>
+                      <div className="proj-vendor-choice-r">R {s.rate.toLocaleString()}/d</div>
                     </button>
                   ))}
                 </div>
@@ -8103,7 +8307,7 @@ function AddPersonModal({ onSubmit, onCancel }) {
                     <button
                       key={v.id}
                       className={`proj-vendor-choice ${vendorId === v.id ? 'on' : ''}`}
-                      onClick={() => setVendorId(v.id)}
+                      onClick={() => pickVendor(v.id)}
                     >
                       <div className="proj-vendor-choice-l">
                         <div className="proj-vendor-choice-name">{v.name}</div>
@@ -8123,8 +8327,22 @@ function AddPersonModal({ onSubmit, onCancel }) {
           </div>
 
           <div className="jobmodal-step">
-            <div className="jobmodal-step-eyebrow">Role &amp; cost</div>
+            <div className="jobmodal-step-eyebrow">Auto-filled name</div>
             <div>
+              <label className="field-label">
+                Name <span style={{ color: 'var(--green)', fontWeight: 800 }}>· auto-populated</span>
+              </label>
+              <input
+                className="field-input"
+                value={autoName}
+                onChange={(e) => setAutoName(e.target.value)}
+              />
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                Filled from the {type === 'internal' ? 'staff record' : 'vendor record'} above.
+                Editable if the display should differ.
+              </div>
+            </div>
+            <div style={{ marginTop: 12 }}>
               <label className="field-label">Role on this project <span className="req">*</span></label>
               <input
                 className="field-input"
@@ -8133,22 +8351,51 @@ function AddPersonModal({ onSubmit, onCancel }) {
                 onChange={(e) => setRole(e.target.value)}
               />
             </div>
+          </div>
+
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">Rate &amp; commitment</div>
+            <div>
+              <label className="field-label">Rate basis</label>
+              <div className="rate-unit-toggle">
+                {RATE_UNITS.map((u) => (
+                  <button
+                    key={u.key}
+                    className={`rate-unit-choice ${rateUnit === u.key ? 'on' : ''}`}
+                    onClick={() => setRateUnit(u.key)}
+                  >
+                    {u.label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="field-grid-2" style={{ marginTop: 12 }}>
               <div>
-                <label className="field-label">Daily rate (ZAR)</label>
-                <input className="field-input" inputMode="decimal" value={dailyRate} onChange={(e) => setDailyRate(e.target.value)} />
+                <label className="field-label">{rateLabel}</label>
+                <input className="field-input" inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)} />
               </div>
-              <div>
-                <label className="field-label">Days on project</label>
-                <input className="field-input" inputMode="numeric" value={days} onChange={(e) => setDays(e.target.value)} />
-              </div>
+              {rateUnit !== 'once_off' && (
+                <div>
+                  <label className="field-label">{unitInputLabel}</label>
+                  <input className="field-input" inputMode="numeric" value={units} onChange={(e) => setUnits(e.target.value)} />
+                </div>
+              )}
+              {rateUnit === 'once_off' && (
+                <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                  <div style={{ fontSize: 11.5, color: 'var(--muted)', fontFamily: "'Montserrat',sans-serif" }}>
+                    Once-off fixed fee — no units needed.
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
         <div className="jobmodal-footer">
           <div className="jobmodal-footer-summary">
             <strong>R {line.toLocaleString()}</strong> total ·{' '}
-            {parsedDays}d × R {parsedRate.toLocaleString()}
+            {rateUnit === 'once_off'
+              ? 'Once-off fee'
+              : `${parsedUnits} ${unitDef.unitL.toLowerCase()} × R ${parsedRate.toLocaleString()}`}
           </div>
           <div className="jobmodal-footer-actions">
             <Btn tone="outline" onClick={onCancel}>Cancel</Btn>

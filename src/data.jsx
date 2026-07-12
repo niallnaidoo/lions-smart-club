@@ -1798,13 +1798,13 @@ const CLUB_INCOME_SEED = [
    VENDORS pool (searchable in the same modal). */
 
 const LIONS_OFFICE_STAFF = [
-  { id: 'los-001', name: 'Bilal Faku', role: 'Operations Lead', phone: '083 111 2233', email: 'bilal@lions.co.za', dailyRate: 4500 },
-  { id: 'los-002', name: 'Nadia Naidoo', role: 'Finance & Admin', phone: '082 220 3388', email: 'nadia@lions.co.za', dailyRate: 4000 },
-  { id: 'los-003', name: 'Sipho Zulu', role: 'Facilities Manager', phone: '076 810 2245', email: 'sipho@lions.co.za', dailyRate: 4200 },
-  { id: 'los-004', name: 'Rushil Patel', role: 'Cricket Development Officer', phone: '083 604 4471', email: 'rushil@lions.co.za', dailyRate: 3800 },
-  { id: 'los-005', name: 'Marissa Botha', role: 'Marketing & Comms', phone: '072 447 0091', email: 'marissa@lions.co.za', dailyRate: 3600 },
-  { id: 'los-006', name: 'Themba Ndlovu', role: 'Groundskeeping Coordinator', phone: '084 118 2299', email: 'themba@lions.co.za', dailyRate: 3400 },
-  { id: 'los-007', name: 'Kirsten Adams', role: 'Player Welfare Officer', phone: '082 990 4477', email: 'kirsten@lions.co.za', dailyRate: 3800 },
+  { id: 'los-001', name: 'Bilal Faku', role: 'Operations Lead', phone: '083 111 2233', email: 'bilal@lions.co.za', rate:4500 },
+  { id: 'los-002', name: 'Nadia Naidoo', role: 'Finance & Admin', phone: '082 220 3388', email: 'nadia@lions.co.za', rate:4000 },
+  { id: 'los-003', name: 'Sipho Zulu', role: 'Facilities Manager', phone: '076 810 2245', email: 'sipho@lions.co.za', rate:4200 },
+  { id: 'los-004', name: 'Rushil Patel', role: 'Cricket Development Officer', phone: '083 604 4471', email: 'rushil@lions.co.za', rate:3800 },
+  { id: 'los-005', name: 'Marissa Botha', role: 'Marketing & Comms', phone: '072 447 0091', email: 'marissa@lions.co.za', rate:3600 },
+  { id: 'los-006', name: 'Themba Ndlovu', role: 'Groundskeeping Coordinator', phone: '084 118 2299', email: 'themba@lions.co.za', rate:3400 },
+  { id: 'los-007', name: 'Kirsten Adams', role: 'Player Welfare Officer', phone: '082 990 4477', email: 'kirsten@lions.co.za', rate:3800 },
 ];
 
 /* ─── PROJECT PORTFOLIO · Lions-office project management ───
@@ -1864,9 +1864,10 @@ const PROJECT_SEED = [
       { id: 'e-104', name: 'Scoreboard batteries + spares', qty: 20, unitCost: 180, source: 'internal' },
     ],
     people: [
-      { id: 'p-101', type: 'internal', staffId: 'los-002', name: 'Nadia Naidoo', role: 'Finance & prize money', dailyRate: 4000, days: 6 },
-      { id: 'p-102', type: 'internal', staffId: 'los-005', name: 'Marissa Botha', role: 'Marketing & press', dailyRate: 3600, days: 8 },
-      { id: 'p-103', type: 'vendor', vendorId: 'v-014', name: 'KZN Cricket Union', role: 'Umpire panel', dailyRate: 2500, days: 12 },
+      { id: 'p-101', type: 'internal', staffId: 'los-002', name: 'Nadia Naidoo', role: 'Finance & prize money', rate:4000, rateUnit: 'day', units:6 },
+      { id: 'p-102', type: 'internal', staffId: 'los-005', name: 'Marissa Botha', role: 'Marketing & press', rate:3600, rateUnit: 'day', units:8 },
+      { id: 'p-103', type: 'vendor', vendorId: 'v-014', name: 'KZN Cricket Union', role: 'Umpire panel · per match', rate: 1500, rateUnit: 'deliverable', units: 20 },
+      { id: 'p-104', type: 'internal', staffId: 'los-005', name: 'Marissa Botha', role: 'Season launch event mgmt', rate: 18000, rateUnit: 'once_off', units: 1 },
     ],
     notes: 'Sponsorship confirmed with Coastal Insurance (Gold). Prize pool R 45k.',
   },
@@ -1891,9 +1892,9 @@ const PROJECT_SEED = [
       { id: 'e-202', name: 'Top dressing loam · tonnes', qty: 3, unitCost: 2200, source: 'vendor', vendorId: 'v-001' },
     ],
     people: [
-      { id: 'p-201', type: 'internal', staffId: 'los-003', name: 'Sipho Zulu', role: 'Site oversight', dailyRate: 4200, days: 5 },
-      { id: 'p-202', type: 'vendor', vendorId: 'v-001', name: 'Green Turf Solutions', role: 'Turf contractor', dailyRate: 3800, days: 4 },
-      { id: 'p-203', type: 'vendor', vendorId: 'v-004', name: 'JR Turf Consulting', role: 'Independent audit', dailyRate: 5500, days: 1 },
+      { id: 'p-201', type: 'internal', staffId: 'los-003', name: 'Sipho Zulu', role: 'Site oversight', rate:4200, rateUnit: 'day', units:5 },
+      { id: 'p-202', type: 'vendor', vendorId: 'v-001', name: 'Green Turf Solutions', role: 'Turf contractor', rate:3800, rateUnit: 'day', units:4 },
+      { id: 'p-203', type: 'vendor', vendorId: 'v-004', name: 'JR Turf Consulting', role: 'Independent audit', rate: 5500, rateUnit: 'once_off', units: 1 },
     ],
     notes: 'Vinis dropped to 52.2. Post-relay target: 65+.',
   },
@@ -1917,7 +1918,7 @@ const PROJECT_SEED = [
       { id: 'e-302', name: 'Sightscreen · fabricated + painted', qty: 1, unitCost: 18500, source: 'vendor', vendorId: 'v-005' },
     ],
     people: [
-      { id: 'p-301', type: 'internal', staffId: 'los-006', name: 'Themba Ndlovu', role: 'Project lead', dailyRate: 3400, days: 4 },
+      { id: 'p-301', type: 'internal', staffId: 'los-006', name: 'Themba Ndlovu', role: 'Project lead', rate:3400, rateUnit: 'day', units:4 },
     ],
     notes: '',
   },
@@ -1944,16 +1945,37 @@ const PROJECT_SEED = [
       { id: 'e-403', name: 'Portable stumps + bases × 12 sets', qty: 12, unitCost: 650, source: 'internal' },
     ],
     people: [
-      { id: 'p-401', type: 'internal', staffId: 'los-004', name: 'Rushil Patel', role: 'Programme lead', dailyRate: 3800, days: 12 },
-      { id: 'p-402', type: 'vendor', vendorId: 'v-009', name: 'Sanele Cele Cricket Academy', role: 'Coaching', dailyRate: 2500, days: 8 },
+      { id: 'p-401', type: 'internal', staffId: 'los-004', name: 'Rushil Patel', role: 'Programme lead', rate:3800, rateUnit: 'day', units:12 },
+      { id: 'p-402', type: 'vendor', vendorId: 'v-009', name: 'Sanele Cele Cricket Academy', role: 'Coaching · per session hour', rate: 600, rateUnit: 'hour', units: 36 },
     ],
     notes: 'KZNCU grant of R15k confirmed. Coastal Insurance in-kind: R5k towards kit.',
   },
 ];
 
+const RATE_UNITS = [
+  { key: 'hour', label: 'Per hour', unitL: 'Hours' },
+  { key: 'day', label: 'Per day', unitL: 'Days' },
+  { key: 'deliverable', label: 'Per deliverable', unitL: 'Deliverables' },
+  { key: 'once_off', label: 'Once-off', unitL: 'Fee' },
+];
+
+// Compute one person's line cost. Handles both the legacy schema
+// (dailyRate + days) and the new one (rate + rateUnit + units).
+// Once-off entries always cost `rate × 1`.
+function personLineCost(r) {
+  const rate = Number(r.rate ?? r.dailyRate ?? 0) || 0;
+  const unit = r.rateUnit || 'day';
+  if (unit === 'once_off') return rate;
+  const units = Number(r.units ?? r.days ?? 0) || 0;
+  return rate * units;
+}
+
 function computeProjectSpend(p) {
-  const equip = (p.equipment || []).reduce((s, e) => s + (Number(e.qty) || 0) * (Number(e.unitCost) || 0), 0);
-  const people = (p.people || []).reduce((s, r) => s + (Number(r.dailyRate) || 0) * (Number(r.days) || 0), 0);
+  const equip = (p.equipment || []).reduce(
+    (s, e) => s + (Number(e.qty) || 0) * (Number(e.unitCost) || 0),
+    0
+  );
+  const people = (p.people || []).reduce((s, r) => s + personLineCost(r), 0);
   return equip + people;
 }
 
@@ -2509,6 +2531,8 @@ export {
   PROJECT_STATUSES,
   TASK_STATUSES,
   PROJECT_SEED,
+  RATE_UNITS,
+  personLineCost,
   computeProjectSpend,
   projectStatusTone,
   projectTypeMeta,
