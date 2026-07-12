@@ -9459,6 +9459,201 @@
         color: var(--green);
       }
 
+      /* ─── Spend category chip grid (equipment + people modals) ─── */
+      .cat-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px;
+        margin-top: 6px;
+      }
+      @media (max-width: 640px) {
+        .cat-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+      .cat-choice {
+        padding: 9px 6px;
+        background: var(--white);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        cursor: pointer;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10.5px;
+        font-weight: 700;
+        color: var(--muted);
+        text-align: center;
+        line-height: 1.3;
+      }
+      .cat-choice:hover { border-color: var(--ink3); }
+      .cat-choice.on {
+        background: var(--green-pale);
+        border-color: var(--green);
+        color: var(--green);
+      }
+      .cat-ic {
+        display: block;
+        font-size: 16px;
+        margin-bottom: 3px;
+      }
+      .cat-kind {
+        display: block;
+        margin-top: 2px;
+        font-size: 8.5px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--paper3);
+      }
+      .cat-choice.on .cat-kind { color: var(--green); opacity: 0.7; }
+
+      /* Category + capex/opex tags on table sub-rows */
+      .agt-cat-tag {
+        display: inline-block;
+        padding: 1px 7px;
+        border-radius: 4px;
+        background: var(--paper2);
+        color: var(--ink);
+        font-size: 9.5px;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+      .agt-kind-tag {
+        display: inline-block;
+        padding: 1px 6px;
+        border-radius: 4px;
+        font-size: 9px;
+        font-weight: 900;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      .agt-kind-capex {
+        background: rgba(181, 133, 0, 0.14);
+        color: #b58500;
+      }
+      .agt-kind-opex {
+        background: var(--green-pale);
+        color: var(--green);
+      }
+
+      /* ─── Project financial impact panel ─── */
+      .fi-panel {
+        margin-top: 14px;
+        background: var(--white);
+        border: 1px solid var(--line);
+        border-left: 4px solid var(--green);
+        border-radius: 12px;
+        padding: 14px 16px;
+      }
+      .fi-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .fi-title {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--ink);
+      }
+      .fi-sub {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--muted);
+      }
+      .fi-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        margin-top: 10px;
+      }
+      @media (max-width: 800px) {
+        .fi-grid { grid-template-columns: repeat(2, 1fr); }
+      }
+      .fi-stat {
+        background: var(--paper);
+        border-radius: 8px;
+        padding: 10px 12px;
+      }
+      .fi-stat-capex { border-left: 3px solid #b58500; }
+      .fi-stat-opex { border-left: 3px solid var(--green); }
+      .fi-stat-l {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 9.5px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .fi-stat-n {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 17px;
+        font-weight: 900;
+        color: var(--ink);
+        margin-top: 3px;
+        font-variant-numeric: tabular-nums;
+      }
+      .fi-stat-s {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--muted);
+        margin-top: 2px;
+      }
+      .fi-cats {
+        margin-top: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .fi-cat-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11.5px;
+        color: var(--ink);
+      }
+      .fi-cat-name {
+        flex: none;
+        width: 220px;
+        font-weight: 700;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .fi-cat-bar {
+        flex: 1;
+        height: 6px;
+        background: var(--paper2);
+        border-radius: 999px;
+        overflow: hidden;
+      }
+      .fi-cat-fill {
+        height: 100%;
+        border-radius: 999px;
+        background: var(--green);
+      }
+      .fi-cat-amt {
+        flex: none;
+        width: 96px;
+        text-align: right;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+      }
+      .fi-cat-more {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10.5px;
+        color: var(--muted);
+        text-align: center;
+        padding-top: 2px;
+      }
+
       /* ─── Project Detail · single activity Gantt table ─── */
       .agt-wrap {
         margin-top: 16px;

@@ -59,6 +59,10 @@ import {
   TASK_STATUSES,
   PROJECT_SEED,
   RATE_UNITS,
+  EQUIPMENT_CATEGORIES,
+  PEOPLE_COST_CATEGORIES,
+  equipmentCategoryMeta,
+  peopleCategoryMeta,
   personLineCost,
   computeTaskSpend,
   computeProjectSpend,
@@ -7703,6 +7707,9 @@ function ProjectDetail({ project, onBack, onUpdate, onRemove, toast }) {
         </div>
       </div>
 
+      {/* Where the money goes — equipment vs people, capex vs opex, by category */}
+      <ProjectFinancialImpact project={project} />
+
       {/* One simple Gantt table — activities as rows, expandable sub-rows */}
       <ActivityGanttTable
         project={project}
@@ -7752,6 +7759,92 @@ function ProjectDetail({ project, onBack, onUpdate, onRemove, toast }) {
         />,
         document.body
       )}
+    </div>
+  );
+}
+
+/* ─── ProjectFinancialImpact · where the project's money goes ───
+   Rolls every activity's equipment + people lines up by spend category.
+   Equipment categories carry a capex / opex flag; people costs are always
+   opex. Gives the union the financial impact of the project at a glance. */
+function ProjectFinancialImpact({ project }) {
+  const tasks = project.tasks || [];
+  let equipTotal = 0;
+  let peopleTotal = 0;
+  let capex = 0;
+  let opex = 0;
+  const byCat = {};
+
+  tasks.forEach((t) => {
+    (t.equipment || []).forEach((e) => {
+      const line = (Number(e.qty) || 0) * (Number(e.unitCost) || 0);
+      const cat = equipmentCategoryMeta(e.category);
+      equipTotal += line;
+      if (cat.kind === 'capex') capex += line;
+      else opex += line;
+      const k = `${cat.icon} ${cat.label}`;
+      byCat[k] = (byCat[k] || 0) + line;
+    });
+    (t.people || []).forEach((r) => {
+      const line = personLineCost(r);
+      const cat = peopleCategoryMeta(r.category);
+      peopleTotal += line;
+      opex += line;
+      const k = `${cat.icon} ${cat.label}`;
+      byCat[k] = (byCat[k] || 0) + line;
+    });
+  });
+
+  const total = equipTotal + peopleTotal;
+  if (total === 0) return null;
+  const cats = Object.entries(byCat)
+    .map(([name, amount]) => ({ name, amount }))
+    .sort((a, b) => b.amount - a.amount);
+
+  return (
+    <div className="fi-panel">
+      <div className="fi-head">
+        <span className="fi-title">Financial impact</span>
+        <span className="fi-sub">
+          R {total.toLocaleString()} committed across {tasks.length} activit{tasks.length === 1 ? 'y' : 'ies'}
+        </span>
+      </div>
+      <div className="fi-grid">
+        <div className="fi-stat">
+          <div className="fi-stat-l">🔧 Equipment</div>
+          <div className="fi-stat-n">R {equipTotal.toLocaleString()}</div>
+          <div className="fi-stat-s">{total ? Math.round((equipTotal / total) * 100) : 0}% of project</div>
+        </div>
+        <div className="fi-stat">
+          <div className="fi-stat-l">👤 People</div>
+          <div className="fi-stat-n">R {peopleTotal.toLocaleString()}</div>
+          <div className="fi-stat-s">{total ? Math.round((peopleTotal / total) * 100) : 0}% of project</div>
+        </div>
+        <div className="fi-stat fi-stat-capex">
+          <div className="fi-stat-l">Capex</div>
+          <div className="fi-stat-n">R {capex.toLocaleString()}</div>
+          <div className="fi-stat-s">lasting assets</div>
+        </div>
+        <div className="fi-stat fi-stat-opex">
+          <div className="fi-stat-l">Opex</div>
+          <div className="fi-stat-n">R {opex.toLocaleString()}</div>
+          <div className="fi-stat-s">running costs</div>
+        </div>
+      </div>
+      <div className="fi-cats">
+        {cats.slice(0, 6).map((c) => (
+          <div key={c.name} className="fi-cat-row">
+            <span className="fi-cat-name">{c.name}</span>
+            <div className="fi-cat-bar">
+              <div className="fi-cat-fill" style={{ width: `${(c.amount / total) * 100}%` }} />
+            </div>
+            <span className="fi-cat-amt">R {c.amount.toLocaleString()}</span>
+          </div>
+        ))}
+        {cats.length > 6 && (
+          <div className="fi-cat-more">+ {cats.length - 6} more categories</div>
+        )}
+      </div>
     </div>
   );
 }
@@ -7934,11 +8027,14 @@ function ActivityGanttTable({
                 {open && eq.map((e) => {
                   const line = (Number(e.qty) || 0) * (Number(e.unitCost) || 0);
                   const vendor = e.vendorId ? VENDORS.find((v) => v.id === e.vendorId) : null;
+                  const ecat = equipmentCategoryMeta(e.category);
                   return (
                     <tr key={e.id} className="agt-subrow">
                       <td className="agt-td-subname">🔧 {e.name}</td>
                       <td colSpan={4} className="agt-td-subdetail">
                         {e.qty} × R {Number(e.unitCost).toLocaleString()} ·{' '}
+                        <span className="agt-cat-tag">{ecat.icon} {ecat.label}</span>{' '}
+                        <span className={`agt-kind-tag agt-kind-${ecat.kind}`}>{ecat.kind}</span>{' '}
                         <span className={`proj-src proj-src-${e.source}`}>
                           {e.source === 'internal' ? 'Internal store' : vendor?.name || 'Vendor'}
                         </span>
@@ -7962,12 +8058,14 @@ function ActivityGanttTable({
                     : unit === 'day' ? '/day'
                     : unit === 'deliverable' ? '/deliverable'
                     : ' once-off';
+                  const pcat = peopleCategoryMeta(r.category);
                   return (
                     <tr key={r.id} className="agt-subrow">
                       <td className="agt-td-subname">👤 {r.name}</td>
                       <td colSpan={4} className="agt-td-subdetail">
                         {r.role} · R {rate.toLocaleString()}{shortUnit}
                         {unit !== 'once_off' ? ` × ${units}` : ''} ·{' '}
+                        <span className="agt-cat-tag">{pcat.icon} {pcat.label}</span>{' '}
                         <span className={`proj-src proj-src-${r.type === 'internal' ? 'internal' : 'vendor'}`}>
                           {r.type === 'internal' ? 'Lions office' : 'Vendor'}
                         </span>
@@ -8233,6 +8331,7 @@ function AddTaskModal({ project, task, onSubmit, onCancel }) {
 /* ─── AddEquipmentModal · internal or vendor-sourced ─── */
 function AddEquipmentModal({ onSubmit, onCancel }) {
   const [name, setName] = useState('');
+  const [category, setCategory] = useState('');
   const [qty, setQty] = useState('1');
   const [unitCost, setUnitCost] = useState('');
   const [source, setSource] = useState('vendor');
@@ -8254,12 +8353,13 @@ function AddEquipmentModal({ onSubmit, onCancel }) {
   const parsedQty = Number(qty) || 0;
   const parsedCost = Number(String(unitCost).replace(/[^\d.]/g, '')) || 0;
   const line = parsedQty * parsedCost;
-  const canSubmit = name.trim() && parsedQty > 0 && parsedCost > 0 && (source === 'internal' || vendorId);
+  const canSubmit = name.trim() && category && parsedQty > 0 && parsedCost > 0 && (source === 'internal' || vendorId);
 
   function submit() {
     if (!canSubmit) return;
     onSubmit({
       name: name.trim(),
+      category,
       qty: parsedQty,
       unitCost: parsedCost,
       source,
@@ -8288,6 +8388,25 @@ function AddEquipmentModal({ onSubmit, onCancel }) {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <label className="field-label">What type of spend is this? <span className="req">*</span></label>
+              <div className="cat-grid">
+                {EQUIPMENT_CATEGORIES.map((c) => (
+                  <button
+                    key={c.key}
+                    className={`cat-choice ${category === c.key ? 'on' : ''}`}
+                    onClick={() => setCategory(c.key)}
+                  >
+                    <span className="cat-ic">{c.icon}</span>
+                    {c.label}
+                    <span className="cat-kind">{c.kind}</span>
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
+                One tap — this rolls the purchase into the project's financial impact.
+              </div>
             </div>
             <div className="field-grid-2" style={{ marginTop: 12 }}>
               <div>
@@ -8354,7 +8473,8 @@ function AddEquipmentModal({ onSubmit, onCancel }) {
         <div className="jobmodal-footer">
           <div className="jobmodal-footer-summary">
             <strong>R {line.toLocaleString()}</strong> total ·{' '}
-            {parsedQty} × R {parsedCost.toLocaleString()}
+            {parsedQty} × R {parsedCost.toLocaleString()} ·{' '}
+            {category ? equipmentCategoryMeta(category).label : 'pick a spend type'}
           </div>
           <div className="jobmodal-footer-actions">
             <Btn tone="outline" onClick={onCancel}>Cancel</Btn>
@@ -8374,6 +8494,7 @@ function AddPersonModal({ onSubmit, onCancel }) {
   const [vendorId, setVendorId] = useState('');
   const [autoName, setAutoName] = useState(LIONS_OFFICE_STAFF[0].name);
   const [role, setRole] = useState('');
+  const [category, setCategory] = useState('');
   const [rate, setRate] = useState(String(LIONS_OFFICE_STAFF[0].rate));
   const [rateUnit, setRateUnit] = useState('day');
   const [units, setUnits] = useState('1');
@@ -8436,6 +8557,7 @@ function AddPersonModal({ onSubmit, onCancel }) {
     (rateUnit === 'once_off' || parsedUnits > 0) &&
     (type === 'internal' ? !!staffId : !!vendorId) &&
     role.trim() &&
+    category &&
     autoName.trim();
 
   function submit() {
@@ -8443,6 +8565,7 @@ function AddPersonModal({ onSubmit, onCancel }) {
     const base = {
       name: autoName.trim(),
       role: role.trim(),
+      category,
       rate: parsedRate,
       rateUnit,
       units: parsedUnits,
@@ -8558,6 +8681,24 @@ function AddPersonModal({ onSubmit, onCancel }) {
                 onChange={(e) => setRole(e.target.value)}
               />
             </div>
+            <div style={{ marginTop: 12 }}>
+              <label className="field-label">What type of work is this? <span className="req">*</span></label>
+              <div className="cat-grid">
+                {PEOPLE_COST_CATEGORIES.map((c) => (
+                  <button
+                    key={c.key}
+                    className={`cat-choice ${category === c.key ? 'on' : ''}`}
+                    onClick={() => setCategory(c.key)}
+                  >
+                    <span className="cat-ic">{c.icon}</span>
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
+                One tap — this rolls the cost into the project's financial impact.
+              </div>
+            </div>
           </div>
 
           <div className="jobmodal-step">
@@ -8603,6 +8744,8 @@ function AddPersonModal({ onSubmit, onCancel }) {
             {rateUnit === 'once_off'
               ? 'Once-off fee'
               : `${parsedUnits} ${unitDef.unitL.toLowerCase()} × R ${parsedRate.toLocaleString()}`}
+            {' · '}
+            {category ? peopleCategoryMeta(category).label : 'pick a work type'}
           </div>
           <div className="jobmodal-footer-actions">
             <Btn tone="outline" onClick={onCancel}>Cancel</Btn>

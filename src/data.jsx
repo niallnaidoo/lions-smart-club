@@ -1859,7 +1859,7 @@ const PROJECT_SEED = [
         startDate: '2026-07-05', endDate: '2026-07-15', dueDate: '2026-07-15',
         equipment: [],
         people: [
-          { id: 'p-101-1', type: 'internal', staffId: 'los-001', name: 'Bilal Faku', role: 'Fixture coordination', rate: 4500, rateUnit: 'day', units: 3 },
+          { id: 'p-101-1', type: 'internal', staffId: 'los-001', name: 'Bilal Faku', role: 'Fixture coordination', category: 'admin', rate: 4500, rateUnit: 'day', units: 3 },
         ],
       },
       {
@@ -1869,10 +1869,10 @@ const PROJECT_SEED = [
         assigneeId: 'los-001', assigneeName: 'Bilal Faku',
         startDate: '2026-07-15', endDate: '2026-08-01', dueDate: '2026-07-25',
         equipment: [
-          { id: 'e-102-1', name: 'Umpire coats + hats', qty: 8, unitCost: 850, source: 'vendor', vendorId: 'v-015' },
+          { id: 'e-102-1', name: 'Umpire coats + hats', category: 'apparel', qty: 8, unitCost: 850, source: 'vendor', vendorId: 'v-015' },
         ],
         people: [
-          { id: 'p-102-1', type: 'vendor', vendorId: 'v-014', name: 'KZN Cricket Union', role: 'Umpire panel · per match', rate: 1500, rateUnit: 'deliverable', units: 20 },
+          { id: 'p-102-1', type: 'vendor', vendorId: 'v-014', name: 'KZN Cricket Union', role: 'Umpire panel · per match', category: 'officiating', rate: 1500, rateUnit: 'deliverable', units: 20 },
         ],
       },
       {
@@ -1882,10 +1882,10 @@ const PROJECT_SEED = [
         assigneeId: 'los-005', assigneeName: 'Marissa Botha',
         startDate: '2026-07-25', endDate: '2026-08-10', dueDate: '2026-08-10',
         equipment: [
-          { id: 'e-103-1', name: 'Winner\'s trophy + plaques × 3', qty: 4, unitCost: 4500, source: 'vendor', vendorId: 'v-015' },
+          { id: 'e-103-1', name: 'Winner\'s trophy + plaques × 3', category: 'awards', qty: 4, unitCost: 4500, source: 'vendor', vendorId: 'v-015' },
         ],
         people: [
-          { id: 'p-103-1', type: 'internal', staffId: 'los-002', name: 'Nadia Naidoo', role: 'Finance & prize money', rate: 4000, rateUnit: 'day', units: 4 },
+          { id: 'p-103-1', type: 'internal', staffId: 'los-002', name: 'Nadia Naidoo', role: 'Finance & prize money', category: 'admin', rate: 4000, rateUnit: 'day', units: 4 },
         ],
       },
       {
@@ -1896,7 +1896,7 @@ const PROJECT_SEED = [
         startDate: '2026-07-20', endDate: '2026-07-30', dueDate: '2026-07-30',
         equipment: [],
         people: [
-          { id: 'p-104-1', type: 'internal', staffId: 'los-005', name: 'Marissa Botha', role: 'Season launch event mgmt', rate: 18000, rateUnit: 'once_off', units: 1 },
+          { id: 'p-104-1', type: 'internal', staffId: 'los-005', name: 'Marissa Botha', role: 'Season launch event mgmt', category: 'marketing', rate: 18000, rateUnit: 'once_off', units: 1 },
         ],
       },
       {
@@ -1906,11 +1906,11 @@ const PROJECT_SEED = [
         assigneeId: 'los-007', assigneeName: 'Kirsten Adams',
         startDate: '2026-07-28', endDate: '2026-08-05', dueDate: '2026-08-05',
         equipment: [
-          { id: 'e-105-1', name: 'Match balls · Kookaburra Red', qty: 60, unitCost: 350, source: 'vendor', vendorId: 'v-002' },
-          { id: 'e-105-2', name: 'Scoreboard batteries + spares', qty: 20, unitCost: 180, source: 'internal' },
+          { id: 'e-105-1', name: 'Match balls · Kookaburra Red', category: 'playing', qty: 60, unitCost: 350, source: 'vendor', vendorId: 'v-002' },
+          { id: 'e-105-2', name: 'Scoreboard batteries + spares', category: 'consumables', qty: 20, unitCost: 180, source: 'internal' },
         ],
         people: [
-          { id: 'p-105-1', type: 'internal', staffId: 'los-007', name: 'Kirsten Adams', role: 'Physio panel confirms', rate: 3800, rateUnit: 'day', units: 2 },
+          { id: 'p-105-1', type: 'internal', staffId: 'los-007', name: 'Kirsten Adams', role: 'Physio panel confirms', category: 'medical', rate: 3800, rateUnit: 'day', units: 2 },
         ],
       },
     ],
@@ -1936,7 +1936,7 @@ const PROJECT_SEED = [
         startDate: '2026-07-01', endDate: '2026-07-05', dueDate: '2026-07-05',
         equipment: [],
         people: [
-          { id: 'p-201-1', type: 'vendor', vendorId: 'v-004', name: 'JR Turf Consulting', role: 'Independent audit', rate: 5500, rateUnit: 'once_off', units: 1 },
+          { id: 'p-201-1', type: 'vendor', vendorId: 'v-004', name: 'JR Turf Consulting', role: 'Independent audit', category: 'professional', rate: 5500, rateUnit: 'once_off', units: 1 },
         ],
       },
       {
@@ -1946,12 +1946,12 @@ const PROJECT_SEED = [
         assigneeId: 'los-003', assigneeName: 'Sipho Zulu',
         startDate: '2026-07-08', endDate: '2026-07-20', dueDate: '2026-07-20',
         equipment: [
-          { id: 'e-202-1', name: 'Kikuyu turf rolls · 200m²', qty: 200, unitCost: 85, source: 'vendor', vendorId: 'v-001' },
-          { id: 'e-202-2', name: 'Top dressing loam · tonnes', qty: 3, unitCost: 2200, source: 'vendor', vendorId: 'v-001' },
+          { id: 'e-202-1', name: 'Kikuyu turf rolls · 200m²', category: 'turf', qty: 200, unitCost: 85, source: 'vendor', vendorId: 'v-001' },
+          { id: 'e-202-2', name: 'Top dressing loam · tonnes', category: 'turf', qty: 3, unitCost: 2200, source: 'vendor', vendorId: 'v-001' },
         ],
         people: [
-          { id: 'p-202-1', type: 'internal', staffId: 'los-003', name: 'Sipho Zulu', role: 'Site oversight', rate: 4200, rateUnit: 'day', units: 5 },
-          { id: 'p-202-2', type: 'vendor', vendorId: 'v-001', name: 'Green Turf Solutions', role: 'Turf contractor', rate: 3800, rateUnit: 'day', units: 4 },
+          { id: 'p-202-1', type: 'internal', staffId: 'los-003', name: 'Sipho Zulu', role: 'Site oversight', category: 'grounds', rate: 4200, rateUnit: 'day', units: 5 },
+          { id: 'p-202-2', type: 'vendor', vendorId: 'v-001', name: 'Green Turf Solutions', role: 'Turf contractor', category: 'grounds', rate: 3800, rateUnit: 'day', units: 4 },
         ],
       },
       {
@@ -1962,7 +1962,7 @@ const PROJECT_SEED = [
         startDate: '2026-08-10', endDate: '2026-08-15', dueDate: '2026-08-15',
         equipment: [],
         people: [
-          { id: 'p-203-1', type: 'internal', staffId: 'los-001', name: 'Bilal Faku', role: 'Handover meeting', rate: 4500, rateUnit: 'day', units: 1 },
+          { id: 'p-203-1', type: 'internal', staffId: 'los-001', name: 'Bilal Faku', role: 'Handover meeting', category: 'admin', rate: 4500, rateUnit: 'day', units: 1 },
         ],
       },
     ],
@@ -1987,10 +1987,10 @@ const PROJECT_SEED = [
         assigneeId: 'los-003', assigneeName: 'Sipho Zulu',
         startDate: '2026-08-15', endDate: '2026-08-20', dueDate: '2026-08-20',
         equipment: [
-          { id: 'e-301-1', name: 'Boundary rope · 450m + stakes', qty: 1, unitCost: 4200, source: 'vendor', vendorId: 'v-001' },
+          { id: 'e-301-1', name: 'Boundary rope · 450m + stakes', category: 'infrastructure', qty: 1, unitCost: 4200, source: 'vendor', vendorId: 'v-001' },
         ],
         people: [
-          { id: 'p-301-1', type: 'internal', staffId: 'los-003', name: 'Sipho Zulu', role: 'Design lead', rate: 4200, rateUnit: 'day', units: 2 },
+          { id: 'p-301-1', type: 'internal', staffId: 'los-003', name: 'Sipho Zulu', role: 'Design lead', category: 'grounds', rate: 4200, rateUnit: 'day', units: 2 },
         ],
       },
       {
@@ -2000,10 +2000,10 @@ const PROJECT_SEED = [
         assigneeId: 'los-006', assigneeName: 'Themba Ndlovu',
         startDate: '2026-08-20', endDate: '2026-08-25', dueDate: '2026-08-25',
         equipment: [
-          { id: 'e-302-1', name: 'Sightscreen · fabricated + painted', qty: 1, unitCost: 18500, source: 'vendor', vendorId: 'v-005' },
+          { id: 'e-302-1', name: 'Sightscreen · fabricated + painted', category: 'infrastructure', qty: 1, unitCost: 18500, source: 'vendor', vendorId: 'v-005' },
         ],
         people: [
-          { id: 'p-302-1', type: 'internal', staffId: 'los-006', name: 'Themba Ndlovu', role: 'Project lead', rate: 3400, rateUnit: 'day', units: 4 },
+          { id: 'p-302-1', type: 'internal', staffId: 'los-006', name: 'Themba Ndlovu', role: 'Project lead', category: 'grounds', rate: 3400, rateUnit: 'day', units: 4 },
         ],
       },
     ],
@@ -2029,7 +2029,7 @@ const PROJECT_SEED = [
         startDate: '2026-07-15', endDate: '2026-07-05', dueDate: '2026-07-05',
         equipment: [],
         people: [
-          { id: 'p-401-1', type: 'internal', staffId: 'los-004', name: 'Rushil Patel', role: 'Briefings', rate: 3800, rateUnit: 'day', units: 2 },
+          { id: 'p-401-1', type: 'internal', staffId: 'los-004', name: 'Rushil Patel', role: 'Briefings', category: 'coaching', rate: 3800, rateUnit: 'day', units: 2 },
         ],
       },
       {
@@ -2039,12 +2039,12 @@ const PROJECT_SEED = [
         assigneeId: 'los-004', assigneeName: 'Rushil Patel',
         startDate: '2026-07-08', endDate: '2026-07-20', dueDate: '2026-07-20',
         equipment: [
-          { id: 'e-402-1', name: 'Junior kit sets · shirt + cap', qty: 120, unitCost: 220, source: 'vendor', vendorId: 'v-015' },
-          { id: 'e-402-2', name: 'Softball × 24 packs of 6', qty: 24, unitCost: 480, source: 'vendor', vendorId: 'v-002' },
-          { id: 'e-402-3', name: 'Portable stumps + bases × 12 sets', qty: 12, unitCost: 650, source: 'internal' },
+          { id: 'e-402-1', name: 'Junior kit sets · shirt + cap', category: 'apparel', qty: 120, unitCost: 220, source: 'vendor', vendorId: 'v-015' },
+          { id: 'e-402-2', name: 'Softball × 24 packs of 6', category: 'playing', qty: 24, unitCost: 480, source: 'vendor', vendorId: 'v-002' },
+          { id: 'e-402-3', name: 'Portable stumps + bases × 12 sets', category: 'playing', qty: 12, unitCost: 650, source: 'internal' },
         ],
         people: [
-          { id: 'p-402-1', type: 'internal', staffId: 'los-004', name: 'Rushil Patel', role: 'Distribution lead', rate: 3800, rateUnit: 'day', units: 3 },
+          { id: 'p-402-1', type: 'internal', staffId: 'los-004', name: 'Rushil Patel', role: 'Distribution lead', category: 'coaching', rate: 3800, rateUnit: 'day', units: 3 },
         ],
       },
       {
@@ -2055,8 +2055,8 @@ const PROJECT_SEED = [
         startDate: '2026-07-22', endDate: '2026-08-15', dueDate: '2026-07-22',
         equipment: [],
         people: [
-          { id: 'p-403-1', type: 'vendor', vendorId: 'v-009', name: 'Sanele Cele Cricket Academy', role: 'Coaching · per session hour', rate: 600, rateUnit: 'hour', units: 36 },
-          { id: 'p-403-2', type: 'internal', staffId: 'los-004', name: 'Rushil Patel', role: 'Programme oversight', rate: 3800, rateUnit: 'day', units: 7 },
+          { id: 'p-403-1', type: 'vendor', vendorId: 'v-009', name: 'Sanele Cele Cricket Academy', role: 'Coaching · per session hour', category: 'coaching', rate: 600, rateUnit: 'hour', units: 36 },
+          { id: 'p-403-2', type: 'internal', staffId: 'los-004', name: 'Rushil Patel', role: 'Programme oversight', category: 'coaching', rate: 3800, rateUnit: 'day', units: 7 },
         ],
       },
       {
@@ -2067,7 +2067,7 @@ const PROJECT_SEED = [
         startDate: '2026-08-01', endDate: '2026-08-05', dueDate: '2026-08-05',
         equipment: [],
         people: [
-          { id: 'p-404-1', type: 'internal', staffId: 'los-001', name: 'Bilal Faku', role: 'Union review', rate: 4500, rateUnit: 'day', units: 1 },
+          { id: 'p-404-1', type: 'internal', staffId: 'los-001', name: 'Bilal Faku', role: 'Union review', category: 'admin', rate: 4500, rateUnit: 'day', units: 1 },
         ],
       },
     ],
@@ -2081,6 +2081,46 @@ const RATE_UNITS = [
   { key: 'deliverable', label: 'Per deliverable', unitL: 'Deliverables' },
   { key: 'once_off', label: 'Once-off', unitL: 'Fee' },
 ];
+
+/* ─── Spend categories · equipment + people ───
+   Every equipment line and every person on an activity carries a spend
+   category, so project costs roll straight up into a clean financial
+   view. Equipment categories are tagged capex or opex; people costs are
+   always opex. */
+const EQUIPMENT_CATEGORIES = [
+  { key: 'playing',         label: 'Playing equipment',           icon: '🏏', kind: 'opex' },
+  { key: 'apparel',         label: 'Kit & apparel',               icon: '👕', kind: 'opex' },
+  { key: 'turf',            label: 'Turf & grounds materials',    icon: '🌱', kind: 'opex' },
+  { key: 'machinery',       label: 'Machinery & tools',           icon: '⚙️', kind: 'capex' },
+  { key: 'infrastructure',  label: 'Infrastructure & fabrication', icon: '🏗', kind: 'capex' },
+  { key: 'consumables',     label: 'Consumables',                 icon: '🔋', kind: 'opex' },
+  { key: 'awards',          label: 'Trophies & awards',           icon: '🏆', kind: 'opex' },
+  { key: 'other_equipment', label: 'Other',                       icon: '📦', kind: 'opex' },
+];
+
+const PEOPLE_COST_CATEGORIES = [
+  { key: 'coaching',     label: 'Coaching & development', icon: '🎯' },
+  { key: 'officiating',  label: 'Umpires & scorers',      icon: '🏳' },
+  { key: 'grounds',      label: 'Grounds & maintenance',  icon: '🌿' },
+  { key: 'medical',      label: 'Medical & physio',       icon: '⚕️' },
+  { key: 'events',       label: 'Events & hospitality',   icon: '🎪' },
+  { key: 'marketing',    label: 'Marketing & media',      icon: '📣' },
+  { key: 'professional', label: 'Professional services',  icon: '📋' },
+  { key: 'admin',        label: 'Admin & finance',        icon: '🗂' },
+];
+
+function equipmentCategoryMeta(key) {
+  return (
+    EQUIPMENT_CATEGORIES.find((c) => c.key === key) ||
+    EQUIPMENT_CATEGORIES[EQUIPMENT_CATEGORIES.length - 1]
+  );
+}
+function peopleCategoryMeta(key) {
+  return (
+    PEOPLE_COST_CATEGORIES.find((c) => c.key === key) ||
+    { key: 'other_people', label: 'Other', icon: '👤' }
+  );
+}
 
 // Compute one person's line cost. Handles both the legacy schema
 // (dailyRate + days) and the new one (rate + rateUnit + units).
@@ -2669,6 +2709,10 @@ export {
   TASK_STATUSES,
   PROJECT_SEED,
   RATE_UNITS,
+  EQUIPMENT_CATEGORIES,
+  PEOPLE_COST_CATEGORIES,
+  equipmentCategoryMeta,
+  peopleCategoryMeta,
   personLineCost,
   computeTaskSpend,
   computeProjectSpend,
