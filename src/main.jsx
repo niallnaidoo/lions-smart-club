@@ -207,6 +207,7 @@ import {
   AdminFacilities,
   AdminVendors,
   AdminProjects,
+  AdminFinancials,
 } from './admin.jsx';
 import { Onboarding } from './onboarding.jsx';
 
@@ -270,10 +271,34 @@ function Shell({ initialProfile, onSwitchProfile }) {
   const [toastShow, toastNode] = useToast();
 
   // Financial ledger — union of income + expense entries. Keyed by clubId so each
-  // club sees only its own numbers; ukzn gets pre-seeded so the demo has content.
-  const [ledgerByClub, setLedgerByClub] = useState(() => ({
-    ukzn: [...CLUB_COST_SEED, ...CLUB_INCOME_SEED],
-  }));
+  // club sees only its own numbers. UKZN is pre-seeded with the full sample set;
+  // a handful of other clubs get a lighter seed so the admin cohort view has
+  // enough variety to be interesting.
+  const [ledgerByClub, setLedgerByClub] = useState(() => {
+    const derive = (clubId, mult) => {
+      const scale = (list) => list.map((e) => ({
+        ...e,
+        id: `${e.id}-${clubId}`,
+        amount: Math.round(e.amount * mult),
+        payee: e.payee,
+      }));
+      return [
+        ...scale(CLUB_COST_SEED.slice(0, 5)),
+        ...scale(CLUB_INCOME_SEED.slice(0, 3)),
+      ];
+    };
+    return {
+      ukzn: [...CLUB_COST_SEED, ...CLUB_INCOME_SEED],
+      harlequins: derive('harlequins', 1.35),
+      crusaders: derive('crusaders', 1.1),
+      berea: derive('berea', 0.9),
+      chatsworth: derive('chatsworth', 0.65),
+      rhythm: derive('rhythm', 0.55),
+      warriors: derive('warriors', 0.45),
+      umlazi: derive('umlazi', 0.6),
+      spartan: derive('spartan', 0.72),
+    };
+  });
   // Subs paid state: { [clubId]: { [playerId]: { paid, amount, date, entryId } } }
   const [playerSubs, setPlayerSubs] = useState({});
 
@@ -601,6 +626,7 @@ function Shell({ initialProfile, onSwitchProfile }) {
     { v: 'facilities', label: 'Facilities', icon: Icon.Eye, dot: 'teal' },
     { v: 'vendors', label: 'Vendors', icon: Icon.Doc, dot: 'teal' },
     { v: 'projects', label: 'Projects', icon: Icon.Star, dot: 'teal' },
+    { v: 'financials', label: 'Financials', icon: Icon.Doc, dot: 'teal' },
     {
       v: 'clearances',
       label: 'Clearances',
@@ -722,6 +748,15 @@ function Shell({ initialProfile, onSwitchProfile }) {
       if (view === 'projects')
         return (
           <AdminProjects projects={projects} setProjects={setProjects} toast={toastShow} />
+        );
+      if (view === 'financials')
+        return (
+          <AdminFinancials
+            ledgerByClub={ledgerByClub}
+            projects={projects}
+            clubs={clubs}
+            toast={toastShow}
+          />
         );
     } else {
       const goto = (v) => setView(v);

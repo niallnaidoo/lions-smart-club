@@ -73,6 +73,8 @@ import {
   capexPriorityTone,
   annualisedMaintCost,
   capexTotal,
+  CLUB_COST_CATEGORIES,
+  CLUB_INCOME_CATEGORIES,
 } from './data.jsx';
 
 /* ─── AdminFixtures — series cards + drilldown fixture table with distance + travel-cost ─── */
@@ -8158,6 +8160,675 @@ function AddPersonModal({ onSubmit, onCancel }) {
   );
 }
 
+/* ─── AdminFinancials · union-wide consolidated financials ───
+   Rolls up every club's income and expense, plus every union-run project's
+   spend, into one view. Union sees: cohort net position, top vendors by
+   spend, top income sources, outstanding invoices, per-club rollup,
+   per-project rollup, and a combined ledger. Export produces a single CSV
+   the finance manager can hand straight to the accountant. */
+function AdminFinancials({ ledgerByClub = {}, projects = [], clubs = [], toast }) {
+  const [tab, setTab] = useState('summary');
+  const [filterClub, setFilterClub] = useState('all');
+  const [filterDir, setFilterDir] = useState('all');
+  const [filterPaid, setFilterPaid] = useState('all');
+  const [query, setQuery] = useState('');
+
+  const catMap = useMemo(() => {
+    const m = {};
+    CLUB_COST_CATEGORIES.forEach((c) => (m[c.key] = { ...c, direction: 'out' }));
+    CLUB_INCOME_CATEGORIES.forEach((c) => (m[c.key] = { ...c, direction: 'in' }));
+    return m;
+  }, []);
+
+  // Flatten every club's ledger into a single list, tagged with club info.
+  const allEntries = useMemo(() => {
+    const list = [];
+    Object.entries(ledgerByClub).forEach(([cid, entries]) => {
+      const club = clubs.find((c) => c.id === cid);
+      (entries || []).forEach((e) => {
+        list.push({
+          ...e,
+          clubId: cid,
+          clubName: club?.name || cid,
+          clubShort: club?.short || club?.name || cid,
+        });
+      });
+    });
+    return list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  }, [ledgerByClub, clubs]);
+
+  // Cohort totals
+  const cohortIn = allEntries
+    .filter((e) => (e.direction || 'out') === 'in')
+    .reduce((s, e) => s + e.amount, 0);
+  const cohortOut = allEntries
+    .filter((e) => (e.direction || 'out') === 'out')
+    .reduce((s, e) => s + e.amount, 0);
+  const cohortNet = cohortIn - cohortOut;
+
+  const outstandingIn = allEntries
+    .filter((e) => e.direction === 'in' && !e.paid)
+    .reduce((s, e) => s + e.amount, 0);
+  const outstandingOut = allEntries
+    .filter((e) => (e.direction || 'out') === 'out' && !e.paid)
+    .reduce((s, e) => s + e.amount, 0);
+
+  const projectSpend = projects.reduce((s, p) => s + computeProjectSpend(p), 0);
+  const projectBudget = projects.reduce((s, p) => s + (p.budget || 0), 0);
+  const projectBudgetLeft = projectBudget - projectSpend;
+
+  // Union net = cohort net – project spend (union runs projects on top of clubs)
+  const unionNet = cohortNet - projectSpend;
+
+  // ─── Aggregations for Summary tab
+  const groupBreakdown = useMemo(() => {
+    const out = {};
+    allEntries.forEach((e) => {
+      const cat = catMap[e.category];
+      if (!cat) return;
+      const key = `${cat.direction}:${cat.group}`;
+      out[key] = (out[key] || 0) + e.amount;
+    });
+    return out;
+  }, [allEntries, catMap]);
+
+  const incomeGroups = ['Subscriptions', 'Sponsorships', 'Donations', 'Match day', 'Events', 'Other'];
+  const expenseGroups = ['Coaching', 'Player welfare', 'Facility', 'Administration'];
+
+  // Top vendors by spend: cost entries with vendorId + project equipment + project people
+  const topVendors = useMemo(() => {
+    const totals = {};
+    allEntries.forEach((e) => {
+      if ((e.direction || 'out') !== 'out') return;
+      if (e.vendorId) totals[e.vendorId] = (totals[e.vendorId] || 0) + e.amount;
+    });
+    projects.forEach((p) => {
+      (p.equipment || []).forEach((eq) => {
+        if (eq.vendorId) totals[eq.vendorId] =
+          (totals[eq.vendorId] || 0) + (Number(eq.qty) || 0) * (Number(eq.unitCost) || 0);
+      });
+      (p.people || []).forEach((pe) => {
+        if (pe.type === 'vendor' && pe.vendorId)
+          totals[pe.vendorId] =
+            (totals[pe.vendorId] || 0) + (Number(pe.dailyRate) || 0) * (Number(pe.days) || 0);
+      });
+    });
+    return Object.entries(totals)
+      .map(([id, amt]) => ({ vendor: VENDORS.find((v) => v.id === id), amount: amt }))
+      .filter((r) => r.vendor)
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 6);
+  }, [allEntries, projects]);
+
+  // Top income sources (by payee)
+  const topSources = useMemo(() => {
+    const totals = {};
+    allEntries
+      .filter((e) => e.direction === 'in')
+      .forEach((e) => {
+        const key = e.payee || 'Anonymous';
+        totals[key] = (totals[key] || 0) + e.amount;
+      });
+    return Object.entries(totals)
+      .map(([name, amt]) => ({ name, amount: amt }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 6);
+  }, [allEntries]);
+
+  // Per-club rollup
+  const byClub = useMemo(() => {
+    return Object.entries(ledgerByClub)
+      .map(([cid, entries]) => {
+        const club = clubs.find((c) => c.id === cid);
+        const inSum = entries
+          .filter((e) => e.direction === 'in')
+          .reduce((s, e) => s + e.amount, 0);
+        const outSum = entries
+          .filter((e) => (e.direction || 'out') === 'out')
+          .reduce((s, e) => s + e.amount, 0);
+        return {
+          clubId: cid,
+          clubName: club?.name || cid,
+          clubShort: club?.short || club?.name || cid,
+          entries: entries.length,
+          inSum,
+          outSum,
+          net: inSum - outSum,
+        };
+      })
+      .sort((a, b) => b.net - a.net);
+  }, [ledgerByClub, clubs]);
+
+  // Filtered ledger for the Ledger tab
+  const filtered = allEntries
+    .filter((e) => (filterClub === 'all' ? true : e.clubId === filterClub))
+    .filter((e) => (filterDir === 'all' ? true : (e.direction || 'out') === filterDir))
+    .filter((e) => (filterPaid === 'all' ? true : filterPaid === 'paid' ? e.paid : !e.paid))
+    .filter((e) =>
+      !query.trim()
+        ? true
+        : (e.payee + ' ' + e.desc + ' ' + e.invoice + ' ' + e.clubName)
+            .toLowerCase()
+            .includes(query.toLowerCase())
+    );
+
+  function exportCSV() {
+    const headers = [
+      'Date', 'Club', 'Direction', 'Category', 'Group', 'Payee', 'Description',
+      'Amount (ZAR)', 'Frequency', 'Invoice', 'Status',
+    ];
+    const rows = allEntries.map((e) => {
+      const cat = catMap[e.category];
+      return [
+        e.date,
+        e.clubName,
+        (e.direction || 'out') === 'in' ? 'IN' : 'OUT',
+        cat?.label || e.category,
+        cat?.group || '',
+        e.payee || '',
+        (e.desc || '').replace(/\n/g, ' '),
+        e.amount,
+        e.frequency || '',
+        e.invoice || '',
+        e.paid ? 'Cleared' : 'Outstanding',
+      ];
+    });
+    const projectRows = projects.map((p) => {
+      const spend = computeProjectSpend(p);
+      return [
+        p.startDate || '',
+        'Union · Project',
+        'OUT',
+        p.name,
+        projectTypeMeta(p.type).label,
+        p.owner || '',
+        p.description || '',
+        spend,
+        '',
+        p.id,
+        p.status,
+      ];
+    });
+    const summary = [
+      ['', '', '', '', '', '', 'TOTAL COHORT IN', cohortIn, '', '', ''],
+      ['', '', '', '', '', '', 'TOTAL COHORT OUT', cohortOut, '', '', ''],
+      ['', '', '', '', '', '', 'TOTAL PROJECT SPEND', projectSpend, '', '', ''],
+      ['', '', '', '', '', '', 'UNION NET', unionNet, '', '', ''],
+    ];
+    const csv = [headers, ...rows, ...projectRows, ...summary]
+      .map((r) => r.map((c) => {
+        const s = String(c ?? '');
+        return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      }).join(','))
+      .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Lions_Union_Financials_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast?.('Union financial statement exported');
+  }
+
+  return (
+    <div>
+      <div className="page-head">
+        <div className="ph-left">
+          <div className="ph-crumb">Lions · Admin Console / Financials</div>
+          <h1 className="ph-title">
+            Union <em>Financials</em>
+          </h1>
+          <p className="ph-desc">
+            Consolidated view of every affiliated club's ledger plus every union-run project's
+            spend. Track cohort net position, top vendors, top income sources and outstanding
+            invoices in one place.
+          </p>
+        </div>
+        <div className="ph-actions">
+          <Btn tone="teal" size="sm" icon={Icon.Download} onClick={exportCSV}>
+            Export union statement
+          </Btn>
+        </div>
+      </div>
+
+      {/* Union hero + KPI strip */}
+      <div className="af-hero-strip">
+        <div className="af-hero" data-pos={unionNet >= 0 ? 'y' : 'n'}>
+          <div className="af-hero-l">Union net position</div>
+          <div className="af-hero-n">
+            {unionNet >= 0 ? '+' : '−'} R {Math.abs(unionNet).toLocaleString()}
+          </div>
+          <div className="af-hero-sub">
+            {unionNet >= 0
+              ? 'Union is in surplus across cohort + projects'
+              : 'Union is running a consolidated deficit'}
+          </div>
+        </div>
+        <div className="af-kpi af-kpi-in">
+          <div className="af-kpi-l">↓ Cohort income</div>
+          <div className="af-kpi-n">R {cohortIn.toLocaleString()}</div>
+          <div className="af-kpi-sub">R {outstandingIn.toLocaleString()} outstanding</div>
+        </div>
+        <div className="af-kpi af-kpi-out">
+          <div className="af-kpi-l">↑ Cohort expense</div>
+          <div className="af-kpi-n">R {cohortOut.toLocaleString()}</div>
+          <div className="af-kpi-sub">R {outstandingOut.toLocaleString()} outstanding</div>
+        </div>
+        <div className="af-kpi af-kpi-proj">
+          <div className="af-kpi-l">📋 Project spend</div>
+          <div className="af-kpi-n">R {projectSpend.toLocaleString()}</div>
+          <div className="af-kpi-sub">
+            of R {projectBudget.toLocaleString()} budget
+          </div>
+        </div>
+      </div>
+
+      {/* Tab toggle */}
+      <div className="cv-tabs" style={{ marginTop: 16 }}>
+        <button
+          className={`cv-tab ${tab === 'summary' ? 'on' : ''}`}
+          onClick={() => setTab('summary')}
+        >
+          <span className="cv-tab-l">Summary</span>
+        </button>
+        <button
+          className={`cv-tab ${tab === 'clubs' ? 'on' : ''}`}
+          onClick={() => setTab('clubs')}
+        >
+          <span className="cv-tab-l">By club</span>
+          <span className="cv-tab-n">{byClub.length}</span>
+        </button>
+        <button
+          className={`cv-tab ${tab === 'projects' ? 'on' : ''}`}
+          onClick={() => setTab('projects')}
+        >
+          <span className="cv-tab-l">By project</span>
+          <span className="cv-tab-n">{projects.length}</span>
+        </button>
+        <button
+          className={`cv-tab ${tab === 'ledger' ? 'on' : ''}`}
+          onClick={() => setTab('ledger')}
+        >
+          <span className="cv-tab-l">Ledger</span>
+          <span className="cv-tab-n">{allEntries.length}</span>
+        </button>
+      </div>
+
+      {tab === 'summary' && (
+        <div className="af-summary">
+          {/* Groups: income + expense side-by-side */}
+          <div className="af-cols-2">
+            <div className="af-panel">
+              <div className="af-panel-head">
+                <span className="af-panel-title">↓ Income by group</span>
+                <span className="af-panel-sub">R {cohortIn.toLocaleString()} across cohort</span>
+              </div>
+              <div className="af-panel-body">
+                {incomeGroups.map((g) => {
+                  const v = groupBreakdown[`in:${g}`] || 0;
+                  const pct = cohortIn ? (v / cohortIn) * 100 : 0;
+                  return (
+                    <div key={g} className="af-bar-row">
+                      <div className="af-bar-l">
+                        <span>{g}</span>
+                        <strong>R {v.toLocaleString()}</strong>
+                      </div>
+                      <div className="af-bar">
+                        <div
+                          className="af-bar-fill af-bar-in"
+                          style={{ width: `${Math.min(100, pct)}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="af-panel">
+              <div className="af-panel-head">
+                <span className="af-panel-title">↑ Expense by group</span>
+                <span className="af-panel-sub">R {cohortOut.toLocaleString()} across cohort</span>
+              </div>
+              <div className="af-panel-body">
+                {expenseGroups.map((g) => {
+                  const v = groupBreakdown[`out:${g}`] || 0;
+                  const pct = cohortOut ? (v / cohortOut) * 100 : 0;
+                  return (
+                    <div key={g} className="af-bar-row">
+                      <div className="af-bar-l">
+                        <span>{g}</span>
+                        <strong>R {v.toLocaleString()}</strong>
+                      </div>
+                      <div className="af-bar">
+                        <div
+                          className="af-bar-fill af-bar-out"
+                          style={{ width: `${Math.min(100, pct)}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="af-cols-2">
+            <div className="af-panel">
+              <div className="af-panel-head">
+                <span className="af-panel-title">Top vendors by spend</span>
+                <span className="af-panel-sub">Cohort + projects combined</span>
+              </div>
+              <div className="af-panel-body">
+                {topVendors.length === 0 && (
+                  <div className="proj-col-empty">No vendor spend logged yet.</div>
+                )}
+                {topVendors.map((r) => (
+                  <div key={r.vendor.id} className="af-rank-row">
+                    <div className="af-rank-l">
+                      <div className="af-rank-name">{r.vendor.name}</div>
+                      <div className="af-rank-sub">{r.vendor.category}</div>
+                    </div>
+                    <div className="af-rank-r">R {r.amount.toLocaleString()}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="af-panel">
+              <div className="af-panel-head">
+                <span className="af-panel-title">Top income sources</span>
+                <span className="af-panel-sub">Sponsors, grants, subs, gate</span>
+              </div>
+              <div className="af-panel-body">
+                {topSources.length === 0 && (
+                  <div className="proj-col-empty">No income logged yet.</div>
+                )}
+                {topSources.map((r) => (
+                  <div key={r.name} className="af-rank-row">
+                    <div className="af-rank-l">
+                      <div className="af-rank-name">{r.name}</div>
+                    </div>
+                    <div className="af-rank-r" style={{ color: 'var(--green)' }}>
+                      + R {r.amount.toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Outstanding call-out */}
+          {(outstandingOut > 0 || outstandingIn > 0) && (
+            <div className="af-outstanding">
+              <div className="af-panel-head">
+                <span className="af-panel-title">Outstanding invoices</span>
+                <span className="af-panel-sub">Action required across the cohort</span>
+              </div>
+              <div className="af-outstanding-row">
+                <div className="af-outstanding-card af-outstanding-owe">
+                  <div className="af-outstanding-l">Owed by clubs (to pay)</div>
+                  <div className="af-outstanding-n">R {outstandingOut.toLocaleString()}</div>
+                  <div className="af-outstanding-sub">
+                    {allEntries.filter((e) => (e.direction || 'out') === 'out' && !e.paid).length} outstanding cost entries
+                  </div>
+                </div>
+                <div className="af-outstanding-card af-outstanding-due">
+                  <div className="af-outstanding-l">Owed to clubs (to collect)</div>
+                  <div className="af-outstanding-n">R {outstandingIn.toLocaleString()}</div>
+                  <div className="af-outstanding-sub">
+                    {allEntries.filter((e) => e.direction === 'in' && !e.paid).length} unpaid income entries
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === 'clubs' && (
+        <div className="tbl-w" style={{ marginTop: 14 }}>
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>Club</th>
+                <th style={{ textAlign: 'right' }}>Entries</th>
+                <th style={{ textAlign: 'right' }}>Income</th>
+                <th style={{ textAlign: 'right' }}>Expense</th>
+                <th style={{ textAlign: 'right' }}>Net</th>
+                <th style={{ width: 110 }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {byClub.map((c) => (
+                <tr key={c.clubId}>
+                  <td>
+                    <div style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 13, color: 'var(--ink)' }}>
+                      {c.clubName}
+                    </div>
+                    <div style={{ fontSize: 10.5, color: 'var(--muted)' }}>{c.clubShort}</div>
+                  </td>
+                  <td style={{ textAlign: 'right', fontFamily: "'Montserrat',sans-serif", fontSize: 12.5, color: 'var(--muted)' }}>
+                    {c.entries}
+                  </td>
+                  <td style={{ textAlign: 'right', fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 13, color: 'var(--green)' }}>
+                    + R {c.inSum.toLocaleString()}
+                  </td>
+                  <td style={{ textAlign: 'right', fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 13, color: 'var(--coral)' }}>
+                    − R {c.outSum.toLocaleString()}
+                  </td>
+                  <td style={{ textAlign: 'right', fontFamily: "'Montserrat',sans-serif", fontWeight: 800, fontSize: 14, color: c.net >= 0 ? 'var(--green)' : 'var(--coral)' }}>
+                    {c.net >= 0 ? '+' : '−'} R {Math.abs(c.net).toLocaleString()}
+                  </td>
+                  <td>
+                    <Pill tone={c.net >= 0 ? 'teal' : 'coral'} dot>
+                      {c.net >= 0 ? 'Surplus' : 'Deficit'}
+                    </Pill>
+                  </td>
+                </tr>
+              ))}
+              {byClub.length === 0 && (
+                <tr>
+                  <td colSpan="6" style={{ padding: 28, textAlign: 'center', color: 'var(--muted)' }}>
+                    No club ledgers populated yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {tab === 'projects' && (
+        <div className="tbl-w" style={{ marginTop: 14 }}>
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>Project</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th style={{ textAlign: 'right' }}>Budget</th>
+                <th style={{ textAlign: 'right' }}>Spend</th>
+                <th style={{ textAlign: 'right' }}>Variance</th>
+              </tr>
+            </thead>
+            <tbody>
+              {projects.map((p) => {
+                const spend = computeProjectSpend(p);
+                const variance = (p.budget || 0) - spend;
+                const meta = projectTypeMeta(p.type);
+                return (
+                  <tr key={p.id}>
+                    <td>
+                      <div style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 13, color: 'var(--ink)' }}>
+                        {p.name}
+                      </div>
+                      <div style={{ fontSize: 10.5, color: 'var(--muted)' }}>{p.owner}</div>
+                    </td>
+                    <td>
+                      <Pill tone={meta.tone}>{meta.icon} {meta.label}</Pill>
+                    </td>
+                    <td>
+                      <Pill tone={projectStatusTone(p.status)} dot>
+                        {PROJECT_STATUSES.find((s) => s.key === p.status)?.label || p.status}
+                      </Pill>
+                    </td>
+                    <td style={{ textAlign: 'right', fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 13 }}>
+                      R {(p.budget || 0).toLocaleString()}
+                    </td>
+                    <td style={{ textAlign: 'right', fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 13 }}>
+                      R {spend.toLocaleString()}
+                    </td>
+                    <td style={{ textAlign: 'right', fontFamily: "'Montserrat',sans-serif", fontWeight: 800, fontSize: 13, color: variance >= 0 ? 'var(--green)' : 'var(--coral)' }}>
+                      {variance >= 0 ? '+' : '−'} R {Math.abs(variance).toLocaleString()}
+                    </td>
+                  </tr>
+                );
+              })}
+              {projects.length === 0 && (
+                <tr>
+                  <td colSpan="6" style={{ padding: 28, textAlign: 'center', color: 'var(--muted)' }}>
+                    No projects logged yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {tab === 'ledger' && (
+        <div>
+          {/* Filter row */}
+          <div className="filter-row" style={{ marginTop: 14 }}>
+            <span className="vendor-cat-label">Club</span>
+            <select
+              className="field-select"
+              style={{ maxWidth: 200, height: 34 }}
+              value={filterClub}
+              onChange={(e) => setFilterClub(e.target.value)}
+            >
+              <option value="all">All clubs</option>
+              {byClub.map((c) => (
+                <option key={c.clubId} value={c.clubId}>{c.clubName}</option>
+              ))}
+            </select>
+            {[
+              { k: 'all', l: 'All flows' },
+              { k: 'in', l: '↓ In only' },
+              { k: 'out', l: '↑ Out only' },
+            ].map((b) => (
+              <button
+                key={b.k}
+                className={`filter-pill ${filterDir === b.k ? 'active' : ''}`}
+                onClick={() => setFilterDir(b.k)}
+              >
+                {b.l}
+              </button>
+            ))}
+            {[
+              { k: 'all', l: 'Any' },
+              { k: 'paid', l: 'Cleared' },
+              { k: 'unpaid', l: 'Outstanding' },
+            ].map((b) => (
+              <button
+                key={b.k}
+                className={`filter-pill ${filterPaid === b.k ? 'active' : ''}`}
+                onClick={() => setFilterPaid(b.k)}
+              >
+                {b.l}
+              </button>
+            ))}
+            <input
+              className="field-input"
+              style={{ maxWidth: 220, marginLeft: 'auto', height: 34 }}
+              placeholder="Search payee · invoice · description…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
+
+          <div className="tbl-w" style={{ marginTop: 12 }}>
+            <table className="tbl fin-tbl">
+              <thead>
+                <tr>
+                  <th style={{ width: 90 }}>Date</th>
+                  <th>Club</th>
+                  <th>Category</th>
+                  <th>Payee</th>
+                  <th>Description</th>
+                  <th style={{ textAlign: 'right' }}>Amount</th>
+                  <th style={{ width: 110 }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.slice(0, 100).map((e) => {
+                  const c = catMap[e.category] || { label: e.category, group: '', tone: 'muted' };
+                  const dir = e.direction || 'out';
+                  return (
+                    <tr key={`${e.clubId}-${e.id}`}>
+                      <td style={{ fontSize: 12, color: 'var(--muted)', fontFamily: "'Montserrat',sans-serif" }}>
+                        {new Date(e.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                      </td>
+                      <td>
+                        <div style={{ fontFamily: "'Montserrat',sans-serif", fontSize: 12, fontWeight: 700 }}>
+                          {e.clubShort}
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                          <span className={`fin-dir-tag fin-dir-${dir}`}>{dir === 'in' ? 'IN' : 'OUT'}</span>
+                          <Pill tone={c.tone}>{c.label}</Pill>
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ fontSize: 12.5, fontFamily: "'Montserrat',sans-serif", fontWeight: 600 }}>
+                          {e.payee}
+                        </div>
+                        {e.invoice && (
+                          <div style={{ fontSize: 10.5, color: 'var(--muted)' }}>{e.invoice}</div>
+                        )}
+                      </td>
+                      <td style={{ fontSize: 12, color: 'var(--ink)', maxWidth: 260 }}>{e.desc}</td>
+                      <td style={{
+                        textAlign: 'right',
+                        fontFamily: "'Montserrat',sans-serif",
+                        fontWeight: 800,
+                        fontSize: 13,
+                        color: dir === 'in' ? 'var(--green)' : 'var(--ink)',
+                      }}>
+                        {dir === 'in' ? '+' : '−'} R {e.amount.toLocaleString()}
+                      </td>
+                      <td>
+                        <span className={`fin-paid-toggle ${e.paid ? 'paid' : 'unpaid'}`}>
+                          {e.paid ? (dir === 'in' ? 'Received' : 'Paid') : 'Outstanding'}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan="7" style={{ padding: 28, textAlign: 'center', color: 'var(--muted)' }}>
+                      No entries match this filter.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+            {filtered.length > 100 && (
+              <div style={{ padding: '10px 14px', textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>
+                Showing 100 of {filtered.length} entries. Refine the filter to see the rest.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export {
   AdminDashboard,
   AdminClubsList,
@@ -8168,6 +8839,7 @@ export {
   AdminFacilities,
   AdminVendors,
   AdminProjects,
+  AdminFinancials,
   // Shared with the club-side facilities view:
   AssessmentEditor,
   AddAssetModal,

@@ -8980,6 +8980,248 @@
         color: var(--white);
       }
 
+      /* ─── Admin · Union Financials ─── */
+      .af-hero-strip {
+        display: grid;
+        grid-template-columns: 1.5fr repeat(3, 1fr);
+        gap: 12px;
+        margin-top: 16px;
+      }
+      @media (max-width: 1100px) {
+        .af-hero-strip {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      @media (max-width: 640px) {
+        .af-hero-strip {
+          grid-template-columns: 1fr;
+        }
+      }
+      .af-hero {
+        background: var(--ink);
+        border-radius: 14px;
+        padding: 18px 20px;
+        color: var(--white);
+      }
+      .af-hero-l {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10.5px;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.66);
+      }
+      .af-hero-n {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 32px;
+        font-weight: 900;
+        line-height: 1.05;
+        margin-top: 6px;
+        font-variant-numeric: tabular-nums;
+      }
+      .af-hero[data-pos='y'] .af-hero-n { color: #7fd6a3; }
+      .af-hero[data-pos='n'] .af-hero-n { color: #ff8888; }
+      .af-hero-sub {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11.5px;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.66);
+        margin-top: 6px;
+      }
+      .af-kpi {
+        background: var(--white);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 14px 16px;
+      }
+      .af-kpi-in {
+        background: linear-gradient(180deg, var(--green-pale), var(--white));
+        border-color: rgba(15, 77, 46, 0.15);
+      }
+      .af-kpi-out {
+        background: linear-gradient(180deg, rgba(220, 74, 74, 0.06), var(--white));
+        border-color: rgba(220, 74, 74, 0.15);
+      }
+      .af-kpi-proj {
+        background: linear-gradient(180deg, rgba(181, 133, 0, 0.06), var(--white));
+        border-color: rgba(181, 133, 0, 0.15);
+      }
+      .af-kpi-l {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10.5px;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .af-kpi-n {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 22px;
+        font-weight: 900;
+        color: var(--ink);
+        line-height: 1.1;
+        margin-top: 4px;
+        font-variant-numeric: tabular-nums;
+      }
+      .af-kpi-in .af-kpi-n { color: var(--green); }
+      .af-kpi-out .af-kpi-n { color: var(--coral); }
+      .af-kpi-proj .af-kpi-n { color: #b58500; }
+      .af-kpi-sub {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10.5px;
+        font-weight: 600;
+        color: var(--muted);
+        margin-top: 4px;
+      }
+
+      .af-summary {
+        margin-top: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .af-cols-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      @media (max-width: 900px) {
+        .af-cols-2 {
+          grid-template-columns: 1fr;
+        }
+      }
+      .af-panel {
+        background: var(--white);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 14px 16px;
+      }
+      .af-panel-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+      .af-panel-title {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11.5px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--ink);
+      }
+      .af-panel-sub {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--muted);
+      }
+      .af-panel-body {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .af-bar-row {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .af-bar-l {
+        display: flex;
+        justify-content: space-between;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 12px;
+        color: var(--ink);
+      }
+      .af-bar {
+        height: 6px;
+        background: var(--paper2);
+        border-radius: 999px;
+        overflow: hidden;
+      }
+      .af-bar-fill { height: 100%; border-radius: 999px; }
+      .af-bar-in { background: var(--green); }
+      .af-bar-out { background: var(--coral); }
+
+      .af-rank-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 10px;
+        background: var(--paper);
+        border-radius: 8px;
+      }
+      .af-rank-name {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 12.5px;
+        font-weight: 700;
+        color: var(--ink);
+      }
+      .af-rank-sub {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10.5px;
+        color: var(--muted);
+      }
+      .af-rank-r {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 13px;
+        font-weight: 800;
+        color: var(--ink);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .af-outstanding {
+        background: var(--white);
+        border: 1px solid var(--line);
+        border-left: 4px solid var(--gold);
+        border-radius: 12px;
+        padding: 14px 16px;
+      }
+      .af-outstanding-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      @media (max-width: 640px) {
+        .af-outstanding-row {
+          grid-template-columns: 1fr;
+        }
+      }
+      .af-outstanding-card {
+        padding: 12px 14px;
+        border-radius: 10px;
+      }
+      .af-outstanding-owe {
+        background: rgba(220, 74, 74, 0.08);
+      }
+      .af-outstanding-due {
+        background: var(--green-pale);
+      }
+      .af-outstanding-l {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10.5px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .af-outstanding-n {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 20px;
+        font-weight: 900;
+        margin-top: 4px;
+        font-variant-numeric: tabular-nums;
+      }
+      .af-outstanding-owe .af-outstanding-n { color: var(--coral); }
+      .af-outstanding-due .af-outstanding-n { color: var(--green); }
+      .af-outstanding-sub {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11px;
+        color: var(--muted);
+        margin-top: 4px;
+      }
+
       /* ─── Admin · Project Portfolio ─── */
       .proj-grid {
         display: grid;
