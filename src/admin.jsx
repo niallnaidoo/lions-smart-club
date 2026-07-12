@@ -1,6 +1,6 @@
 /* ─── Admin views ─── */
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, Fragment } from 'react';
 import ReactDOM from 'react-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -7539,14 +7539,25 @@ function ProjectsGantt({ projects, onOpen }) {
   );
 }
 
-/* ─── ProjectDetail · four-column drilldown ─── */
+/* ─── ProjectDetail · one simple activity table (MS-Project style) ───
+   No view switching. The project opens on a single Gantt table: one row
+   per activity, expandable to show that activity's equipment and people
+   sub-rows. Everything starts expanded so nothing is hidden from the
+   admin. */
 function ProjectDetail({ project, onBack, onUpdate, onRemove, toast }) {
-  // Default to Gantt in the detail view — it matches the portfolio and is the
-  // easiest at-a-glance layout for the admin. Cards remain one click away.
-  const [mode, setMode] = useState('gantt');
   const [addingTask, setAddingTask] = useState(false);
   const [addingEquipFor, setAddingEquipFor] = useState(null); // taskId
   const [addingPersonFor, setAddingPersonFor] = useState(null); // taskId
+  // All activities start expanded — the admin sees every sub-line by default.
+  const [collapsed, setCollapsed] = useState(() => new Set());
+  function toggleRow(id) {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   const spend = computeProjectSpend(project);
   const budget = project.budget || 0;
@@ -7638,33 +7649,6 @@ function ProjectDetail({ project, onBack, onUpdate, onRemove, toast }) {
           <p className="ph-desc">{project.description}</p>
         </div>
         <div className="ph-actions" style={{ alignItems: 'flex-start' }}>
-          <div className="fac-mode-switch" role="tablist">
-            <button
-              role="tab"
-              className={`fac-mode-btn ${mode === 'gantt' ? 'active' : ''}`}
-              onClick={() => setMode('gantt')}
-            >
-              <svg viewBox="0 0 16 16" fill="none">
-                <rect x="2" y="3" width="9" height="2.4" rx="1" fill="currentColor" opacity="0.9" />
-                <rect x="5" y="6.8" width="8" height="2.4" rx="1" fill="currentColor" opacity="0.7" />
-                <rect x="3" y="10.6" width="6" height="2.4" rx="1" fill="currentColor" opacity="0.5" />
-              </svg>
-              Gantt
-            </button>
-            <button
-              role="tab"
-              className={`fac-mode-btn ${mode === 'cards' ? 'active' : ''}`}
-              onClick={() => setMode('cards')}
-            >
-              <svg viewBox="0 0 16 16" fill="none">
-                <rect x="2" y="2" width="5.5" height="5.5" rx="1" stroke="currentColor" strokeWidth="1.4" />
-                <rect x="8.5" y="2" width="5.5" height="5.5" rx="1" stroke="currentColor" strokeWidth="1.4" />
-                <rect x="2" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" strokeWidth="1.4" />
-                <rect x="8.5" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" strokeWidth="1.4" />
-              </svg>
-              Cards
-            </button>
-          </div>
           <select
             className="field-select"
             style={{ width: 140 }}
@@ -7718,141 +7702,18 @@ function ProjectDetail({ project, onBack, onUpdate, onRemove, toast }) {
         </div>
       </div>
 
-      {/* GANTT view — one bar per activity across project timeline */}
-      {mode === 'gantt' && (
-        <ProjectActivityGantt
-          project={project}
-          onOpenAsCards={() => setMode('cards')}
-        />
-      )}
-
-      {/* CARDS view — activity cards with inline equipment + people */}
-      {mode === 'cards' && (
-        <div className="pd-activities">
-          {(project.tasks || []).length === 0 && (
-            <div className="cv-empty">
-              This project has no activities yet. Click <strong>+ Activity</strong> above to add one —
-              every equipment purchase and person on the project belongs to an activity.
-            </div>
-          )}
-          {(project.tasks || []).map((t) => {
-            const taskSpend = computeTaskSpend(t);
-            const statusMeta = TASK_STATUSES.find((s) => s.key === t.status);
-            return (
-              <div key={t.id} className={`pd-activity pd-activity-${t.status}`}>
-                {/* Activity header */}
-                <div className="pd-activity-head">
-                  <div className="pd-activity-head-l">
-                    <select
-                      className="proj-task-status"
-                      value={t.status}
-                      onChange={(e) => updateTask(t.id, { status: e.target.value })}
-                    >
-                      {TASK_STATUSES.map((s) => (<option key={s.key} value={s.key}>{s.label}</option>))}
-                    </select>
-                    <div>
-                      <div className="pd-activity-title">{t.title}</div>
-                      <div className="pd-activity-meta">
-                        {t.assigneeName && <span>👤 {t.assigneeName}</span>}
-                        {t.startDate && t.endDate && (
-                          <span>
-                            📅 {new Date(t.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                            {' → '}
-                            {new Date(t.endDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                          </span>
-                        )}
-                        {!t.startDate && t.dueDate && (
-                          <span>📅 Due {new Date(t.dueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="pd-activity-head-r">
-                    <div className="pd-activity-total">R {taskSpend.toLocaleString()}</div>
-                    <button className="proj-task-x" onClick={() => removeTask(t.id)} title="Remove activity">×</button>
-                  </div>
-                </div>
-
-                {/* Two side-by-side inline sections: Equipment + People */}
-                <div className="pd-activity-body">
-                  <div className="pd-section">
-                    <div className="pd-section-head">
-                      <span className="pd-section-title">🔧 Equipment</span>
-                      <button
-                        className="pd-add-btn"
-                        onClick={() => setAddingEquipFor(t.id)}
-                      >+ Add equipment</button>
-                    </div>
-                    {(t.equipment || []).length === 0 && (
-                      <div className="pd-empty">No equipment attached. Click "Add equipment" to purchase for this activity.</div>
-                    )}
-                    {(t.equipment || []).map((e) => {
-                      const line = (Number(e.qty)||0) * (Number(e.unitCost)||0);
-                      const vendor = e.vendorId ? VENDORS.find((v) => v.id === e.vendorId) : null;
-                      return (
-                        <div key={e.id} className="pd-line">
-                          <div className="pd-line-l">
-                            <div className="pd-line-name">{e.name}</div>
-                            <div className="pd-line-sub">
-                              {e.qty} × R {Number(e.unitCost).toLocaleString()} ·{' '}
-                              <span className={`proj-src proj-src-${e.source}`}>
-                                {e.source === 'internal' ? 'Internal store' : vendor?.name || 'Vendor'}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="pd-line-r">
-                            <strong>R {line.toLocaleString()}</strong>
-                            <button className="proj-task-x" onClick={() => removeEquipFromTask(t.id, e.id)}>×</button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div className="pd-section">
-                    <div className="pd-section-head">
-                      <span className="pd-section-title">👤 People</span>
-                      <button
-                        className="pd-add-btn"
-                        onClick={() => setAddingPersonFor(t.id)}
-                      >+ Add person</button>
-                    </div>
-                    {(t.people || []).length === 0 && (
-                      <div className="pd-empty">No one assigned. Click "Add person" to book time on this activity.</div>
-                    )}
-                    {(t.people || []).map((r) => {
-                      const line = personLineCost(r);
-                      const rate = Number(r.rate ?? r.dailyRate ?? 0) || 0;
-                      const unit = r.rateUnit || 'day';
-                      const units = Number(r.units ?? r.days ?? 0) || 0;
-                      const shortUnit = unit === 'hour' ? '/hr' : unit === 'day' ? '/d' : unit === 'deliverable' ? '/deliv.' : ' fixed';
-                      const unitLabel = unit === 'hour' ? 'hrs' : unit === 'day' ? 'd' : unit === 'deliverable' ? 'items' : '';
-                      return (
-                        <div key={r.id} className="pd-line">
-                          <div className="pd-line-l">
-                            <div className="pd-line-name">{r.name}</div>
-                            <div className="pd-line-sub">
-                              {r.role} · R {rate.toLocaleString()}{shortUnit}
-                              {unit !== 'once_off' && ` × ${units}${unitLabel}`} ·{' '}
-                              <span className={`proj-src proj-src-${r.type === 'internal' ? 'internal' : 'vendor'}`}>
-                                {r.type === 'internal' ? 'Lions office' : 'Vendor'}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="pd-line-r">
-                            <strong>R {line.toLocaleString()}</strong>
-                            <button className="proj-task-x" onClick={() => removePersonFromTask(t.id, r.id)}>×</button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {/* One simple Gantt table — activities as rows, expandable sub-rows */}
+      <ActivityGanttTable
+        project={project}
+        collapsed={collapsed}
+        onToggleRow={toggleRow}
+        onUpdateTask={updateTask}
+        onRemoveTask={removeTask}
+        onAddEquip={(taskId) => setAddingEquipFor(taskId)}
+        onRemoveEquip={removeEquipFromTask}
+        onAddPerson={(taskId) => setAddingPersonFor(taskId)}
+        onRemovePerson={removePersonFromTask}
+      />
 
       {addingTask && ReactDOM.createPortal(
         <AddTaskModal
@@ -7880,16 +7741,31 @@ function ProjectDetail({ project, onBack, onUpdate, onRemove, toast }) {
   );
 }
 
-/* ─── ProjectActivityGantt · one bar per activity on the project window ─── */
-function ProjectActivityGantt({ project, onOpenAsCards }) {
+/* ─── ActivityGanttTable · the single, simple project view ───
+   A plain table, MS-Project style. One row per activity with columns
+   Activity · Equipment · People · Cost · Status plus a timeline column
+   with the activity's bar. Click a row (or its ▸) to collapse/expand the
+   equipment and people sub-rows that belong to that activity. Sub-rows
+   carry their own line costs; the footer shows the project total. */
+function ActivityGanttTable({
+  project,
+  collapsed,
+  onToggleRow,
+  onUpdateTask,
+  onRemoveTask,
+  onAddEquip,
+  onRemoveEquip,
+  onAddPerson,
+  onRemovePerson,
+}) {
   const winStart = new Date(project.startDate || '2026-07-01');
   const winEnd = new Date(project.endDate || '2027-03-31');
   const winMs = Math.max(1, winEnd - winStart);
 
   const months = [];
   const cur = new Date(winStart.getFullYear(), winStart.getMonth(), 1);
-  const end = new Date(winEnd.getFullYear(), winEnd.getMonth(), 1);
-  while (cur <= end) {
+  const last = new Date(winEnd.getFullYear(), winEnd.getMonth(), 1);
+  while (cur <= last) {
     months.push(new Date(cur));
     cur.setMonth(cur.getMonth() + 1);
   }
@@ -7905,94 +7781,188 @@ function ProjectActivityGantt({ project, onOpenAsCards }) {
     const clamped = Math.max(winStart.getTime(), Math.min(winEnd.getTime(), d.getTime()));
     return ((clamped - winStart.getTime()) / winMs) * 100;
   }
+  const fmt = (ds) =>
+    ds ? new Date(ds).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—';
 
   const tasks = project.tasks || [];
+  const totalEquip = tasks.reduce((s, t) => s + (t.equipment || []).length, 0);
+  const totalPeople = tasks.reduce((s, t) => s + (t.people || []).length, 0);
+  const totalSpend = computeProjectSpend(project);
 
   return (
-    <div className="gantt">
-      <div className="gantt-head">
-        <div className="gantt-l-head pd-gantt-l">
-          <div className="gantt-l-col gantt-l-col-name">Activity</div>
-          <div className="gantt-l-col">Equipment</div>
-          <div className="gantt-l-col">People</div>
-          <div className="gantt-l-col">Cost</div>
-        </div>
-        <div className="gantt-r-head">
-          {months.map((m) => (
-            <div key={m.getTime()} className="gantt-month">
-              {m.toLocaleDateString('en-GB', { month: 'short' })}
-              <span className="gantt-year">{m.getFullYear().toString().slice(2)}</span>
-            </div>
-          ))}
-          {todayPct != null && (
-            <div className="gantt-today" style={{ left: `${todayPct}%` }} />
+    <div className="agt-wrap">
+      <table className="agt">
+        <thead>
+          <tr>
+            <th className="agt-th-activity">Activity</th>
+            <th className="agt-th-n">Equipment</th>
+            <th className="agt-th-n">People</th>
+            <th className="agt-th-cost">Cost</th>
+            <th className="agt-th-status">Status</th>
+            <th className="agt-th-tl">
+              <div className="agt-months">
+                {months.map((m) => (
+                  <span key={m.getTime()} className="agt-month">
+                    {m.toLocaleDateString('en-GB', { month: 'short' })}
+                  </span>
+                ))}
+              </div>
+            </th>
+            <th className="agt-th-x" />
+          </tr>
+        </thead>
+        <tbody>
+          {tasks.length === 0 && (
+            <tr>
+              <td colSpan={7} className="agt-empty">
+                No activities yet — click <strong>+ Activity</strong> above.
+                Every equipment purchase and every person belongs to an activity.
+              </td>
+            </tr>
           )}
-        </div>
-      </div>
-
-      <div className="gantt-body">
-        {tasks.length === 0 && (
-          <div className="cv-empty" style={{ margin: 20 }}>
-            No activities yet. Click <strong>+ Activity</strong> at the top of the page to add one.
-          </div>
-        )}
-        {tasks.map((t) => {
-          const taskSpend = computeTaskSpend(t);
-          const startPct = pctFor(t.startDate);
-          const endPct = pctFor(t.endDate || t.dueDate);
-          const barLeft = startPct != null ? startPct : 0;
-          const barWidth = startPct != null && endPct != null ? Math.max(2, endPct - startPct) : 0;
-          const equipCount = (t.equipment || []).length;
-          const peopleCount = (t.people || []).length;
-          const statusMeta = TASK_STATUSES.find((s) => s.key === t.status);
-          return (
-            <div key={t.id} className="gantt-row pd-gantt-row" onClick={onOpenAsCards} title="Open Cards view to edit">
-              <div className="gantt-l pd-gantt-l">
-                <div className="gantt-l-col gantt-l-col-name">
-                  <div className="gantt-l-name">
-                    <div style={{ minWidth: 0 }}>
-                      <div className="gantt-l-name-t">{t.title}</div>
-                      <div className="gantt-l-name-s">
-                        {t.assigneeName || '—'} · {statusMeta?.label || t.status}
+          {tasks.map((t) => {
+            const open = !collapsed.has(t.id);
+            const taskSpend = computeTaskSpend(t);
+            const sPct = pctFor(t.startDate);
+            const ePct = pctFor(t.endDate || t.dueDate);
+            const eq = t.equipment || [];
+            const pe = t.people || [];
+            return (
+              <Fragment key={t.id}>
+                <tr
+                  className={`agt-row agt-row-${t.status}`}
+                  onClick={() => onToggleRow(t.id)}
+                >
+                  <td className="agt-td-activity">
+                    <div className="agt-act-wrap">
+                      <span className={`agt-chev ${open ? 'open' : ''}`}>▸</span>
+                      <div style={{ minWidth: 0 }}>
+                        <div className="agt-act-name">{t.title}</div>
+                        <div className="agt-act-sub">
+                          {t.assigneeName || '—'} · {fmt(t.startDate)} → {fmt(t.endDate || t.dueDate)}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </div>
-                <div className="gantt-l-col gantt-l-cell">
-                  <div className="gantt-l-cell-n">{equipCount}</div>
-                  <div className="gantt-l-cell-s">item{equipCount === 1 ? '' : 's'}</div>
-                </div>
-                <div className="gantt-l-col gantt-l-cell">
-                  <div className="gantt-l-cell-n">{peopleCount}</div>
-                  <div className="gantt-l-cell-s">on activity</div>
-                </div>
-                <div className="gantt-l-col gantt-l-cell">
-                  <div className="gantt-l-cell-n">R {(taskSpend / 1000).toFixed(1)}k</div>
-                  <div className="gantt-l-cell-s">
-                    {equipCount > 0 && peopleCount > 0 ? 'kit + people' : equipCount > 0 ? 'kit only' : peopleCount > 0 ? 'people only' : 'no cost yet'}
-                  </div>
-                </div>
-              </div>
-              <div className="gantt-r">
-                {startPct != null && endPct != null && (
-                  <div
-                    className={`gantt-bar gantt-bar-${t.status}`}
-                    style={{ left: `${barLeft}%`, width: `${barWidth}%` }}
-                    title={`${t.startDate || ''} → ${t.endDate || t.dueDate || ''}`}
-                  >
-                    <span className="gantt-bar-label">
-                      R {(taskSpend / 1000).toFixed(1)}k
-                    </span>
-                  </div>
+                  </td>
+                  <td className="agt-td-n">{eq.length}</td>
+                  <td className="agt-td-n">{pe.length}</td>
+                  <td className="agt-td-cost">R {taskSpend.toLocaleString()}</td>
+                  <td className="agt-td-status" onClick={(e) => e.stopPropagation()}>
+                    <select
+                      className="proj-task-status"
+                      value={t.status}
+                      onChange={(e) => onUpdateTask(t.id, { status: e.target.value })}
+                    >
+                      {TASK_STATUSES.map((s) => (
+                        <option key={s.key} value={s.key}>{s.label}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="agt-td-tl">
+                    <div className="agt-tl">
+                      {sPct != null && ePct != null && (
+                        <div
+                          className={`agt-bar gantt-bar-${t.status}`}
+                          style={{ left: `${sPct}%`, width: `${Math.max(2, ePct - sPct)}%` }}
+                          title={`${t.startDate || ''} → ${t.endDate || t.dueDate || ''}`}
+                        />
+                      )}
+                      {todayPct != null && (
+                        <div className="agt-today" style={{ left: `${todayPct}%` }} />
+                      )}
+                    </div>
+                  </td>
+                  <td className="agt-td-x" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      className="proj-task-x"
+                      onClick={() => onRemoveTask(t.id)}
+                      title="Remove activity"
+                    >
+                      ×
+                    </button>
+                  </td>
+                </tr>
+
+                {open && eq.map((e) => {
+                  const line = (Number(e.qty) || 0) * (Number(e.unitCost) || 0);
+                  const vendor = e.vendorId ? VENDORS.find((v) => v.id === e.vendorId) : null;
+                  return (
+                    <tr key={e.id} className="agt-subrow">
+                      <td className="agt-td-subname">🔧 {e.name}</td>
+                      <td colSpan={2} className="agt-td-subdetail">
+                        {e.qty} × R {Number(e.unitCost).toLocaleString()} ·{' '}
+                        <span className={`proj-src proj-src-${e.source}`}>
+                          {e.source === 'internal' ? 'Internal store' : vendor?.name || 'Vendor'}
+                        </span>
+                      </td>
+                      <td className="agt-td-cost">R {line.toLocaleString()}</td>
+                      <td colSpan={2} />
+                      <td className="agt-td-x">
+                        <button className="proj-task-x" onClick={() => onRemoveEquip(t.id, e.id)}>×</button>
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {open && pe.map((r) => {
+                  const line = personLineCost(r);
+                  const rate = Number(r.rate ?? r.dailyRate ?? 0) || 0;
+                  const unit = r.rateUnit || 'day';
+                  const units = Number(r.units ?? r.days ?? 0) || 0;
+                  const shortUnit =
+                    unit === 'hour' ? '/hour'
+                    : unit === 'day' ? '/day'
+                    : unit === 'deliverable' ? '/deliverable'
+                    : ' once-off';
+                  return (
+                    <tr key={r.id} className="agt-subrow">
+                      <td className="agt-td-subname">👤 {r.name}</td>
+                      <td colSpan={2} className="agt-td-subdetail">
+                        {r.role} · R {rate.toLocaleString()}{shortUnit}
+                        {unit !== 'once_off' ? ` × ${units}` : ''} ·{' '}
+                        <span className={`proj-src proj-src-${r.type === 'internal' ? 'internal' : 'vendor'}`}>
+                          {r.type === 'internal' ? 'Lions office' : 'Vendor'}
+                        </span>
+                      </td>
+                      <td className="agt-td-cost">R {line.toLocaleString()}</td>
+                      <td colSpan={2} />
+                      <td className="agt-td-x">
+                        <button className="proj-task-x" onClick={() => onRemovePerson(t.id, r.id)}>×</button>
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {open && (
+                  <tr className="agt-addrow">
+                    <td colSpan={7}>
+                      <button className="pd-add-btn" onClick={() => onAddEquip(t.id)}>
+                        + Add equipment
+                      </button>
+                      <button className="pd-add-btn" onClick={() => onAddPerson(t.id)}>
+                        + Add person
+                      </button>
+                    </td>
+                  </tr>
                 )}
-                {todayPct != null && (
-                  <div className="gantt-today gantt-today-body" style={{ left: `${todayPct}%` }} />
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+              </Fragment>
+            );
+          })}
+        </tbody>
+        {tasks.length > 0 && (
+          <tfoot>
+            <tr>
+              <td className="agt-foot-l">Project total</td>
+              <td className="agt-td-n">{totalEquip}</td>
+              <td className="agt-td-n">{totalPeople}</td>
+              <td className="agt-td-cost">R {totalSpend.toLocaleString()}</td>
+              <td colSpan={3} className="agt-foot-r">
+                of R {(project.budget || 0).toLocaleString()} budget
+              </td>
+            </tr>
+          </tfoot>
+        )}
+      </table>
     </div>
   );
 }

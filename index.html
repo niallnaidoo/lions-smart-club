@@ -9459,6 +9459,179 @@
         color: var(--green);
       }
 
+      /* ─── Project Detail · single activity Gantt table ─── */
+      .agt-wrap {
+        margin-top: 16px;
+        background: var(--white);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        overflow-x: auto;
+      }
+      .agt {
+        width: 100%;
+        min-width: 980px;
+        border-collapse: collapse;
+      }
+      .agt thead th {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10.5px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+        text-align: left;
+        padding: 10px 12px;
+        background: var(--paper);
+        border-bottom: 2px solid var(--line);
+        white-space: nowrap;
+      }
+      .agt-th-activity { width: 26%; padding-left: 16px !important; }
+      .agt-th-n { width: 84px; text-align: center !important; }
+      .agt-th-cost { width: 110px; text-align: right !important; }
+      .agt-th-status { width: 118px; }
+      .agt-th-tl { width: 30%; padding: 0 !important; border-left: 1px solid var(--line); }
+      .agt-th-x { width: 40px; }
+      .agt-months {
+        display: flex;
+        padding: 10px 0;
+      }
+      .agt-month {
+        flex: 1;
+        text-align: center;
+        font-size: 9.5px;
+        border-right: 1px dashed var(--line);
+      }
+      .agt-month:last-child { border-right: none; }
+
+      .agt tbody td {
+        padding: 10px 12px;
+        vertical-align: middle;
+        border-bottom: 1px solid var(--line);
+        font-family: 'Montserrat', sans-serif;
+      }
+      .agt-row { cursor: pointer; transition: background 0.1s; }
+      .agt-row:hover { background: var(--paper); }
+      .agt-row td:first-child { border-left: 3px solid transparent; }
+      .agt-row-todo td:first-child { border-left-color: var(--paper3); }
+      .agt-row-in_progress td:first-child { border-left-color: #b58500; }
+      .agt-row-done td:first-child { border-left-color: var(--green); }
+      .agt-row-blocked td:first-child { border-left-color: var(--coral); }
+
+      .agt-act-wrap {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+      }
+      .agt-chev {
+        display: inline-block;
+        margin-top: 1px;
+        font-size: 11px;
+        color: var(--muted);
+        transition: transform 0.12s;
+      }
+      .agt-chev.open { transform: rotate(90deg); }
+      .agt-act-name {
+        font-size: 12.5px;
+        font-weight: 800;
+        color: var(--ink);
+        line-height: 1.3;
+      }
+      .agt-act-sub {
+        font-size: 10.5px;
+        font-weight: 600;
+        color: var(--muted);
+        margin-top: 2px;
+      }
+      .agt-td-n {
+        text-align: center;
+        font-size: 13px;
+        font-weight: 800;
+        color: var(--ink);
+        font-variant-numeric: tabular-nums;
+      }
+      .agt-td-cost {
+        text-align: right;
+        font-size: 13px;
+        font-weight: 800;
+        color: var(--ink);
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      .agt-td-tl {
+        padding: 0 !important;
+        border-left: 1px solid var(--line);
+      }
+      .agt-tl {
+        position: relative;
+        height: 38px;
+      }
+      .agt-bar {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        height: 14px;
+        border-radius: 999px;
+        min-width: 10px;
+      }
+      .agt-today {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: var(--coral);
+        pointer-events: none;
+      }
+      .agt-td-x { text-align: right; }
+
+      .agt-subrow { background: var(--paper); }
+      .agt-subrow td {
+        padding: 7px 12px;
+        font-size: 11.5px;
+        color: var(--muted);
+      }
+      .agt-td-subname {
+        padding-left: 44px !important;
+        font-size: 12px !important;
+        font-weight: 700;
+        color: var(--ink) !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 280px;
+      }
+      .agt-td-subdetail { line-height: 1.5; }
+      .agt-addrow td {
+        background: var(--paper);
+        padding: 6px 12px 12px 44px;
+      }
+      .agt-addrow .pd-add-btn { margin-right: 8px; }
+
+      .agt-empty {
+        padding: 26px !important;
+        text-align: center;
+        color: var(--muted);
+        font-size: 12.5px;
+      }
+      .agt tfoot td {
+        padding: 12px;
+        background: var(--paper);
+        border-top: 2px solid var(--line);
+        font-family: 'Montserrat', sans-serif;
+        font-weight: 800;
+        color: var(--ink);
+      }
+      .agt-foot-l {
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        padding-left: 16px !important;
+      }
+      .agt-foot-r {
+        font-size: 11.5px;
+        font-weight: 600 !important;
+        color: var(--muted);
+      }
+
       /* ─── Project Detail · activity cards + inline sections ─── */
       .pd-activities {
         margin-top: 16px;
