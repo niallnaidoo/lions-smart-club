@@ -7546,6 +7546,7 @@ function ProjectsGantt({ projects, onOpen }) {
    admin. */
 function ProjectDetail({ project, onBack, onUpdate, onRemove, toast }) {
   const [addingTask, setAddingTask] = useState(false);
+  const [editingTask, setEditingTask] = useState(null); // the activity being edited
   const [addingEquipFor, setAddingEquipFor] = useState(null); // taskId
   const [addingPersonFor, setAddingPersonFor] = useState(null); // taskId
   // All activities start expanded — the admin sees every sub-line by default.
@@ -7708,6 +7709,7 @@ function ProjectDetail({ project, onBack, onUpdate, onRemove, toast }) {
         collapsed={collapsed}
         onToggleRow={toggleRow}
         onUpdateTask={updateTask}
+        onEditTask={(t) => setEditingTask(t)}
         onRemoveTask={removeTask}
         onAddEquip={(taskId) => setAddingEquipFor(taskId)}
         onRemoveEquip={removeEquipFromTask}
@@ -7720,6 +7722,19 @@ function ProjectDetail({ project, onBack, onUpdate, onRemove, toast }) {
           project={project}
           onSubmit={addTask}
           onCancel={() => setAddingTask(false)}
+        />,
+        document.body
+      )}
+      {editingTask && ReactDOM.createPortal(
+        <AddTaskModal
+          project={project}
+          task={editingTask}
+          onSubmit={(patch) => {
+            updateTask(editingTask.id, patch);
+            setEditingTask(null);
+            toast?.('Activity updated');
+          }}
+          onCancel={() => setEditingTask(null)}
         />,
         document.body
       )}
@@ -7752,6 +7767,7 @@ function ActivityGanttTable({
   collapsed,
   onToggleRow,
   onUpdateTask,
+  onEditTask,
   onRemoveTask,
   onAddEquip,
   onRemoveEquip,
@@ -7795,6 +7811,8 @@ function ActivityGanttTable({
         <thead>
           <tr>
             <th className="agt-th-activity">Activity</th>
+            <th className="agt-th-date">Start</th>
+            <th className="agt-th-date">End</th>
             <th className="agt-th-n">Equipment</th>
             <th className="agt-th-n">People</th>
             <th className="agt-th-cost">Cost</th>
@@ -7814,7 +7832,7 @@ function ActivityGanttTable({
         <tbody>
           {tasks.length === 0 && (
             <tr>
-              <td colSpan={7} className="agt-empty">
+              <td colSpan={9} className="agt-empty">
                 No activities yet — click <strong>+ Activity</strong> above.
                 Every equipment purchase and every person belongs to an activity.
               </td>
@@ -7823,10 +7841,14 @@ function ActivityGanttTable({
           {tasks.map((t) => {
             const open = !collapsed.has(t.id);
             const taskSpend = computeTaskSpend(t);
+            const tEnd = t.endDate || t.dueDate;
             const sPct = pctFor(t.startDate);
-            const ePct = pctFor(t.endDate || t.dueDate);
+            const ePct = pctFor(tEnd);
             const eq = t.equipment || [];
             const pe = t.people || [];
+            const durDays = t.startDate && tEnd
+              ? Math.max(1, Math.round((new Date(tEnd) - new Date(t.startDate)) / 86400000))
+              : null;
             return (
               <Fragment key={t.id}>
                 <tr
@@ -7839,10 +7861,29 @@ function ActivityGanttTable({
                       <div style={{ minWidth: 0 }}>
                         <div className="agt-act-name">{t.title}</div>
                         <div className="agt-act-sub">
-                          {t.assigneeName || '—'} · {fmt(t.startDate)} → {fmt(t.endDate || t.dueDate)}
+                          {t.assigneeName || '—'}
+                          {durDays != null && ` · ${durDays} day${durDays === 1 ? '' : 's'}`}
                         </div>
                       </div>
                     </div>
+                  </td>
+                  <td className="agt-td-date" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="date"
+                      className="agt-date-input"
+                      value={t.startDate || ''}
+                      onChange={(e) => onUpdateTask(t.id, { startDate: e.target.value })}
+                      title="Change the start date"
+                    />
+                  </td>
+                  <td className="agt-td-date" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="date"
+                      className="agt-date-input"
+                      value={tEnd || ''}
+                      onChange={(e) => onUpdateTask(t.id, { endDate: e.target.value, dueDate: e.target.value })}
+                      title="Change the end date"
+                    />
                   </td>
                   <td className="agt-td-n">{eq.length}</td>
                   <td className="agt-td-n">{pe.length}</td>
@@ -7864,7 +7905,7 @@ function ActivityGanttTable({
                         <div
                           className={`agt-bar gantt-bar-${t.status}`}
                           style={{ left: `${sPct}%`, width: `${Math.max(2, ePct - sPct)}%` }}
-                          title={`${t.startDate || ''} → ${t.endDate || t.dueDate || ''}`}
+                          title={`${fmt(t.startDate)} → ${fmt(tEnd)}${durDays != null ? ` · ${durDays} days` : ''}`}
                         />
                       )}
                       {todayPct != null && (
@@ -7873,6 +7914,13 @@ function ActivityGanttTable({
                     </div>
                   </td>
                   <td className="agt-td-x" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      className="agt-edit-btn"
+                      onClick={() => onEditTask(t)}
+                      title="Edit this activity — name, who runs it, dates"
+                    >
+                      ✎
+                    </button>
                     <button
                       className="proj-task-x"
                       onClick={() => onRemoveTask(t.id)}
@@ -7889,7 +7937,7 @@ function ActivityGanttTable({
                   return (
                     <tr key={e.id} className="agt-subrow">
                       <td className="agt-td-subname">🔧 {e.name}</td>
-                      <td colSpan={2} className="agt-td-subdetail">
+                      <td colSpan={4} className="agt-td-subdetail">
                         {e.qty} × R {Number(e.unitCost).toLocaleString()} ·{' '}
                         <span className={`proj-src proj-src-${e.source}`}>
                           {e.source === 'internal' ? 'Internal store' : vendor?.name || 'Vendor'}
@@ -7917,7 +7965,7 @@ function ActivityGanttTable({
                   return (
                     <tr key={r.id} className="agt-subrow">
                       <td className="agt-td-subname">👤 {r.name}</td>
-                      <td colSpan={2} className="agt-td-subdetail">
+                      <td colSpan={4} className="agt-td-subdetail">
                         {r.role} · R {rate.toLocaleString()}{shortUnit}
                         {unit !== 'once_off' ? ` × ${units}` : ''} ·{' '}
                         <span className={`proj-src proj-src-${r.type === 'internal' ? 'internal' : 'vendor'}`}>
@@ -7935,7 +7983,7 @@ function ActivityGanttTable({
 
                 {open && (
                   <tr className="agt-addrow">
-                    <td colSpan={7}>
+                    <td colSpan={9}>
                       <button className="pd-add-btn" onClick={() => onAddEquip(t.id)}>
                         + Add equipment
                       </button>
@@ -7952,7 +8000,7 @@ function ActivityGanttTable({
         {tasks.length > 0 && (
           <tfoot>
             <tr>
-              <td className="agt-foot-l">Project total</td>
+              <td colSpan={3} className="agt-foot-l">Project total</td>
               <td className="agt-td-n">{totalEquip}</td>
               <td className="agt-td-n">{totalPeople}</td>
               <td className="agt-td-cost">R {totalSpend.toLocaleString()}</td>
@@ -8091,12 +8139,13 @@ function AddProjectModal({ onSubmit, onCancel }) {
 }
 
 /* ─── AddTaskModal ─── */
-function AddTaskModal({ project, onSubmit, onCancel }) {
-  const [title, setTitle] = useState('');
-  const [assigneeId, setAssigneeId] = useState(LIONS_OFFICE_STAFF[0].id);
-  const [status, setStatus] = useState('todo');
-  const [startDate, setStartDate] = useState(project?.startDate || '');
-  const [endDate, setEndDate] = useState('');
+function AddTaskModal({ project, task, onSubmit, onCancel }) {
+  const editing = !!task;
+  const [title, setTitle] = useState(task?.title || '');
+  const [assigneeId, setAssigneeId] = useState(task?.assigneeId || LIONS_OFFICE_STAFF[0].id);
+  const [status, setStatus] = useState(task?.status || 'todo');
+  const [startDate, setStartDate] = useState(task?.startDate || project?.startDate || '');
+  const [endDate, setEndDate] = useState(task?.endDate || task?.dueDate || '');
   const canSubmit = title.trim();
 
   function submit() {
@@ -8119,7 +8168,7 @@ function AddTaskModal({ project, onSubmit, onCancel }) {
         <div className="fac-jobmodal-head">
           <div>
             <div className="fac-detail-eyebrow">Activity</div>
-            <div className="fac-jobmodal-title">Add an activity</div>
+            <div className="fac-jobmodal-title">{editing ? 'Edit activity' : 'Add an activity'}</div>
           </div>
           <button className="fac-detail-close" onClick={onCancel}><Icon.X /></button>
         </div>
@@ -8133,10 +8182,12 @@ function AddTaskModal({ project, onSubmit, onCancel }) {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
               />
-              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
-                Once the activity exists you can attach the equipment purchased for it and the
-                people booked to work on it.
-              </div>
+              {!editing && (
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                  Once the activity exists you can attach the equipment purchased for it and the
+                  people booked to work on it.
+                </div>
+              )}
             </div>
             <div className="field-grid-2" style={{ marginTop: 12 }}>
               <div>
@@ -8169,7 +8220,9 @@ function AddTaskModal({ project, onSubmit, onCancel }) {
         <div className="jobmodal-footer">
           <div className="jobmodal-footer-actions">
             <Btn tone="outline" onClick={onCancel}>Cancel</Btn>
-            <Btn tone="teal" icon={Icon.Check} onClick={submit} disabled={!canSubmit}>Add activity</Btn>
+            <Btn tone="teal" icon={Icon.Check} onClick={submit} disabled={!canSubmit}>
+              {editing ? 'Save changes' : 'Add activity'}
+            </Btn>
           </div>
         </div>
       </div>

@@ -9469,7 +9469,7 @@
       }
       .agt {
         width: 100%;
-        min-width: 980px;
+        min-width: 1150px;
         border-collapse: collapse;
       }
       .agt thead th {
@@ -9485,12 +9485,54 @@
         border-bottom: 2px solid var(--line);
         white-space: nowrap;
       }
-      .agt-th-activity { width: 26%; padding-left: 16px !important; }
-      .agt-th-n { width: 84px; text-align: center !important; }
-      .agt-th-cost { width: 110px; text-align: right !important; }
-      .agt-th-status { width: 118px; }
-      .agt-th-tl { width: 30%; padding: 0 !important; border-left: 1px solid var(--line); }
-      .agt-th-x { width: 40px; }
+      .agt-th-activity { width: 22%; padding-left: 16px !important; }
+      .agt-th-date { width: 128px; }
+      .agt-th-n { width: 78px; text-align: center !important; }
+      .agt-th-cost { width: 105px; text-align: right !important; }
+      .agt-th-status { width: 116px; }
+      .agt-th-tl { width: 24%; padding: 0 !important; border-left: 1px solid var(--line); }
+      .agt-th-x { width: 72px; }
+
+      /* Inline date pickers — visible bordered fields so the admin can see
+         at a glance that the dates are editable. Click → native calendar. */
+      .agt-td-date { white-space: nowrap; }
+      .agt-date-input {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11.5px;
+        font-weight: 700;
+        color: var(--ink);
+        padding: 6px 7px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: var(--white);
+        width: 122px;
+        cursor: pointer;
+      }
+      .agt-date-input:hover { border-color: var(--green); }
+      .agt-date-input:focus {
+        outline: none;
+        border-color: var(--green);
+        box-shadow: 0 0 0 2px var(--green-pale);
+      }
+
+      /* Edit-activity pencil button */
+      .agt-edit-btn {
+        width: 26px;
+        height: 26px;
+        border-radius: 6px;
+        background: var(--white);
+        border: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1;
+        cursor: pointer;
+        margin-right: 4px;
+      }
+      .agt-edit-btn:hover {
+        border-color: var(--green);
+        color: var(--green);
+        background: var(--green-pale);
+      }
       .agt-months {
         display: flex;
         padding: 10px 0;
