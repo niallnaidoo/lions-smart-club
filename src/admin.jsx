@@ -9641,8 +9641,38 @@ function AdminSocial({ postsByClub = {}, clubs = [], toast }) {
   );
 }
 
-/* Read-only match post card for the admin gallery. */
+/* Read-only match post card for the admin gallery — with photo downloads
+   so the office can grab images for their own channels. */
 function AdminSocialCard({ post, playerName }) {
+  // Build a filesystem-friendly name from club + match + tagged players so
+  // downloaded files sort and identify cleanly.
+  function fileNameFor(ph, index) {
+    const slug = (s) =>
+      String(s || '')
+        .replace(/[^\w]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .slice(0, 40);
+    const tags = (ph.taggedPlayerIds || []).map((pid) => slug(playerName(pid))).join('-');
+    const ext = (ph.dataUrl || '').startsWith('data:image/png') ? 'png' : 'jpg';
+    return [slug(post.clubLabel), slug(post.title), `${index + 1}`, tags]
+      .filter(Boolean)
+      .join('_') + '.' + ext;
+  }
+  function downloadPhoto(ph, index) {
+    const a = document.createElement('a');
+    a.href = ph.dataUrl;
+    a.download = fileNameFor(ph, index);
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+  function downloadAll() {
+    (post.photos || []).forEach((ph, i) => {
+      // Stagger so browsers don't drop rapid-fire downloads.
+      setTimeout(() => downloadPhoto(ph, i), i * 250);
+    });
+  }
+
   return (
     <div className="sc-card">
       <div className="sc-card-head">
@@ -9657,19 +9687,31 @@ function AdminSocialCard({ post, playerName }) {
             {(post.photos || []).length > 0 && ` · ${post.photos.length} photo${post.photos.length === 1 ? '' : 's'}`}
           </div>
         </div>
-        {post.scorecardUrl && (
-          <a className="sc-scorecard" href={post.scorecardUrl} target="_blank" rel="noopener noreferrer">
-            📊 Scorecard
-          </a>
-        )}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          {(post.photos || []).length > 0 && (
+            <button className="sc-dl-all" onClick={downloadAll}>
+              ⬇ Download {post.photos.length === 1 ? 'photo' : `all ${post.photos.length}`}
+            </button>
+          )}
+          {post.scorecardUrl && (
+            <a className="sc-scorecard" href={post.scorecardUrl} target="_blank" rel="noopener noreferrer">
+              📊 Scorecard
+            </a>
+          )}
+        </div>
       </div>
 
-      {post.caption && <div className="sc-caption">{post.caption}</div>}
-
       <div className="sc-grid">
-        {(post.photos || []).map((ph) => (
+        {(post.photos || []).map((ph, i) => (
           <div key={ph.id} className="sc-photo">
             <img src={ph.dataUrl} alt={post.title} loading="lazy" />
+            <button
+              className="sc-dl-btn"
+              onClick={() => downloadPhoto(ph, i)}
+              title="Download this photo"
+            >
+              ⬇
+            </button>
             {(ph.taggedPlayerIds || []).length > 0 && (
               <div className="sc-tags">
                 {ph.taggedPlayerIds.map((pid) => (

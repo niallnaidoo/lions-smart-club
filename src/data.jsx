@@ -2239,7 +2239,6 @@ const SOCIAL_SEED = {
       postedAt: '2026-08-02',
       chair: 'Ashraf Ganie',
       scorecardUrl: 'https://cricclubs.com/kzncu/scorecard/ukzn-umlazi-0208',
-      caption: 'Big home win to open the season — 6 wickets, Sanele 74*.',
       photos: [
         { id: 'ph-1', dataUrl: placeholderPhoto('Opening stand', 145), taggedPlayerIds: ['ply-003'] },
         { id: 'ph-2', dataUrl: placeholderPhoto('Wicket celebration', 205), taggedPlayerIds: [] },

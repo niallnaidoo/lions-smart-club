@@ -5763,8 +5763,6 @@ function SocialPostCard({ post, playerName, onRemove, clubLabel }) {
         </div>
       </div>
 
-      {post.caption && <div className="sc-caption">{post.caption}</div>}
-
       <div className="sc-grid">
         {(post.photos || []).map((ph) => (
           <div key={ph.id} className="sc-photo">
@@ -5789,7 +5787,6 @@ function NewMatchPostModal({ club, players, onSubmit, onCancel }) {
   const [title, setTitle] = useState('');
   const [matchDate, setMatchDate] = useState(today);
   const [scorecardUrl, setScorecardUrl] = useState('');
-  const [caption, setCaption] = useState('');
   const [photos, setPhotos] = useState([]); // {id, dataUrl, taggedPlayerIds}
   const [busy, setBusy] = useState(false);
   const fileRef = useRef(null);
@@ -5865,7 +5862,6 @@ function NewMatchPostModal({ club, players, onSubmit, onCancel }) {
       postedAt: new Date().toISOString().slice(0, 10),
       chair: club.chair,
       scorecardUrl: scorecardUrl.trim(),
-      caption: caption.trim(),
       photos,
     });
   }
@@ -5906,15 +5902,6 @@ function NewMatchPostModal({ club, players, onSubmit, onCancel }) {
                 placeholder="Paste the scorecard URL (e.g. cricclubs / play-cricket)"
                 value={scorecardUrl}
                 onChange={(e) => setScorecardUrl(e.target.value)}
-              />
-            </div>
-            <div style={{ marginTop: 12 }}>
-              <label className="field-label">Caption</label>
-              <input
-                className="field-input"
-                placeholder="A line about the game…"
-                value={caption}
-                onChange={(e) => setCaption(e.target.value)}
               />
             </div>
           </div>
