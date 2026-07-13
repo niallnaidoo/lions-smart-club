@@ -183,6 +183,7 @@ import {
   SUBSCRIPTION_DEFAULT_ZAR,
   FACILITY_JOBS,
   PROJECT_SEED,
+  SOCIAL_SEED,
 } from './data.jsx';
 import {
   ClubHome,
@@ -196,6 +197,7 @@ import {
   ClubFacilitiesView,
   ClubVendorsView,
   ClubFinancialsView,
+  ClubSocialView,
 } from './club.jsx';
 import {
   AdminDashboard,
@@ -208,6 +210,7 @@ import {
   AdminVendors,
   AdminProjects,
   AdminFinancials,
+  AdminSocial,
 } from './admin.jsx';
 import { Onboarding } from './onboarding.jsx';
 
@@ -309,6 +312,24 @@ function Shell({ initialProfile, onSwitchProfile }) {
 
   // Admin project portfolio state
   const [projects, setProjects] = useState(PROJECT_SEED);
+
+  // Match Day social posts — keyed by clubId so each chair sees only their own
+  // uploads, while the admin gallery rolls up every club's posts.
+  const [socialPostsByClub, setSocialPostsByClub] = useState(SOCIAL_SEED);
+
+  function addSocialPost(cid, post) {
+    setSocialPostsByClub((prev) => ({
+      ...prev,
+      [cid]: [post, ...(prev[cid] || [])],
+    }));
+  }
+  function removeSocialPost(cid, postId) {
+    setSocialPostsByClub((prev) => ({
+      ...prev,
+      [cid]: (prev[cid] || []).filter((p) => p.id !== postId),
+    }));
+    toastShow('Match post removed');
+  }
 
   function severityToJobPriority(sev) {
     if (!sev) return 'medium';
@@ -627,6 +648,7 @@ function Shell({ initialProfile, onSwitchProfile }) {
     { v: 'vendors', label: 'Vendors', icon: Icon.Doc, dot: 'teal' },
     { v: 'projects', label: 'Projects', icon: Icon.Star, dot: 'teal' },
     { v: 'financials', label: 'Financials', icon: Icon.Doc, dot: 'teal' },
+    { v: 'social', label: 'Match Day', icon: Icon.Field, dot: 'teal' },
     {
       v: 'clearances',
       label: 'Clearances',
@@ -688,6 +710,7 @@ function Shell({ initialProfile, onSwitchProfile }) {
     { v: 'facilities', label: 'Facilities', icon: Icon.Eye, dot: 'teal' },
     { v: 'vendors', label: 'Vendors', icon: Icon.Doc, dot: 'teal' },
     { v: 'financials', label: 'Financials', icon: Icon.Star, dot: 'teal' },
+    { v: 'social', label: 'Match Day', icon: Icon.Field, dot: 'teal' },
   ];
 
   const nav = role === 'admin' ? adminNav : clubNav;
@@ -757,6 +780,10 @@ function Shell({ initialProfile, onSwitchProfile }) {
             clubs={clubs}
             toast={toastShow}
           />
+        );
+      if (view === 'social')
+        return (
+          <AdminSocial postsByClub={socialPostsByClub} clubs={clubs} toast={toastShow} />
         );
     } else {
       const goto = (v) => setView(v);
@@ -858,6 +885,17 @@ function Shell({ initialProfile, onSwitchProfile }) {
             onAddEntry={(entry) => addLedgerEntry(clubId, entry)}
             onUpdateEntry={(id, patch) => updateLedgerEntry(clubId, id, patch)}
             onRemoveEntry={(id) => removeLedgerEntry(clubId, id)}
+            toast={toastShow}
+          />
+        );
+      }
+      if (view === 'social') {
+        return (
+          <ClubSocialView
+            club={activeClub}
+            posts={socialPostsByClub[clubId] || []}
+            onAddPost={(post) => addSocialPost(clubId, post)}
+            onRemovePost={(postId) => removeSocialPost(clubId, postId)}
             toast={toastShow}
           />
         );

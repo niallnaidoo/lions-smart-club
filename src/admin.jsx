@@ -24,6 +24,7 @@ import {
 import {
   REQUIRED_DOCS,
   CQI_STRUCTURE,
+  SAMPLE_PLAYERS,
   cohortStats,
   docCompletion,
   overallProgress,
@@ -9532,6 +9533,157 @@ function AdminFinancials({ ledgerByClub = {}, projects = [], clubs = [], toast }
   );
 }
 
+/* ─── AdminSocial · Match Day gallery (all clubs) ───
+   The Lions office sees every club's uploaded match photos, the players
+   tagged in them, and the linked scorecards. Read-only — clubs own their
+   posts; the union just reviews. */
+function AdminSocial({ postsByClub = {}, clubs = [], toast }) {
+  const [filterClub, setFilterClub] = useState('all');
+
+  const playerName = (id) => {
+    const p = SAMPLE_PLAYERS.find((x) => x.id === id);
+    return p ? `${p.firstNames} ${p.surname}` : 'Player';
+  };
+
+  // Flatten every club's posts, tag with club label, newest first.
+  const allPosts = useMemo(() => {
+    const list = [];
+    Object.entries(postsByClub).forEach(([cid, posts]) => {
+      const club = clubs.find((c) => c.id === cid);
+      (posts || []).forEach((post) => {
+        list.push({ ...post, clubLabel: club?.name || cid });
+      });
+    });
+    return list.sort((a, b) => (b.postedAt || '').localeCompare(a.postedAt || ''));
+  }, [postsByClub, clubs]);
+
+  const filtered = filterClub === 'all' ? allPosts : allPosts.filter((p) => p.clubId === filterClub);
+
+  const clubsWithPosts = useMemo(() => {
+    const ids = new Set(Object.keys(postsByClub).filter((cid) => (postsByClub[cid] || []).length));
+    return clubs.filter((c) => ids.has(c.id));
+  }, [postsByClub, clubs]);
+
+  const totalPhotos = allPosts.reduce((s, p) => s + (p.photos || []).length, 0);
+  const totalScorecards = allPosts.filter((p) => p.scorecardUrl).length;
+
+  return (
+    <div>
+      <div className="page-head">
+        <div className="ph-left">
+          <div className="ph-crumb">Lions · Admin Console / Match Day</div>
+          <h1 className="ph-title">
+            Match Day <em>Gallery</em>
+          </h1>
+          <p className="ph-desc">
+            Every club's match-day photos, the players tagged in them, and the linked scorecards —
+            all in one feed for the Lions office.
+          </p>
+        </div>
+      </div>
+
+      {/* KPI strip */}
+      <div className="players-stats">
+        <div className="players-stat">
+          <div className="players-stat-l">Match posts</div>
+          <div className="players-stat-n">{allPosts.length}</div>
+        </div>
+        <div className="players-stat">
+          <div className="players-stat-l">Photos</div>
+          <div className="players-stat-n">{totalPhotos}</div>
+        </div>
+        <div className="players-stat">
+          <div className="players-stat-l">Clubs posting</div>
+          <div className="players-stat-n">{clubsWithPosts.length}</div>
+        </div>
+        <div className="players-stat">
+          <div className="players-stat-l">Scorecards</div>
+          <div className="players-stat-n">{totalScorecards}</div>
+        </div>
+      </div>
+
+      {/* Club filter */}
+      {clubsWithPosts.length > 1 && (
+        <div className="filter-row vendor-cat-row" style={{ marginTop: 14 }}>
+          <span className="vendor-cat-label">Club</span>
+          <button
+            className={`filter-pill ${filterClub === 'all' ? 'active' : ''}`}
+            onClick={() => setFilterClub('all')}
+          >
+            All <span style={{ opacity: 0.7, marginLeft: 4 }}>{allPosts.length}</span>
+          </button>
+          {clubsWithPosts.map((c) => (
+            <button
+              key={c.id}
+              className={`filter-pill ${filterClub === c.id ? 'active' : ''}`}
+              onClick={() => setFilterClub(c.id)}
+            >
+              {c.short || c.name}
+              <span style={{ opacity: 0.7, marginLeft: 4 }}>{(postsByClub[c.id] || []).length}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {filtered.length === 0 ? (
+        <div className="cv-empty" style={{ marginTop: 16 }}>
+          No match posts yet. When a club uploads photos from a game, they appear here with the
+          tagged players and scorecard.
+        </div>
+      ) : (
+        <div className="sc-feed" style={{ marginTop: 16 }}>
+          {filtered.map((post) => (
+            <AdminSocialCard key={post.id} post={post} playerName={playerName} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* Read-only match post card for the admin gallery. */
+function AdminSocialCard({ post, playerName }) {
+  return (
+    <div className="sc-card">
+      <div className="sc-card-head">
+        <div>
+          <div className="sc-card-club">{post.clubLabel}</div>
+          <div className="sc-card-title">{post.title}</div>
+          <div className="sc-card-meta">
+            {post.matchDate
+              ? new Date(post.matchDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+              : ''}
+            {post.chair && ` · 🎽 ${post.chair}`}
+            {(post.photos || []).length > 0 && ` · ${post.photos.length} photo${post.photos.length === 1 ? '' : 's'}`}
+          </div>
+        </div>
+        {post.scorecardUrl && (
+          <a className="sc-scorecard" href={post.scorecardUrl} target="_blank" rel="noopener noreferrer">
+            📊 Scorecard
+          </a>
+        )}
+      </div>
+
+      {post.caption && <div className="sc-caption">{post.caption}</div>}
+
+      <div className="sc-grid">
+        {(post.photos || []).map((ph) => (
+          <div key={ph.id} className="sc-photo">
+            <img src={ph.dataUrl} alt={post.title} loading="lazy" />
+            {(ph.taggedPlayerIds || []).length > 0 && (
+              <div className="sc-tags">
+                {ph.taggedPlayerIds.map((pid) => (
+                  <span key={pid} className="sc-tag">👤 {playerName(pid)}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export {
   AdminDashboard,
   AdminClubsList,
@@ -9543,6 +9695,7 @@ export {
   AdminVendors,
   AdminProjects,
   AdminFinancials,
+  AdminSocial,
   // Shared with the club-side facilities view:
   AssessmentEditor,
   AddAssetModal,

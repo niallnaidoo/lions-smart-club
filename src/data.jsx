@@ -2208,6 +2208,47 @@ function taskStatusTone(key) {
   return TASK_STATUSES.find((s) => s.key === key)?.tone || 'muted';
 }
 
+/* ─── MATCH DAY · social gallery ───
+   The chairman uploads match-day photos, tags players in each one, and
+   links the scorecard. The Lions office sees every club's uploads.
+   Photos are stored as data URLs (real uploads are downscaled client-side);
+   the seed uses tiny inline SVG placeholders so the admin gallery has
+   content out of the box without bloating the bundle. */
+function placeholderPhoto(label, hue) {
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400">` +
+    `<rect width="600" height="400" fill="hsl(${hue},35%,88%)"/>` +
+    `<rect width="600" height="400" fill="url(#g)" opacity="0.5"/>` +
+    `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">` +
+    `<stop offset="0" stop-color="hsl(${hue},45%,80%)"/>` +
+    `<stop offset="1" stop-color="hsl(${hue},40%,68%)"/></linearGradient></defs>` +
+    `<text x="300" y="195" font-family="sans-serif" font-size="46" text-anchor="middle" fill="hsl(${hue},45%,40%)">🏏</text>` +
+    `<text x="300" y="250" font-family="sans-serif" font-size="22" font-weight="700" text-anchor="middle" fill="hsl(${hue},40%,35%)">${label}</text>` +
+    `</svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+const SOCIAL_SEED = {
+  ukzn: [
+    {
+      id: 'post-ukzn-1',
+      clubId: 'ukzn',
+      title: 'vs Umlazi CC · Premier League',
+      opponent: 'Umlazi CC',
+      matchDate: '2026-08-02',
+      postedAt: '2026-08-02',
+      chair: 'Ashraf Ganie',
+      scorecardUrl: 'https://cricclubs.com/kzncu/scorecard/ukzn-umlazi-0208',
+      caption: 'Big home win to open the season — 6 wickets, Sanele 74*.',
+      photos: [
+        { id: 'ph-1', dataUrl: placeholderPhoto('Opening stand', 145), taggedPlayerIds: ['ply-003'] },
+        { id: 'ph-2', dataUrl: placeholderPhoto('Wicket celebration', 205), taggedPlayerIds: [] },
+        { id: 'ph-3', dataUrl: placeholderPhoto('Team huddle', 265), taggedPlayerIds: ['ply-003'] },
+      ],
+    },
+  ],
+};
+
 function vendorStatusTone(s) {
   return s === 'onboarded'
     ? 'teal'
@@ -2762,4 +2803,5 @@ export {
   projectStatusTone,
   projectTypeMeta,
   taskStatusTone,
+  SOCIAL_SEED,
 };

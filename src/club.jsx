@@ -50,6 +50,7 @@ import {
   CLUB_INCOME_GROUPS,
   CLUB_PRIMARY_INCOME_GROUPS,
   SUBSCRIPTION_DEFAULT_ZAR,
+  SAMPLE_PLAYERS,
 } from './data.jsx';
 import { AssessmentEditor, AddAssetModal, AssetCard, ConditionStars } from './admin.jsx';
 
@@ -3831,6 +3832,7 @@ export {
   ClubFacilitiesView,
   ClubVendorsView,
   ClubFinancialsView,
+  ClubSocialView,
 };
 
 /* ─── Club-side Facilities · manage venue from the chair's seat ─── */
@@ -5628,6 +5630,355 @@ function AddSponsorshipModal({ club, onSubmit, onCancel }) {
             <Btn tone="teal" icon={Icon.Check} onClick={submit} disabled={!canSubmit}>
               Log sponsorship
             </Btn>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── ClubSocialView · Match Day gallery ───
+   The chairman uploads match-day photos, tags players in each, and links
+   the scorecard. Uploads are downscaled client-side to keep them light.
+   Everything posted here is visible to the Lions office. */
+function ClubSocialView({ club, posts = [], onAddPost, onRemovePost, toast }) {
+  const [composing, setComposing] = useState(false);
+
+  const myPlayers = useMemo(
+    () => SAMPLE_PLAYERS.filter((p) => p.clubId === club.id),
+    [club.id]
+  );
+  const playerName = (id) => {
+    const p = myPlayers.find((x) => x.id === id);
+    return p ? `${p.firstNames} ${p.surname}` : 'Player';
+  };
+
+  const totalPhotos = posts.reduce((s, p) => s + (p.photos || []).length, 0);
+  const totalTags = posts.reduce(
+    (s, p) => s + (p.photos || []).reduce((ss, ph) => ss + (ph.taggedPlayerIds || []).length, 0),
+    0
+  );
+
+  return (
+    <div>
+      <div className="page-head">
+        <div className="ph-left">
+          <div className="ph-crumb">Club Portal · {club.name} / Match Day</div>
+          <h1 className="ph-title">
+            Match <em>Day</em>
+          </h1>
+          <p className="ph-desc">
+            Upload photos from the game, tag the players in each shot, and link the scorecard.
+            Everything you post here is shared with the Lions office.
+          </p>
+        </div>
+        <div className="ph-actions">
+          <Btn tone="teal" size="sm" icon={Icon.Plus} onClick={() => setComposing(true)}>
+            New match post
+          </Btn>
+        </div>
+      </div>
+
+      {/* KPI strip */}
+      <div className="players-stats">
+        <div className="players-stat">
+          <div className="players-stat-l">Match posts</div>
+          <div className="players-stat-n">{posts.length}</div>
+        </div>
+        <div className="players-stat">
+          <div className="players-stat-l">Photos</div>
+          <div className="players-stat-n">{totalPhotos}</div>
+        </div>
+        <div className="players-stat">
+          <div className="players-stat-l">Player tags</div>
+          <div className="players-stat-n">{totalTags}</div>
+        </div>
+        <div className="players-stat">
+          <div className="players-stat-l">Scorecards</div>
+          <div className="players-stat-n">{posts.filter((p) => p.scorecardUrl).length}</div>
+        </div>
+      </div>
+
+      {posts.length === 0 ? (
+        <div className="cf-empty" style={{ marginTop: 16 }}>
+          No match posts yet. Click <strong>New match post</strong> to upload photos from your
+          last game, tag your players, and drop in the scorecard link.
+        </div>
+      ) : (
+        <div className="sc-feed">
+          {posts.map((post) => (
+            <SocialPostCard
+              key={post.id}
+              post={post}
+              playerName={playerName}
+              onRemove={() => onRemovePost?.(post.id)}
+            />
+          ))}
+        </div>
+      )}
+
+      {composing && ReactDOM.createPortal(
+        <NewMatchPostModal
+          club={club}
+          players={myPlayers}
+          onSubmit={(post) => {
+            onAddPost?.(post);
+            setComposing(false);
+            toast?.('Match post shared with the Lions office');
+          }}
+          onCancel={() => setComposing(false)}
+        />,
+        document.body
+      )}
+    </div>
+  );
+}
+
+/* One match post card — shared between the club feed and the admin gallery.
+   `onRemove` is only passed on the club side; `clubLabel` only on admin. */
+function SocialPostCard({ post, playerName, onRemove, clubLabel }) {
+  return (
+    <div className="sc-card">
+      <div className="sc-card-head">
+        <div>
+          {clubLabel && <div className="sc-card-club">{clubLabel}</div>}
+          <div className="sc-card-title">{post.title}</div>
+          <div className="sc-card-meta">
+            {post.matchDate
+              ? new Date(post.matchDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+              : ''}
+            {post.chair && ` · 🎽 ${post.chair}`}
+            {(post.photos || []).length > 0 && ` · ${post.photos.length} photo${post.photos.length === 1 ? '' : 's'}`}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {post.scorecardUrl && (
+            <a className="sc-scorecard" href={post.scorecardUrl} target="_blank" rel="noopener noreferrer">
+              📊 Scorecard
+            </a>
+          )}
+          {onRemove && (
+            <button className="sc-remove" onClick={onRemove} title="Delete post">×</button>
+          )}
+        </div>
+      </div>
+
+      {post.caption && <div className="sc-caption">{post.caption}</div>}
+
+      <div className="sc-grid">
+        {(post.photos || []).map((ph) => (
+          <div key={ph.id} className="sc-photo">
+            <img src={ph.dataUrl} alt={post.title} loading="lazy" />
+            {(ph.taggedPlayerIds || []).length > 0 && (
+              <div className="sc-tags">
+                {ph.taggedPlayerIds.map((pid) => (
+                  <span key={pid} className="sc-tag">👤 {playerName(pid)}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── NewMatchPostModal · upload + tag + scorecard ─── */
+function NewMatchPostModal({ club, players, onSubmit, onCancel }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [title, setTitle] = useState('');
+  const [matchDate, setMatchDate] = useState(today);
+  const [scorecardUrl, setScorecardUrl] = useState('');
+  const [caption, setCaption] = useState('');
+  const [photos, setPhotos] = useState([]); // {id, dataUrl, taggedPlayerIds}
+  const [busy, setBusy] = useState(false);
+  const fileRef = useRef(null);
+
+  // Downscale each image to max 1000px wide and export as JPEG so uploaded
+  // phone photos don't balloon the in-memory state.
+  function downscale(file) {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          const max = 1000;
+          const scale = Math.min(1, max / img.width);
+          const w = Math.round(img.width * scale);
+          const h = Math.round(img.height * scale);
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', 0.82));
+        };
+        img.onerror = () => resolve(reader.result); // fall back to raw
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function onFiles(e) {
+    const files = [...(e.target.files || [])];
+    if (!files.length) return;
+    setBusy(true);
+    const added = [];
+    for (const f of files) {
+      if (!f.type.startsWith('image/')) continue;
+      const dataUrl = await downscale(f);
+      added.push({ id: 'ph-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6), dataUrl, taggedPlayerIds: [] });
+    }
+    setPhotos((prev) => [...prev, ...added]);
+    setBusy(false);
+    if (fileRef.current) fileRef.current.value = '';
+  }
+
+  function toggleTag(photoId, playerId) {
+    setPhotos((prev) =>
+      prev.map((ph) =>
+        ph.id === photoId
+          ? {
+              ...ph,
+              taggedPlayerIds: ph.taggedPlayerIds.includes(playerId)
+                ? ph.taggedPlayerIds.filter((x) => x !== playerId)
+                : [...ph.taggedPlayerIds, playerId],
+            }
+          : ph
+      )
+    );
+  }
+  function removePhoto(photoId) {
+    setPhotos((prev) => prev.filter((ph) => ph.id !== photoId));
+  }
+
+  const canSubmit = title.trim() && photos.length > 0;
+
+  function submit() {
+    if (!canSubmit) return;
+    onSubmit({
+      id: 'post-' + Date.now(),
+      clubId: club.id,
+      title: title.trim(),
+      matchDate: matchDate || null,
+      postedAt: new Date().toISOString().slice(0, 10),
+      chair: club.chair,
+      scorecardUrl: scorecardUrl.trim(),
+      caption: caption.trim(),
+      photos,
+    });
+  }
+
+  return (
+    <div className="fix-confirm" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div className="fix-confirm-box jobmodal-box" style={{ maxWidth: 680 }}>
+        <div className="fac-jobmodal-head">
+          <div>
+            <div className="fac-detail-eyebrow">Match Day</div>
+            <div className="fac-jobmodal-title">New match post</div>
+          </div>
+          <button className="fac-detail-close" onClick={onCancel}><Icon.X /></button>
+        </div>
+
+        <div className="fac-jobmodal-body">
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">The match</div>
+            <div className="field-grid-2">
+              <div>
+                <label className="field-label">Match title <span className="req">*</span></label>
+                <input
+                  className="field-input"
+                  placeholder="e.g. vs Umlazi CC · Premier League"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="field-label">Match date</label>
+                <input className="field-input" type="date" value={matchDate} onChange={(e) => setMatchDate(e.target.value)} />
+              </div>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <label className="field-label">Scorecard link</label>
+              <input
+                className="field-input"
+                placeholder="Paste the scorecard URL (e.g. cricclubs / play-cricket)"
+                value={scorecardUrl}
+                onChange={(e) => setScorecardUrl(e.target.value)}
+              />
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <label className="field-label">Caption</label>
+              <input
+                className="field-input"
+                placeholder="A line about the game…"
+                value={caption}
+                onChange={(e) => setCaption(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="jobmodal-step">
+            <div className="jobmodal-step-eyebrow">Photos {photos.length > 0 && `· ${photos.length}`}</div>
+            <label className="sc-upload">
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={onFiles}
+                style={{ display: 'none' }}
+              />
+              <span className="sc-upload-ic">📷</span>
+              <span className="sc-upload-t">{busy ? 'Processing photos…' : 'Tap to upload match photos'}</span>
+              <span className="sc-upload-s">JPG / PNG · multiple at once</span>
+            </label>
+
+            {photos.length > 0 && (
+              <div className="sc-edit-grid">
+                {photos.map((ph) => (
+                  <div key={ph.id} className="sc-edit-photo">
+                    <div className="sc-edit-imgwrap">
+                      <img src={ph.dataUrl} alt="" />
+                      <button className="sc-edit-remove" onClick={() => removePhoto(ph.id)} title="Remove">×</button>
+                    </div>
+                    <div className="sc-edit-tagline">
+                      Tag players {ph.taggedPlayerIds.length > 0 && `(${ph.taggedPlayerIds.length})`}
+                    </div>
+                    <div className="sc-edit-tags">
+                      {players.length === 0 && (
+                        <span style={{ fontSize: 11, color: 'var(--muted)' }}>Register players first to tag them.</span>
+                      )}
+                      {players.map((p) => {
+                        const on = ph.taggedPlayerIds.includes(p.id);
+                        return (
+                          <button
+                            key={p.id}
+                            className={`sc-tag-chip ${on ? 'on' : ''}`}
+                            onClick={() => toggleTag(ph.id, p.id)}
+                          >
+                            {on ? '✓ ' : ''}{p.firstNames} {p.surname}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="jobmodal-footer">
+          <div className="jobmodal-footer-summary">
+            <strong>{photos.length}</strong> photo{photos.length === 1 ? '' : 's'} ·{' '}
+            <strong>{photos.reduce((s, ph) => s + ph.taggedPlayerIds.length, 0)}</strong> tags
+            {scorecardUrl.trim() && ' · scorecard linked'}
+          </div>
+          <div className="jobmodal-footer-actions">
+            <Btn tone="outline" onClick={onCancel}>Cancel</Btn>
+            <Btn tone="teal" icon={Icon.Check} onClick={submit} disabled={!canSubmit}>Share post</Btn>
           </div>
         </div>
       </div>
